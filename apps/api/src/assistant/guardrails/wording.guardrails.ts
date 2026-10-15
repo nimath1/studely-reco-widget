@@ -1,4 +1,4 @@
-import type { AssistantRecommendation, AssistantReply } from '@learnup/types'
+import type { AssistantRecommendation, AssistantReply } from '@studely/types'
 
 /** Mention de source affichée sous les recommandations (RG-IA-01). */
 export const SOURCE_MENTION =

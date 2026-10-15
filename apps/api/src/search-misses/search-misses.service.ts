@@ -6,7 +6,7 @@ import type {
   SearchMissOutcome,
   SearchMissPage,
   SearchMissSource
-} from '@learnup/types'
+} from '@studely/types'
 import { DirectusItemsClient, type DirectusFilter } from '../directus/directus.items.client'
 import { scrubPersonalData } from '../common/utils/pii.util'
 import type { ListSearchMissesDto, SearchMissRangeDto } from './search-misses.dto'

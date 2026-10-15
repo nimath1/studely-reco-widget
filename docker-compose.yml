@@ -180,8 +180,6 @@ services:
       API_PORT: 3001
       CORS_ORIGIN: ${CORS_ORIGIN}
       ADMIN_API_KEY: ${ADMIN_API_KEY}
-      DIGIFORMA_API_URL: ${DIGIFORMA_API_URL}
-      DIGIFORMA_API_KEY: ${DIGIFORMA_API_KEY}
       SEARCH_MISS_RETENTION_DAYS: ${SEARCH_MISS_RETENTION_DAYS:-180}
       EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER:-hashing}
       EMBEDDINGS_API_URL: ${EMBEDDINGS_API_URL:-}
@@ -192,12 +190,6 @@ services:
       DIRECTUS_INTERNAL_URL: http://directus:8055
       DIRECTUS_TOKEN: ${DIRECTUS_TOKEN}
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN}
-      HUBSPOT_PORTAL_ID: ${HUBSPOT_PORTAL_ID}
-      HUBSPOT_FORM_NEWSLETTER: ${HUBSPOT_FORM_NEWSLETTER}
-      HUBSPOT_FORM_DEMANDE: ${HUBSPOT_FORM_DEMANDE}
-      HUBSPOT_FORM_CANDIDATURE: ${HUBSPOT_FORM_CANDIDATURE}
-      HUBSPOT_FORM_CONSEILLER: ${HUBSPOT_FORM_CONSEILLER}
-      HUBSPOT_FORMS_BASE_URL: ${HUBSPOT_FORMS_BASE_URL:-https://api.hsforms.com}
     depends_on:
       directus:
         condition: service_healthy
@@ -207,25 +199,6 @@ services:
         condition: service_healthy
     ports:
       - '3001:3001'
-
-  front:
-    build:
-      context: .
-      dockerfile: apps/front/Dockerfile
-    restart: unless-stopped
-    environment:
-      NODE_ENV: production
-      NUXT_API_BASE: http://api:3001
-      NUXT_PUBLIC_API_BASE: ${NUXT_PUBLIC_API_BASE}
-      NUXT_INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN}
-      NUXT_CACHE_PURGE_SECRET: ${NUXT_CACHE_PURGE_SECRET:-}
-    ports:
-      - '3000:3000'
-    depends_on:
-      api:
-        condition: service_healthy
-      directus:
-        condition: service_healthy
 
 volumes:
   pgdata:

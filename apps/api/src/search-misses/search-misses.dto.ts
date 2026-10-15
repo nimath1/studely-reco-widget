@@ -1,7 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger'
 import { Transform } from 'class-transformer'
 import { IsIn, IsInt, IsISO8601, IsOptional, Matches, Max, Min } from 'class-validator'
-import type { SearchMissOutcome, SearchMissSource } from '@learnup/types'
+import type { SearchMissOutcome, SearchMissSource } from '@studely/types'
 import { toOptionalTrimmed, toPositiveInt } from '../common/utils/dto-transforms.util'
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/

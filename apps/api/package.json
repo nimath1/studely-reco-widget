@@ -1,5 +1,5 @@
 {
-  "name": "@learnup/api",
+  "name": "@studely/api",
   "version": "0.0.1",
   "private": true,
   "scripts": {
@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@etalab/decoupage-administratif": "^6.0.0",
-    "@learnup/types": "workspace:*",
+    "@studely/types": "workspace:*",
     "@nest-lab/throttler-storage-redis": "^1.2.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.4",

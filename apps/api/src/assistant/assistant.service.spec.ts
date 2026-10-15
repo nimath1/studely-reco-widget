@@ -1,5 +1,5 @@
 import { ServiceUnavailableException } from '@nestjs/common'
-import type { CourseListItem } from '@learnup/types'
+import type { CourseListItem } from '@studely/types'
 import { AssistantService } from './assistant.service'
 import type { AssistantModelClient } from './assistant.client'
 import type { CatalogRow, CatalogService } from '../catalog/catalog.service'

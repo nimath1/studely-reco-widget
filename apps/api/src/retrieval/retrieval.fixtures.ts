@@ -1,4 +1,4 @@
-import type { CourseListItem } from '@learnup/types'
+import type { CourseListItem } from '@studely/types'
 import { normalizeText } from '../common/utils/text.util'
 import type { CatalogIndexEntry } from './catalog-index.service'
 

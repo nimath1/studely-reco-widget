@@ -1,5 +1,5 @@
 {
-  "name": "learnup-academy",
+  "name": "studely-reco",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -10,15 +10,13 @@
   "scripts": {
     "prepare": "husky",
     "dev": "turbo run dev",
-    "dev:front": "pnpm --filter @learnup/front dev",
-    "dev:api": "pnpm --filter @learnup/api dev",
-    "dev:api:debug": "pnpm --filter @learnup/api dev:debug",
+    "dev:api": "pnpm --filter @studely/api dev",
+    "dev:api:debug": "pnpm --filter @studely/api dev:debug",
     "build": "turbo run build",
     "lint": "turbo run lint && eslint \"directus/**/*.mjs\"",
-    "format": "prettier --write \"**/*.{ts,vue,js,json,md,yml,yaml}\"",
+    "format": "prettier --write \"**/*.{ts,js,json,md,yml,yaml}\"",
     "test": "turbo run test -- --passWithNoTests",
     "test:coverage": "turbo run test:coverage -- --passWithNoTests",
-    "test:e2e": "turbo run test:e2e",
     "directus:build": "node --env-file=.env directus/schema/build.mjs",
     "directus:snapshot": "docker compose exec -T directus npx directus schema snapshot /directus/uploads/snapshot.yaml --yes && docker compose cp directus:/directus/uploads/snapshot.yaml directus/schema/snapshot.yaml",
     "seed": "node --env-file=.env directus/seed/seed.mjs",
@@ -29,15 +27,10 @@
     "agents:status": "node scripts/agents.mjs status"
   },
   "lint-staged": {
-    "*.{ts,vue,js,mjs,json,md,yml,yaml}": "prettier --write",
-    "*.{ts,vue}": "eslint --fix"
+    "*.{ts,js,mjs,json,md,yml,yaml}": "prettier --write",
+    "*.ts": "eslint --fix"
   },
   "pnpm": {
-    "peerDependencyRules": {
-      "allowedVersions": {
-        "@vee-validate/zod@zod": "^4.0.0"
-      }
-    },
     "onlyBuiltDependencies": [
       "@parcel/watcher",
       "@swc/core",
@@ -67,13 +60,12 @@
     "@typescript-eslint/parser": "^8.18.0",
     "eslint": "^9.17.0",
     "eslint-config-prettier": "^9.1.0",
-    "eslint-plugin-vue": "^9.32.0",
+    "globals": "^17.13.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.4.1",
     "prettier": "^3.4.2",
     "turbo": "^2.3.3",
     "typescript": "^5.7.2",
-    "typescript-eslint": "^8.18.0",
-    "vue-eslint-parser": "^9.4.3"
+    "typescript-eslint": "^8.18.0"
   }
 }

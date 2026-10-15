@@ -7,10 +7,10 @@ FROM base AS build
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json ./
 COPY apps/api/package.json apps/api/
 COPY packages/types/package.json packages/types/package.json
-RUN pnpm install --filter @learnup/api... --frozen-lockfile
+RUN pnpm install --filter @studely/api... --frozen-lockfile
 COPY packages/types packages/types
 COPY apps/api apps/api
-RUN pnpm --filter @learnup/api build
+RUN pnpm --filter @studely/api build
 
 FROM base AS runtime
 ENV NODE_ENV=production

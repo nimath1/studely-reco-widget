@@ -1,4 +1,4 @@
-import type { RechercheSansResultat, SearchMissAggregate } from '@learnup/types'
+import type { RechercheSansResultat, SearchMissAggregate } from '@studely/types'
 
 // UTF-8 avec BOM + « ; » : ouverture directe dans Excel (locale FR) sans
 // assistant d'import ni caractères accentués cassés.

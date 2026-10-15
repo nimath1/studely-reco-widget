@@ -5,7 +5,7 @@ import type {
   AssistantRecommendation,
   AssistantReply,
   AssistantRequest
-} from '@learnup/types'
+} from '@studely/types'
 import { CatalogService, type CatalogRow } from '../catalog/catalog.service'
 import { AssistantModelClient } from './assistant.client'
 

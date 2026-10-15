@@ -1,4 +1,4 @@
-import type { RechercheSansResultat, SearchMissOutcome } from '@learnup/types'
+import type { RechercheSansResultat, SearchMissOutcome } from '@studely/types'
 import { aggregateSearchMisses, searchMissesToCsv } from './search-misses.report'
 
 function row(overrides: Partial<RechercheSansResultat> = {}): RechercheSansResultat {

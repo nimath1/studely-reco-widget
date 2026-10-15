@@ -1,5 +1,5 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common'
-import type { AssistantReply, AssistantRequest, CourseListItem } from '@learnup/types'
+import type { AssistantReply, AssistantRequest, CourseListItem } from '@studely/types'
 import { CatalogService, type CatalogRow } from '../../catalog/catalog.service'
 import { stemToken, tokenize } from '../../common/utils/text.util'
 import { RetrievalService, analyzeQuery, type QueryTerm } from '../../retrieval/retrieval.service'

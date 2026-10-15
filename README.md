@@ -1,58 +1,35 @@
-# EAGLE
+# Studely Reco
 
-[![CI](https://github.com/jgnacadja/eagle/actions/workflows/ci.yml/badge.svg)](https://github.com/jgnacadja/eagle/actions/workflows/ci.yml)
+Monorepo **pnpm + Turborepo** du widget de recommandation de parcours
+Studely : widget front intégré à Webflow et API de recommandation.
 
-Monorepo **pnpm + Turborepo** du site LEARN UP ACADEMY — API **NestJS**,
-front **Nuxt 4** (SSR), back-office **Directus**, base **PostgreSQL**.
-
-> Ce dépôt est au stade socle technique (Sprint 1, Lot 2). La logique métier
-> (gabarits, collections Directus, contenu) arrive au fil des tickets
-> suivants — voir la liste ClickUp du sprint pour l'état d'avancement.
+> Socle repris d'un projet existant (API NestJS, moteur assistant/retrieval,
+> outillage). Le moteur lit encore le catalogue via Directus et son prompt
+> cible l'ancien catalogue : son adaptation au catalogue Studely reste à
+> faire (cahier des charges, point Q1).
 
 ---
 
 ## Lancement rapide
 
+Node 22+ requis.
+
 ```bash
-git clone https://github.com/jgnacadja/eagle.git
-cd eagle
 cp .env.example .env
 pnpm install
 pnpm dev
 ```
 
-| App          | URL                   | Rôle                                    |
-| ------------ | --------------------- | --------------------------------------- |
-| `apps/api`   | http://localhost:3001 | NestJS — squelette (`/health`, `/docs`) |
-| `apps/front` | http://localhost:3000 | Nuxt 4 SSR                              |
+| App           | URL                   | Rôle                                                |
+| ------------- | --------------------- | --------------------------------------------------- |
+| `apps/widget` | http://localhost:5173 | Widget (page de dev reprenant le squelette Webflow) |
+| `apps/api`    | http://localhost:3001 | API NestJS (`/health`, `/docs`)                     |
 
-`pnpm dev` construit d'abord les packages partagés (`@learnup/ui`,
-`@learnup/types`) avant de démarrer les apps — aucune étape manuelle
-supplémentaire n'est nécessaire.
+Stack locale complète (Postgres, Redis, MinIO, Directus, API) :
 
-> **Avec Docker** — stack locale complète :
->
-> ```bash
-> docker compose up --build
-> # une fois directus healthy (docker compose ps) :
-> #   restaurer le schéma + rôles → voir directus/README.md
-> pnpm seed
-> ```
-
-| Service    | URL                             | Rôle                                     |
-| ---------- | ------------------------------- | ---------------------------------------- |
-| `postgres` | —                               | PostgreSQL 16, healthcheck               |
-| `redis`    | —                               | Cache Directus                           |
-| `minio`    | http://localhost:9001 (console) | Stockage média S3-compatible             |
-| `directus` | http://localhost:8055           | Back-office (admin bootstrap via `.env`) |
-| `api`      | http://localhost:3001           | NestJS                                   |
-| `front`    | http://localhost:3000           | Nuxt 4                                   |
-
-`docker compose up` démarre toute la stack en une seule commande — chaque
-service attend que ses dépendances soient healthy (`depends_on` +
-healthchecks) avant de démarrer.
-
-Installation attendue en moins de 15 minutes pour un nouveau développeur.
+```bash
+docker compose up --build
+```
 
 ---
 
@@ -60,44 +37,26 @@ Installation attendue en moins de 15 minutes pour un nouveau développeur.
 
 ```
 apps/
-  api/            NestJS — squelette (health check, config). Pas de logique
-                  métier ce sprint : Directus porte le back-office en S1.
-  front/          Nuxt 4 SSR — structure app/ (app.vue, pages/, components/)
-
+  widget/         Bundle reco.js (Vite, IIFE, sans framework) — voir son README
+  api/            NestJS — assistant (LLM), retrieval (BM25 + embeddings),
+                  catalogue, rate limiting Redis
 packages/
-  ui/             Design system token-driven (@learnup/ui) — voir son README :
-                  les valeurs sont provisoires tant que la DA n'est pas validée
-  types/          Types TypeScript partagés (@learnup/types)
-
-directus/
-  schema/         Schéma Directus versionné : collections, rôles/permissions,
-                  snapshot + script de build. Procédure de restauration
-                  complète dans directus/README.md.
-  seed/           Script de seed idempotent (`pnpm seed`) — données de démo
-                  (3 centres, 11 familles, 3 articles). Saute proprement les
-                  collections pas dans le périmètre de ST-11 (voir son README).
+  types/          Types TypeScript partagés (@studely/types)
+directus/         Schéma et seed Directus (source actuelle du catalogue)
 ```
-
-### Convention UI — zéro valeur de style en dur
-
-Toute couleur, espacement, rayon, ombre ou police utilisé dans `apps/front`
-doit venir de `@learnup/ui` (tokens TS ou `tokens.css`). C'est une règle de
-revue bloquante : elle permet de re-skinner par simple mise à jour des tokens
-une fois la direction artistique validée par LEARN UP PRIME.
 
 ---
 
 ## Scripts (racine, via Turborepo)
 
-| Script               | Effet                                                     |
-| -------------------- | --------------------------------------------------------- |
-| `pnpm dev`           | Démarre api + front en watch (build des packages d'abord) |
-| `pnpm build`         | Build tous les apps/packages                              |
-| `pnpm lint`          | ESLint sur tout le monorepo                               |
-| `pnpm format`        | Prettier `--write` sur tout le repo                       |
-| `pnpm test`          | Tests unitaires Vitest                                    |
-| `pnpm test:coverage` | Tests unitaires + couverture v8                           |
-| `pnpm test:e2e`      | Tests Playwright E2E (front)                              |
+| Script               | Effet                               |
+| -------------------- | ----------------------------------- |
+| `pnpm dev`           | Démarre widget + api en watch       |
+| `pnpm build`         | Build tous les apps/packages        |
+| `pnpm lint`          | ESLint sur tout le monorepo         |
+| `pnpm format`        | Prettier `--write` sur tout le repo |
+| `pnpm test`          | Tests unitaires Vitest              |
+| `pnpm test:coverage` | Tests unitaires + couverture v8     |
 
 ---
 
@@ -105,28 +64,15 @@ une fois la direction artistique validée par LEARN UP PRIME.
 
 - **Commits** — [Conventional Commits](https://www.conventionalcommits.org/),
   vérifiés localement par commitlint + husky (`commit-msg`).
-- **Branches** — `develop` (intégration) et `main` (production), toutes deux
-  protégées. Branches de travail : `{feat,fix,chore}/{ticket-id}-{slug}`.
-- **PR/MR** — le template `.github/pull_request_template.md` s'applique
+- **Branches** — `{feat,fix,chore}/{ticket-id}-{slug}`, base `main`.
+- **PR** — le template `.github/pull_request_template.md` s'applique
   automatiquement. `CODEOWNERS` route la revue.
 - **TypeScript strict** partout (`tsconfig.base.json`).
 
 ---
 
-## CI/CD
+## CI
 
-| Déclencheur            | `unit-and-lint` | `sonarqube` |   `e2e`   |
-| ---------------------- | :-------------: | :---------: | :-------: |
-| Push sur toute branche |       ✅        |      —      |     —     |
-| PR → `main`            |       ✅        |      —      |     —     |
-| Push sur `main`        |       ✅        |     ✅      | désactivé |
-
-- **`unit-and-lint`** — lint ESLint + tests Vitest. Rapide, tourne sur toutes
-  les branches.
-- **`sonarqube`** — après un push sur `main`, génère la couverture Vitest,
-  lance l'analyse et échoue si le quality gate est rouge. Il requiert le secret
-  `SONAR_TOKEN` et la variable de dépôt `SONAR_HOST_URL`.
-- **`e2e`** — scaffold actuellement désactivé, dans l'attente de la reprise des
-  tests end-to-end.
-
-> **Prérequis Playwright** : `pnpm --filter @learnup/front exec playwright install chromium`
+- **Lint + tests + build** sur chaque push et PR (`.github/workflows/ci.yml`).
+- **SonarQube** après un push sur `main` : requiert le secret `SONAR_TOKEN`
+  et la variable de dépôt `SONAR_HOST_URL`.

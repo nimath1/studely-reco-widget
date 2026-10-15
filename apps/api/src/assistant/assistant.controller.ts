@@ -1,6 +1,6 @@
 import { Body, Controller, Post } from '@nestjs/common'
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger'
-import type { AssistantReply } from '@learnup/types'
+import type { AssistantReply } from '@studely/types'
 import { AssistantRequestDto } from './assistant.dto'
 import { DegradedModeService } from './degraded-mode.service'
 

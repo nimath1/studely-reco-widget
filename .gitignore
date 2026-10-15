@@ -5,9 +5,6 @@ node_modules
 # Build output
 dist
 build
-.output
-.nuxt
-.nuxtrc
 .turbo
 
 # Generated code
@@ -63,6 +60,5 @@ directus/schema/.backups
 /.vscode/
 /apps/api/AGENTS.md
 /apps/api/skills-lock.json
-/apps/front/AGENTS.md
 /.husky/pre-push
 /scripts/agents.mjs

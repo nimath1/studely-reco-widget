@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import type { CentreListItem } from '@learnup/types'
+import type { CentreListItem } from '@studely/types'
 import type { FormationDirectusPayload } from '../digiforma/digiforma.mapper'
 
 export interface FamilyApplyResult {

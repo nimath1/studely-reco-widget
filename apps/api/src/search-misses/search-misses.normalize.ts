@@ -1,4 +1,4 @@
-import type { SearchMissContext } from '@learnup/types'
+import type { SearchMissContext } from '@studely/types'
 import { scrubPersonalData } from '../common/utils/pii.util'
 
 // « lat,lng » (autour de moi) ou « lat,lng|Commune » (suggestion de
