@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import type { AssistantMode, AssistantReply, AssistantRequest } from '@learnup/types'
+import type { AssistantMode, AssistantReply, AssistantRequest } from '@studely/types'
 import { SearchMissesService } from '../search-misses/search-misses.service'
 import { AssistantService } from './assistant.service'
 import { FallbackRecommendationService, needText } from './fallback/fallback-recommendation.service'

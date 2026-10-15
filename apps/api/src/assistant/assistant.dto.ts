@@ -9,7 +9,7 @@ import {
   MaxLength,
   ValidateNested
 } from 'class-validator'
-import type { AssistantMessage, AssistantRequest, AssistantSource } from '@learnup/types'
+import type { AssistantMessage, AssistantRequest, AssistantSource } from '@studely/types'
 
 const ASSISTANT_SOURCES: AssistantSource[] = [
   'home',

@@ -1,27 +1,8 @@
 import js from '@eslint/js'
 import { defineConfig } from 'eslint/config'
 import tseslint from 'typescript-eslint'
-import vue from 'eslint-plugin-vue'
 import prettier from 'eslint-config-prettier'
-
-const nodeGlobals = {
-  process: 'readonly',
-  console: 'readonly',
-  Buffer: 'readonly',
-  __dirname: 'readonly',
-  __filename: 'readonly',
-  module: 'readonly',
-  require: 'readonly',
-  global: 'readonly',
-  setTimeout: 'readonly',
-  clearTimeout: 'readonly',
-  setInterval: 'readonly',
-  clearInterval: 'readonly',
-  setImmediate: 'readonly',
-  clearImmediate: 'readonly',
-  URL: 'readonly',
-  URLSearchParams: 'readonly'
-}
+import globals from 'globals'
 
 const vitestGlobals = {
   vi: 'readonly',
@@ -35,147 +16,37 @@ const vitestGlobals = {
   afterAll: 'readonly'
 }
 
-const nuxtGlobals = {
-  defineNuxtPlugin: 'readonly',
-  defineNuxtConfig: 'readonly',
-  defineNuxtRouteMiddleware: 'readonly',
-  definePageMeta: 'readonly',
-  navigateTo: 'readonly',
-  useRuntimeConfig: 'readonly',
-  useNuxtApp: 'readonly',
-  useFetch: 'readonly',
-  useAsyncData: 'readonly',
-  useCookie: 'readonly',
-  useRoute: 'readonly',
-  useRouter: 'readonly',
-  useHead: 'readonly',
-  useSeoMeta: 'readonly',
-  useRequestURL: 'readonly',
-  useState: 'readonly',
-  useRequestEvent: 'readonly',
-  setResponseStatus: 'readonly',
-  createError: 'readonly',
-  clearError: 'readonly',
-  showError: 'readonly',
-  $fetch: 'readonly',
-  // Composables/utils custom auto-importés depuis apps/front/app/
-  useDirectusClient: 'readonly',
-  useContentSeo: 'readonly',
-  useDirectusItemBySlug: 'readonly',
-  useDirectusList: 'readonly',
-  useCentres: 'readonly',
-  useCentresTotal: 'readonly',
-  useCentreDepartments: 'readonly',
-  useLeadSubmit: 'readonly',
-  sanitizeHtml: 'readonly',
-  logServerError: 'readonly',
-  logClientError: 'readonly',
-  internalSsrHeaders: 'readonly'
-}
-
-// Auto-imports Nitro (apps/front/server/) — injectés par unimport au build,
-// pas d'import explicite dans les handlers.
-const nitroGlobals = {
-  defineEventHandler: 'readonly',
-  defineCachedEventHandler: 'readonly',
-  defineSitemapEventHandler: 'readonly',
-  getHeader: 'readonly',
-  readBody: 'readonly',
-  useStorage: 'readonly'
-}
-
-const browserGlobals = {
-  window: 'readonly',
-  document: 'readonly',
-  Document: 'readonly',
-  Window: 'readonly',
-  HTMLElement: 'readonly'
-}
-
-const vueGlobals = {
-  ref: 'readonly',
-  reactive: 'readonly',
-  computed: 'readonly',
-  watch: 'readonly',
-  watchEffect: 'readonly',
-  onMounted: 'readonly',
-  onUnmounted: 'readonly',
-  onBeforeMount: 'readonly',
-  onBeforeUnmount: 'readonly',
-  onUpdated: 'readonly',
-  onScopeDispose: 'readonly',
-  defineComponent: 'readonly',
-  defineProps: 'readonly',
-  defineEmits: 'readonly',
-  useId: 'readonly',
-  defineExpose: 'readonly',
-  withDefaults: 'readonly'
-}
-
 export default defineConfig(
   {
     ignores: [
       '**/dist/**',
-      '**/.nuxt/**',
-      '**/.output/**',
       '**/node_modules/**',
       '**/coverage/**',
       '**/playwright-report/**',
       '**/test-results/**',
+      // Code Vue/Nuxt de l'ancien front, gardé en lecture seule (voir son README).
+      'reference/**',
       'apps/api/prisma/generated/**'
     ]
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
-  ...vue.configs['flat/recommended'],
-  {
-    files: ['**/*.vue'],
-    languageOptions: {
-      parserOptions: {
-        parser: tseslint.parser
-      }
-    }
-  },
   {
     files: ['apps/api/**/*.ts'],
     languageOptions: {
-      globals: nodeGlobals
+      globals: globals.node
     }
   },
   {
-    files: [
-      'apps/api/**/*.spec.ts',
-      'apps/front/**/*.spec.ts',
-      'apps/front/test/**/*.ts',
-      'apps/presence/**/*.spec.ts'
-    ],
+    files: ['apps/api/**/*.spec.ts', 'apps/widget/**/*.spec.ts'],
     languageOptions: {
       globals: vitestGlobals
-    },
-    rules: {
-      'vue/one-component-per-file': 'off'
     }
   },
   {
-    files: ['apps/presence/**/*.ts'],
+    files: ['apps/widget/**/*.ts'],
     languageOptions: {
-      globals: browserGlobals
-    }
-  },
-  {
-    files: ['apps/front/**/*.ts', 'apps/front/**/*.vue'],
-    languageOptions: {
-      globals: {
-        ...nodeGlobals,
-        ...nuxtGlobals,
-        ...vueGlobals
-      }
-    }
-  },
-  {
-    files: ['apps/front/server/**/*.ts'],
-    languageOptions: {
-      globals: nitroGlobals
+      globals: globals.browser
     }
   },
   {
@@ -190,26 +61,37 @@ export default defineConfig(
       '@typescript-eslint/no-unused-vars': [
         'warn',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }
-      ],
-      'vue/multi-word-component-names': 'off',
-      // v-html autorisé uniquement après sanitizeHtml() (convention AGENTS,
-      // règle de revue bloquante) — la règle eslint ne voit pas le sanitiser.
-      'vue/no-v-html': 'off',
-      // Convention maison : template en tête de SFC (autofix `eslint --fix`).
-      'vue/block-order': ['error', { order: ['template', 'script', 'style'] }]
+      ]
     }
   },
   {
     files: ['directus/**/*.mjs'],
     languageOptions: {
-      globals: {
-        ...nodeGlobals,
-        fetch: 'readonly'
-      }
+      globals: globals.node
     }
   },
   {
-    files: ['directus/logger.mjs', 'apps/front/app/utils/logger.ts'],
+    // Données de l'API injectées via textContent uniquement (cahier §7.4).
+    files: ['apps/widget/src/**/*.ts'],
+    ignores: ['apps/widget/src/**/*.spec.ts'],
+    rules: {
+      'no-restricted-properties': [
+        'error',
+        ...['innerHTML', 'outerHTML', 'insertAdjacentHTML'].map((property) => ({
+          property,
+          message: 'Utiliser textContent : aucune donnée API ne doit être interprétée en HTML.'
+        }))
+      ]
+    }
+  },
+  {
+    files: ['apps/widget/scripts/**/*.mjs'],
+    languageOptions: {
+      globals: globals.node
+    }
+  },
+  {
+    files: ['directus/logger.mjs', 'apps/widget/src/logger.ts', 'apps/widget/scripts/**/*.mjs'],
     rules: {
       'no-console': 'off'
     }

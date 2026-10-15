@@ -1,6 +1,6 @@
 import { Controller, Get, Header, Post, Query, UseGuards } from '@nestjs/common'
 import { ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger'
-import type { SearchMissAggregate, SearchMissPage } from '@learnup/types'
+import type { SearchMissAggregate, SearchMissPage } from '@studely/types'
 import { AdminApiKeyGuard } from '../common/guards/admin-api-key.guard'
 import { ListSearchMissesDto, SearchMissRangeDto } from './search-misses.dto'
 import { SearchMissesService, type PurgeResult } from './search-misses.service'

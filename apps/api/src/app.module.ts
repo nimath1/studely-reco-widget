@@ -12,11 +12,7 @@ import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis'
 import Redis, { RedisOptions } from 'ioredis'
 import { timingSafeEqual } from 'node:crypto'
 import { HealthController } from './health/health.controller'
-import { DigiformaModule } from './digiforma/digiforma.module'
-import { SyncModule } from './sync/sync.module'
 import { CatalogModule } from './catalog/catalog.module'
-import { CentresModule } from './centres/centres.module'
-import { LeadsModule } from './leads/leads.module'
 import { CacheModule } from './common/cache/cache.module'
 import { DirectusModule } from './directus/directus.module'
 import { AssistantModule } from './assistant/assistant.module'
@@ -51,12 +47,6 @@ function isDirectusRoute(context: ExecutionContext): boolean {
 // Les checks de santé (uptime, LB) ne consomment pas le quota public.
 function isHealthRoute(context: ExecutionContext): boolean {
   return routeStartsWith(context, '/health')
-}
-
-// Les formulaires leads ont leur propre quota, plus strict : le endpoint
-// relaie vers HubSpot — 100 soumissions/min pousseraient du spam dans le CRM.
-function isLeadsRoute(context: ExecutionContext): boolean {
-  return routeStartsWith(context, '/leads')
 }
 
 // La recherche assistée déclenche un appel LLM par message : quota dédié,
@@ -186,7 +176,6 @@ export function buildThrottlers(
         isAdminRoute(context) ||
         isDirectusRoute(context) ||
         isHealthRoute(context) ||
-        isLeadsRoute(context) ||
         isAssistantRoute(context) ||
         isInternalSsr(context, internalSsrToken),
       getTracker: ipTracker
@@ -203,13 +192,6 @@ export function buildThrottlers(
       ttl: 60_000,
       limit: 600,
       skipIf: (context) => !isDirectusRoute(context) || isInternalSsr(context, internalSsrToken),
-      getTracker: ipTracker
-    },
-    {
-      name: 'leads',
-      ttl: 60_000,
-      limit: 10,
-      skipIf: (context) => !isLeadsRoute(context),
       getTracker: ipTracker
     },
     {
@@ -241,12 +223,8 @@ export function buildThrottlers(
       }
     }),
     CacheModule,
-    DigiformaModule,
-    SyncModule,
     CatalogModule,
-    CentresModule,
     DirectusModule,
-    LeadsModule,
     AssistantModule,
     SearchMissesModule,
     RetrievalModule

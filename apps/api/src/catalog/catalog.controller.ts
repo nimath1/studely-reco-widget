@@ -7,7 +7,7 @@ import {
   ApiSecurity,
   ApiTags
 } from '@nestjs/swagger'
-import type { Course, CoursePage, FamilyWithCount } from '@learnup/types'
+import type { Course, CoursePage, FamilyWithCount } from '@studely/types'
 import { AdminApiKeyGuard } from '../common/guards/admin-api-key.guard'
 import { CatalogService } from './catalog.service'
 import { FamilyCourseParams, ListCoursesDto } from './catalog.dto'

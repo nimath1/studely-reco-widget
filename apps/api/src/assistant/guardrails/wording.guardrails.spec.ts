@@ -1,4 +1,4 @@
-import type { AssistantRecommendation, AssistantReply } from '@learnup/types'
+import type { AssistantRecommendation, AssistantReply } from '@studely/types'
 import {
   ASSISTANT_NOTICE,
   FALLBACK_JUSTIFICATION,

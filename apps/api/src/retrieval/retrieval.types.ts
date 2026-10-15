@@ -1,4 +1,4 @@
-import type { CourseListItem } from '@learnup/types'
+import type { CourseListItem } from '@studely/types'
 
 /** Contrat interne requête → formations candidates (grounding IA, fallback déterministe). */
 export interface RetrievalQuery {

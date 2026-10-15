@@ -1,6 +1,6 @@
 import { Test } from '@nestjs/testing'
 import { ConfigService } from '@nestjs/config'
-import type { RechercheSansResultat } from '@learnup/types'
+import type { RechercheSansResultat } from '@studely/types'
 import { DirectusItemsClient } from '../directus/directus.items.client'
 import type { ListSearchMissesDto } from './search-misses.dto'
 import { SEARCH_MISSES_COLLECTION, SearchMissesService } from './search-misses.service'

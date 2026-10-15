@@ -105,8 +105,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Couverture sur chaque push et PR : les seuils des vitest.config.ts
+      # (≥ 90 % pour le widget) font échouer le job.
       - name: Test
-        run: pnpm test
+        run: pnpm test:coverage
 
   sonarqube:
     name: SonarQube

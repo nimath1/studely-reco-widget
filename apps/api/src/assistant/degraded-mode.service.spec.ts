@@ -1,6 +1,6 @@
 import { ServiceUnavailableException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import type { AssistantReply, AssistantRequest } from '@learnup/types'
+import type { AssistantReply, AssistantRequest } from '@studely/types'
 import { SearchMissesService } from '../search-misses/search-misses.service'
 import { AssistantService } from './assistant.service'
 import { DegradedModeService } from './degraded-mode.service'

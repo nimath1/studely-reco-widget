@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing'
-import type { Course, CourseListItem, FamilyWithCount, Paginated } from '@learnup/types'
+import type { Course, CourseListItem, FamilyWithCount, Paginated } from '@studely/types'
 import { CatalogService } from './catalog.service'
 import { CacheService } from '../common/cache/cache.service'
 import {

@@ -5,24 +5,17 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".output/**", ".nuxt/**", ".vercel/output/**", "!.output/cache/**"]
+      "outputs": ["dist/**", ".vercel/output/**"]
     },
-    "@learnup/front#build": {
-      "dependsOn": ["^build"],
-      "outputs": [".output/**", "!.output/cache/**"]
-    },
-    "@learnup/api#build": {
+    "@studely/api#build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**"]
     },
-    "@learnup/presence#build": {
+    "@studely/widget#build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**"]
     },
-    "@learnup/ui#build": {
-      "outputs": []
-    },
-    "@learnup/types#build": {
+    "@studely/types#build": {
       "outputs": []
     },
     "dev": {
@@ -36,9 +29,6 @@
     },
     "test:coverage": {
       "outputs": ["coverage/**"]
-    },
-    "test:e2e": {
-      "cache": false
     }
   }
 }

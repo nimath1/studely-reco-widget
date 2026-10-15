@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger, OnModuleDestroy } from '@nestjs/common'
-import type { CourseListItem } from '@learnup/types'
+import type { CourseListItem } from '@studely/types'
 import { CacheService } from '../common/cache/cache.service'
 import { stemToken, stripHtml, tokenize } from '../common/utils/text.util'
 import {

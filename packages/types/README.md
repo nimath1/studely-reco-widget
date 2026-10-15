@@ -1,4 +1,4 @@
-# @learnup/types
+# @studely/types
 
 Types TypeScript partagés entre `apps/api` et `apps/front`.
 

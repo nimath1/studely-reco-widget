@@ -10,7 +10,7 @@ import type {
   DurationBucket,
   FamilyWithCount,
   SearchMissContext
-} from '@learnup/types'
+} from '@studely/types'
 import { CacheService } from '../common/cache/cache.service'
 import { normalizeText, tokenize } from '../common/utils/text.util'
 import { SearchMissesService } from '../search-misses/search-misses.service'

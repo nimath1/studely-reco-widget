@@ -11,7 +11,7 @@
 - [ ] `pnpm lint` vert
 - [ ] `pnpm test` vert (couverture ≥ 90 % sur les fichiers touchés)
 - [ ] `pnpm build` vert
-- [ ] Pas de valeur de style en dur (si UI touchée) — tokens `@learnup/ui` uniquement
+- [ ] Widget : aucune donnée API via `innerHTML`, aucun texte en dur, bundle ≤ 25 ko gzip
 
 ## Notes pour le reviewer
 
