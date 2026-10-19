@@ -31,13 +31,34 @@ const LONG_DIGITS_PATTERN = /\b\d{10,}\b/g
 // « cours » et « place » sont volontairement absents : dans un catalogue de
 // formations ils désignent d'abord des cours et des places (« 2 cours de
 // management », « 1 place en SST ») — les masquer détruirait le besoin.
-// L'alternance est éclatée en trois motifs (complexité et backtracking
-// bornés — SonarLint S5852) ; séparateurs regroupés dans une classe unique.
-const FR_ADDRESS_PATTERNS = [
-  /\b\d{1,4}[\s,]*(?:(?:bis|ter|quater)[\s,]*)?(?:rue|avenue|av\.?|boulevard|bd\.?|blvd\.?)(?![\p{L}\p{N}_])[^,;.\n]*/giu,
-  /\b\d{1,4}[\s,]*(?:(?:bis|ter|quater)[\s,]*)?(?:chemin|impasse|all[ée]e|route|quai)(?![\p{L}\p{N}_])[^,;.\n]*/giu,
-  /\b\d{1,4}[\s,]*(?:(?:bis|ter|quater)[\s,]*)?(?:square|voie|chauss[ée]e|faubourg|r[ée]sidence|lotissement)(?![\p{L}\p{N}_])[^,;.\n]*/giu
+// L'alternance des types de voie est une liste de données jointe au motif
+// (lisible, bornée — SonarLint S5852) ; les séparateurs sont regroupés
+// dans une classe unique `[\s,]*` : chaque position n'a qu'un seul chemin.
+const FR_ADDRESS_TYPES = [
+  'rue',
+  'avenue',
+  'av\\.?',
+  'boulevard',
+  'bd\\.?',
+  'blvd\\.?',
+  'chemin',
+  'impasse',
+  'all[ée]e',
+  'route',
+  'quai',
+  'square',
+  'voie',
+  'chauss[ée]e',
+  'faubourg',
+  'r[ée]sidence',
+  'lotissement'
 ]
+const FR_ADDRESS_PATTERN = new RegExp(
+  String.raw`\b\d{1,4}[\s,]*(?:(?:bis|ter|quater)[\s,]*)?(?:${FR_ADDRESS_TYPES.join(
+    '|'
+  )})(?![\p{L}\p{N}_])[^,;.\n]*`,
+  'giu'
+)
 
 export const PII_PLACEHOLDERS = {
   email: '[email]',
@@ -49,13 +70,10 @@ export const PII_PLACEHOLDERS = {
 } as const
 
 export function scrubPersonalData(text: string): string {
-  let result = text
+  return text
     .replace(EMAIL_PATTERN, PII_PLACEHOLDERS.email)
     .replace(IBAN_PATTERN, PII_PLACEHOLDERS.iban)
-  for (const pattern of FR_ADDRESS_PATTERNS) {
-    result = result.replace(pattern, PII_PLACEHOLDERS.address)
-  }
-  return result
+    .replace(FR_ADDRESS_PATTERN, PII_PLACEHOLDERS.address)
     .replace(FR_PHONE_PATTERN, PII_PLACEHOLDERS.phone)
     .replace(SIRET_PATTERN, PII_PLACEHOLDERS.siret)
     .replace(LONG_DIGITS_PATTERN, PII_PLACEHOLDERS.number)
