@@ -212,52 +212,61 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     }
   }
 
+  function next(step: number | null): void {
+    if (step === null || !validateStep(el, step, collectAnswers(el), t)) return
+    machine.dispatch('next')
+    persist()
+    syncChrome()
+  }
+
+  function submit(): void {
+    if (!validateStep(el, STEP_COUNT, collectAnswers(el), t, true)) return
+    persist()
+    void submitProfile()
+  }
+
+  function restart(): void {
+    clearDraft()
+    resetInputs(el)
+    el.querySelectorAll('[data-reco-error-for]').forEach((node) => {
+      node.textContent = ''
+    })
+    machine.dispatch('restart')
+    syncChrome()
+  }
+
+  function handleAction(action: string, step: number | null): void {
+    switch (action) {
+      case 'start':
+      case 'back':
+      case 'edit':
+        machine.dispatch(action)
+        syncChrome()
+        break
+      case 'next':
+        next(step)
+        break
+      case 'submit':
+        submit()
+        break
+      case 'restart':
+        restart()
+        break
+      case 'retry':
+        retry()
+        break
+      case 'advisor':
+        emitRecoEvent(el, 'advisor', { from: machine.state })
+        break
+    }
+  }
+
   el.addEventListener(
     'click',
     (event) => {
       const trigger = (event.target as Element | null)?.closest?.('[data-reco-action]')
-      if (!trigger || !el.contains(trigger)) return
-      const action = trigger.getAttribute('data-reco-action')
-      const step = stepOf(machine.state)
-      switch (action) {
-        case 'start':
-        case 'back':
-          machine.dispatch(action)
-          syncChrome()
-          break
-        case 'next':
-          if (step !== null && validateStep(el, step, collectAnswers(el), t)) {
-            machine.dispatch('next')
-            persist()
-            syncChrome()
-          }
-          break
-        case 'submit':
-          if (validateStep(el, STEP_COUNT, collectAnswers(el), t, true)) {
-            persist()
-            void submitProfile()
-          }
-          break
-        case 'edit':
-          machine.dispatch('edit')
-          syncChrome()
-          break
-        case 'restart':
-          clearDraft()
-          resetInputs(el)
-          el.querySelectorAll('[data-reco-error-for]').forEach((node) => {
-            node.textContent = ''
-          })
-          machine.dispatch('restart')
-          syncChrome()
-          break
-        case 'retry':
-          retry()
-          break
-        case 'advisor':
-          emitRecoEvent(el, 'advisor', { from: machine.state })
-          break
-      }
+      if (!(trigger instanceof HTMLElement) || !el.contains(trigger)) return
+      handleAction(trigger.dataset.recoAction ?? '', stepOf(machine.state))
     },
     { signal }
   )
@@ -268,7 +277,7 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     (event) => {
       const input = event.target
       const container = (input as Element | null)?.closest?.('[data-reco-options]')
-      const field = container?.getAttribute('data-reco-options')
+      const field = container instanceof HTMLElement ? container.dataset.recoOptions : undefined
       if (field) clearFieldError(el, field)
       if (input instanceof HTMLInputElement && input.closest('[data-reco-input="consent"]')) {
         clearFieldError(el, 'consent')

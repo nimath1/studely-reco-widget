@@ -10,9 +10,10 @@ const nextId = () => `reco-${++uid}`
 
 /** Clone d'un template, sans l'attribut qui le ferait masquer par le CSS. */
 export function cloneTemplate(el: HTMLElement, name: string): HTMLElement | null {
-  const template = el.querySelector(`[data-reco-template="${name}"]`)
-  const clone = template?.cloneNode(true)
-  return clone instanceof HTMLElement ? (clone.removeAttribute('data-reco-template'), clone) : null
+  const clone = el.querySelector(`[data-reco-template="${name}"]`)?.cloneNode(true)
+  if (!(clone instanceof HTMLElement)) return null
+  delete clone.dataset.recoTemplate
+  return clone
 }
 
 /**
@@ -120,7 +121,7 @@ export function renderResults(el: HTMLElement, items: RecoRecommendation[]): voi
       for (const tag of item.tags ?? []) {
         const tagItem = tagTemplate.cloneNode(true)
         if (tagItem instanceof HTMLElement) {
-          tagItem.removeAttribute('data-reco-template')
+          delete tagItem.dataset.recoTemplate
           tagItem.textContent = tag
           list.append(tagItem)
         }

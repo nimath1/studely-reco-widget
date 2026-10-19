@@ -13,7 +13,7 @@ export type Translate = (key: string, vars?: Record<string, string | number>) =>
 export function readLabels(el: HTMLElement): Translate {
   const labels = new Map<string, string>()
   el.querySelectorAll('[data-reco-label]').forEach((node) => {
-    const key = node.getAttribute('data-reco-label')
+    const key = node instanceof HTMLElement ? node.dataset.recoLabel : undefined
     if (key) labels.set(key, node.textContent ?? '')
   })
   return (key, vars) => {

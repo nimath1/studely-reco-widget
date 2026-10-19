@@ -98,7 +98,9 @@ describe('parcours du questionnaire', () => {
 
     click(el, 'start')
     expect(el.dataset.recoState).toBe('step-1')
-    expect(el.querySelector('[data-reco-panel="steps"]')!.classList.contains('is-reco-active'))
+    expect(
+      el.querySelector('[data-reco-panel="steps"]')!.classList.contains('is-reco-active')
+    ).toBe(true)
 
     click(el, 'next')
     expect(el.dataset.recoState).toBe('step-1')

@@ -124,12 +124,15 @@ export class RecoMachine {
     const step = stepOf(state)
     const panelName = step === null ? state : 'steps'
     this.el.querySelectorAll('[data-reco-panel]').forEach((panel) => {
-      panel.classList.toggle('is-reco-active', panel.getAttribute('data-reco-panel') === panelName)
+      panel.classList.toggle(
+        'is-reco-active',
+        panel instanceof HTMLElement && panel.dataset.recoPanel === panelName
+      )
     })
     this.el.querySelectorAll('[data-reco-step]').forEach((node) => {
       node.classList.toggle(
         'is-reco-active',
-        step !== null && node.getAttribute('data-reco-step') === String(step)
+        step !== null && node instanceof HTMLElement && node.dataset.recoStep === String(step)
       )
     })
   }
