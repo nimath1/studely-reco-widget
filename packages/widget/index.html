@@ -18,6 +18,10 @@
       [data-reco-widget][data-reco-state] [data-reco-panel='fallback'] {
         display: none !important;
       }
+      /* Un fieldset à la fois dans le panel steps. */
+      [data-reco-widget] [data-reco-step]:not(.is-reco-active) {
+        display: none !important;
+      }
     </style>
   </head>
   <body>
@@ -113,6 +117,14 @@
       </div>
 
       <div data-reco-labels hidden>
+        <span data-reco-label="reco.progress">Étape {step} sur {total}</span>
+        <span data-reco-label="reco.error.required">Merci de répondre à cette question.</span>
+        <span data-reco-label="reco.error.consent">Merci de cocher la case pour continuer.</span>
+        <span data-reco-label="reco.error.fields.max">3 domaines maximum.</span>
+        <span data-reco-label="reco.error.network">Connexion impossible. Réessaie.</span>
+        <span data-reco-label="reco.error.rate">Trop de demandes. Réessaie dans un instant.</span>
+        <span data-reco-label="reco.error.server">Le service est indisponible. Réessaie.</span>
+        <span data-reco-label="reco.error.input">Ta réponse semble invalide.</span>
         <span data-reco-label="reco.empty">Aucun parcours ne correspond…</span>
       </div>
     </section>

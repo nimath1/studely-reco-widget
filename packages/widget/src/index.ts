@@ -4,8 +4,29 @@
  * `window.StudelyReco` (build IIFE, §7.6) — n'exporter que l'API publique.
  */
 import { version as pkgVersion } from '../package.json'
+import { fetchOptions, postRecommendations, RecoApiError } from './api/client'
+import type { RecommendationsRequest } from './api/types'
 import { readConfig, type WidgetConfig } from './config'
+import { CONSENT_VERSION } from './consent/consent'
+import { readLabels } from './i18n/labels'
 import { logger } from './logger'
+import { RecoMachine, stepOf, STEP_COUNT, type WidgetState } from './state/machine'
+import { emitRecoEvent } from './tracking/events'
+import { renderOptions, renderResults, resetInputs } from './ui/render'
+import {
+  applyAnswers,
+  buildProfile,
+  clearDraft,
+  clearFieldError,
+  collectAnswers,
+  loadDraft,
+  MAX_FIELDS,
+  saveDraft,
+  showFieldError,
+  stepOfField,
+  updateStepChrome,
+  validateStep
+} from './ui/steps'
 
 export const version: string = pkgVersion
 
@@ -30,6 +51,237 @@ function instanceOf(el: HTMLElement): Instance {
     instances.set(el, instance)
   }
   return instance
+}
+
+// Clés i18n des erreurs API (§5.3) ; `forbidden` relève du flux Turnstile (FRONT-17).
+const ERROR_KEYS: Record<RecoApiError['kind'], string> = {
+  network: 'reco.error.network',
+  rate: 'reco.error.rate',
+  server: 'reco.error.server',
+  input: 'reco.error.input',
+  forbidden: 'reco.error.server'
+}
+
+/** Token Turnstile rendu dans le bloc dédié (FRONT-17), absent sinon. */
+function turnstileToken(el: HTMLElement): string | undefined {
+  return el.querySelector<HTMLInputElement>('[data-reco-turnstile] input')?.value || undefined
+}
+
+/**
+ * Câblage d'un bloc : machine à états, actions `data-reco-action`, options
+ * et soumission à l'API, brouillon sessionStorage. Tout repose sur le
+ * `signal` : un `init` suivant retire proprement écouteurs et minuteurs.
+ */
+function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void {
+  const t = readLabels(el)
+  const machine = new RecoMachine(el, 'intro')
+  const draft = loadDraft(config.origin)
+
+  // Le lien conseiller est disponible dans tous les états (§4).
+  el.querySelectorAll<HTMLAnchorElement>('[data-reco-action="advisor"]').forEach((link) => {
+    link.href = config.advisorUrl
+  })
+
+  let lastPayload: RecommendationsRequest | null = null
+  let lastFailure: 'options' | 'submit' | null = null
+  let retryLockUntil = 0
+
+  const persist = () =>
+    saveDraft({
+      origin: config.origin,
+      step: stepOf(machine.state) ?? 1,
+      answers: collectAnswers(el)
+    })
+
+  function syncChrome(): void {
+    const step = stepOf(machine.state)
+    if (step !== null) {
+      updateStepChrome(el, step, t)
+      const legend = el.querySelector<HTMLElement>(`[data-reco-step="${step}"] legend`)
+      legend?.focus()
+    }
+  }
+
+  function showError(error: unknown): void {
+    const kind = error instanceof RecoApiError ? error.kind : 'network'
+    const message = el.querySelector('[data-reco-error-message]')
+    if (message) message.textContent = t(ERROR_KEYS[kind])
+    machine.dispatch('error')
+  }
+
+  async function loadOptions(): Promise<void> {
+    lastFailure = null
+    try {
+      const options = await fetchOptions(config.locale, config.origin)
+      if (signal.aborted) return
+      renderOptions(el, options)
+      if (draft) {
+        applyAnswers(el, draft.answers)
+        if (draft.step >= 1 && draft.step <= STEP_COUNT) {
+          machine.goTo(`step-${draft.step}` as WidgetState, 'resume')
+        }
+      }
+      syncChrome()
+    } catch (error) {
+      if (signal.aborted) return
+      lastFailure = 'options'
+      showError(error)
+    }
+  }
+
+  async function submitProfile(): Promise<void> {
+    lastPayload = {
+      locale: config.locale,
+      origin: config.origin,
+      profile: buildProfile(collectAnswers(el)),
+      consent: { accepted: true, version: CONSENT_VERSION }
+    }
+    lastFailure = null
+    machine.dispatch('submit')
+    try {
+      const recommendations = await postRecommendations(lastPayload, turnstileToken(el))
+      if (signal.aborted) return
+      if (recommendations.length === 0) {
+        machine.dispatch('empty')
+      } else {
+        renderResults(el, recommendations)
+        machine.dispatch('results')
+      }
+    } catch (error) {
+      if (signal.aborted) return
+      lastFailure = 'submit'
+      // 400 avec champ : retour à l'étape du champ fautif, message dessous.
+      if (error instanceof RecoApiError && error.kind === 'input' && error.field) {
+        const step = stepOfField(error.field)
+        const name = error.field.replace(/^profile\./, '').split('.')[0] ?? ''
+        if (step !== null) {
+          machine.goTo(`step-${step}` as WidgetState)
+          showFieldError(el, name, t('reco.error.input'))
+          syncChrome()
+          return
+        }
+        logger.error('Champ 400 inconnu :', error.field)
+      }
+      if (error instanceof RecoApiError && error.kind === 'rate') {
+        // « Réessayer » désactivé pendant Retry-After (R9).
+        retryLockUntil = Date.now() + (error.retryAfter ?? 0) * 1000
+        const retry = el.querySelector<HTMLButtonElement>('[data-reco-action="retry"]')
+        if (retry) {
+          retry.disabled = true
+          const unlock = () => {
+            retry.disabled = false
+          }
+          const timer = setTimeout(unlock, (error.retryAfter ?? 0) * 1000)
+          signal.addEventListener('abort', () => clearTimeout(timer), { once: true })
+        }
+      }
+      showError(error)
+    }
+  }
+
+  function retry(): void {
+    if (Date.now() < retryLockUntil) return
+    if (lastFailure === 'submit' && lastPayload) {
+      machine.dispatch('retry')
+      void (async () => {
+        try {
+          const recommendations = await postRecommendations(lastPayload!, turnstileToken(el))
+          if (signal.aborted) return
+          if (recommendations.length === 0) machine.dispatch('empty')
+          else {
+            renderResults(el, recommendations)
+            machine.dispatch('results')
+          }
+        } catch (error) {
+          if (!signal.aborted) showError(error)
+        }
+      })()
+    } else {
+      machine.dispatch('retry')
+      void loadOptions()
+    }
+  }
+
+  el.addEventListener(
+    'click',
+    (event) => {
+      const trigger = (event.target as Element | null)?.closest?.('[data-reco-action]')
+      if (!trigger || !el.contains(trigger)) return
+      const action = trigger.getAttribute('data-reco-action')
+      const step = stepOf(machine.state)
+      switch (action) {
+        case 'start':
+        case 'back':
+          machine.dispatch(action)
+          syncChrome()
+          break
+        case 'next':
+          if (step !== null && validateStep(el, step, collectAnswers(el), t)) {
+            machine.dispatch('next')
+            persist()
+            syncChrome()
+          }
+          break
+        case 'submit':
+          if (validateStep(el, STEP_COUNT, collectAnswers(el), t, true)) {
+            persist()
+            void submitProfile()
+          }
+          break
+        case 'edit':
+          machine.dispatch('edit')
+          syncChrome()
+          break
+        case 'restart':
+          clearDraft()
+          resetInputs(el)
+          el.querySelectorAll('[data-reco-error-for]').forEach((node) => {
+            node.textContent = ''
+          })
+          machine.dispatch('restart')
+          syncChrome()
+          break
+        case 'retry':
+          retry()
+          break
+        case 'advisor':
+          emitRecoEvent(el, 'advisor', { from: machine.state })
+          break
+      }
+    },
+    { signal }
+  )
+
+  // Brouillon sauvegardé à chaque modification ; 4e domaine refusé (§5.1).
+  el.addEventListener(
+    'change',
+    (event) => {
+      const input = event.target
+      const container = (input as Element | null)?.closest?.('[data-reco-options]')
+      const field = container?.getAttribute('data-reco-options')
+      if (field) clearFieldError(el, field)
+      if (input instanceof HTMLInputElement && input.closest('[data-reco-input="consent"]')) {
+        clearFieldError(el, 'consent')
+      }
+      if (field === 'fields' && input instanceof HTMLInputElement && input.checked) {
+        const checked = el.querySelectorAll('[data-reco-options="fields"] input:checked')
+        if (checked.length > MAX_FIELDS) {
+          input.checked = false
+          showFieldError(el, 'fields', t('reco.error.fields.max'))
+        }
+      }
+      persist()
+    },
+    { signal }
+  )
+  el.addEventListener('input', persist, { signal })
+
+  // Le bouton submit est un vrai submit : la navigation native est bloquée.
+  el.querySelector('form')?.addEventListener('submit', (event) => event.preventDefault(), {
+    signal
+  })
+
+  void loadOptions()
 }
 
 /**
@@ -61,6 +313,8 @@ export function init(el: HTMLElement): WidgetConfig | null {
 
   if (config.dir === 'rtl') el.setAttribute('dir', 'rtl')
   else el.removeAttribute('dir')
+
+  mount(el, config, instance.controller.signal)
 
   return config
 }
