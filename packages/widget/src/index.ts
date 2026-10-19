@@ -86,6 +86,12 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
   let lastFailure: 'options' | 'submit' | null = null
   let retryLockUntil = 0
 
+  /** Annonces lecteur d'écran : changement d'étape et erreurs (§8.2). */
+  const live = el.querySelector('[data-reco-live]')
+  const announce = (text: string) => {
+    if (live) live.textContent = text
+  }
+
   const persist = () =>
     saveDraft({
       origin: config.origin,
@@ -97,6 +103,7 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     const step = stepOf(machine.state)
     if (step !== null) {
       updateStepChrome(el, step, t)
+      announce(t('reco.progress', { step, total: STEP_COUNT }))
       const legend = el.querySelector<HTMLElement>(`[data-reco-step="${step}"] legend`)
       legend?.focus()
     }
@@ -105,7 +112,10 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
   function showError(error: unknown): void {
     const kind = error instanceof RecoApiError ? error.kind : 'network'
     const message = el.querySelector('[data-reco-error-message]')
-    if (message) message.textContent = t(ERROR_KEYS[kind])
+    if (message) {
+      message.textContent = t(ERROR_KEYS[kind])
+      announce(t(ERROR_KEYS[kind]))
+    }
     machine.dispatch('error')
   }
 
