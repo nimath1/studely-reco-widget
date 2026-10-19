@@ -5,8 +5,12 @@ import { expect, test, type Page } from '@playwright/test'
  * Audit axe-core sur chaque état du widget (§12.2) : zéro violation
  * « serious » ou « critical » acceptée (R13, WCAG 2.2 AA).
  */
-const open = (page: Page, scenario = 'nominal') =>
-  page.goto(`/?recoMock=${scenario}`, { waitUntil: 'networkidle' })
+async function open(page: Page, scenario = 'nominal'): Promise<void> {
+  await page.goto(`/?recoMock=${scenario}`)
+  await expect(
+    page.locator('[data-reco-widget] [data-reco-options="level"] input').first()
+  ).toBeAttached()
+}
 
 const widget = (page: Page) => page.locator('[data-reco-widget]')
 

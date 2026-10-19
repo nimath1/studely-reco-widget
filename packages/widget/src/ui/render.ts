@@ -121,6 +121,35 @@ export function isAllowedUrl(url: string | undefined): boolean {
   }
 }
 
+/** Remplit la liste d'étiquettes d'une carte : 0 à 4 clones du template tag. */
+function fillTags(card: HTMLElement, tags: string[] | undefined): void {
+  const list = card.querySelector('[data-reco-field="tags"]')
+  const tagTemplate = list?.querySelector('[data-reco-template="tag"]')
+  if (!list || !tagTemplate) return
+  list.replaceChildren()
+  for (const tag of (tags ?? []).slice(0, 4)) {
+    const tagItem = tagTemplate.cloneNode(true)
+    if (tagItem instanceof HTMLElement) {
+      delete tagItem.dataset.recoTemplate
+      tagItem.textContent = tag
+      list.append(tagItem)
+    }
+  }
+}
+
+/** Clone et remplit une carte résultat ; `null` si le template manque. */
+function renderCard(el: HTMLElement, item: RecoRecommendation): HTMLElement | null {
+  const card = cloneTemplate(el, 'result-card')
+  if (!card) return null
+  fillField(card, 'type', item.type ?? '')
+  fillField(card, 'title', item.title)
+  fillField(card, 'destination', item.destination ?? '')
+  fillField(card, 'reason', item.reason ?? '')
+  fillField(card, 'url', item.url ?? '')
+  fillTags(card, item.tags)
+  return card
+}
+
 /**
  * Remplit `[data-reco-results]` d'une carte par recommandation (3 à 5, 0 à 4
  * étiquettes). Les cartes dont l'URL sort de studely.com sont écartées ; le
@@ -133,28 +162,10 @@ export function renderResults(el: HTMLElement, items: RecoRecommendation[]): num
   container.replaceChildren()
   let rendered = 0
   for (const item of items) {
-    if (!isAllowedUrl(item.url)) continue
     if (rendered >= 5) break
-    const card = cloneTemplate(el, 'result-card')
+    if (!isAllowedUrl(item.url)) continue
+    const card = renderCard(el, item)
     if (!card) break
-    fillField(card, 'type', item.type ?? '')
-    fillField(card, 'title', item.title)
-    fillField(card, 'destination', item.destination ?? '')
-    fillField(card, 'reason', item.reason ?? '')
-    fillField(card, 'url', item.url ?? '')
-    const list = card.querySelector('[data-reco-field="tags"]')
-    const tagTemplate = list?.querySelector('[data-reco-template="tag"]')
-    if (list && tagTemplate) {
-      list.replaceChildren()
-      for (const tag of (item.tags ?? []).slice(0, 4)) {
-        const tagItem = tagTemplate.cloneNode(true)
-        if (tagItem instanceof HTMLElement) {
-          delete tagItem.dataset.recoTemplate
-          tagItem.textContent = tag
-          list.append(tagItem)
-        }
-      }
-    }
     container.append(card)
     rendered += 1
   }

@@ -9,8 +9,7 @@
     <script>
       // Locale de la page de dev : ?lang=ar pour tester la RTL et les
       // traductions du mock. Doit tourner avant les modules du corps.
-      document.documentElement.lang =
-        new URLSearchParams(location.search).get('lang') || 'fr'
+      document.documentElement.lang = new URLSearchParams(location.search).get('lang') || 'fr'
     </script>
     <style>
       [data-reco-template],
@@ -77,13 +76,13 @@
           <p data-reco-error-for="budget"></p>
           <div data-reco-options="intake"></div>
           <p data-reco-error-for="intake"></p>
-          <label
-            >Quel est ton objectif ?
-            <textarea data-reco-input="goal" maxlength="300"></textarea>
-          </label>
-          <p data-reco-hint="goal">Ne saisissez pas de données personnelles (nom, email, téléphone…).</p>
-          <label>
-            <input type="checkbox" data-reco-input="consent" />
+          <label for="reco-goal">Quel est ton objectif ?</label>
+          <textarea id="reco-goal" data-reco-input="goal" maxlength="300"></textarea>
+          <p data-reco-hint="goal">
+            Ne saisissez pas de données personnelles (nom, email, téléphone…).
+          </p>
+          <label for="reco-consent">
+            <input type="checkbox" id="reco-consent" data-reco-input="consent" />
             J'accepte que mes réponses soient analysées automatiquement pour me proposer des
             parcours
           </label>
@@ -114,24 +113,24 @@
       </div>
 
       <article data-reco-template="result-card">
-        <span data-reco-field="type"></span>
-        <h3 data-reco-field="title"></h3>
-        <p data-reco-field="destination"></p>
-        <p data-reco-field="reason"></p>
+        <span data-reco-field="type">Type</span>
+        <h3 data-reco-field="title">Titre du parcours</h3>
+        <p data-reco-field="destination">Destination</p>
+        <p data-reco-field="reason">Justification</p>
         <ul data-reco-field="tags">
-          <li data-reco-template="tag"></li>
+          <li data-reco-template="tag">Étiquette</li>
         </ul>
         <a data-reco-field="url">Voir</a>
       </article>
       <label data-reco-template="option-radio">
-        <input type="radio" data-reco-field="input" /><span data-reco-field="label"></span>
+        <input type="radio" data-reco-field="input" /><span data-reco-field="label">Option</span>
       </label>
       <label data-reco-template="option-checkbox">
-        <input type="checkbox" data-reco-field="input" /><span data-reco-field="label"></span>
+        <input type="checkbox" data-reco-field="input" /><span data-reco-field="label">Option</span>
       </label>
       <div data-reco-template="option-language">
-        <span data-reco-field="label"></span
-        ><select data-reco-field="level"></select>
+        <span data-reco-field="label">Langue</span
+        ><select data-reco-field="level" aria-label="Niveau de langue"></select>
       </div>
 
       <div data-reco-labels hidden>
@@ -143,8 +142,12 @@
         <span data-reco-label="reco.error.rate">Trop de demandes. Réessaie dans un instant.</span>
         <span data-reco-label="reco.error.server">Le service est indisponible. Réessaie.</span>
         <span data-reco-label="reco.error.input">Ta réponse semble invalide.</span>
-        <span data-reco-label="reco.error.captcha">La vérification anti-robot a échoué. Réessaie.</span>
-        <span data-reco-label="reco.disclaimer">Recommandations indicatives générées automatiquement.</span>
+        <span data-reco-label="reco.error.captcha"
+          >La vérification anti-robot a échoué. Réessaie.</span
+        >
+        <span data-reco-label="reco.disclaimer"
+          >Recommandations indicatives générées automatiquement.</span
+        >
         <span data-reco-label="reco.loading">Recherche de tes parcours…</span>
         <span data-reco-label="reco.results.count">{count} recommandations pour toi.</span>
         <span data-reco-label="reco.empty">Aucun parcours ne correspond…</span>
@@ -159,9 +162,9 @@
         new URLSearchParams(location.search).get('recoMock') ||
         localStorage.getItem('recoMock')
       ) {
-        await import('/mock/browser.ts')
+        await import('./mock/browser.ts')
       }
-      await import('/src/index.ts')
+      await import('./src/index.ts')
     </script>
   </body>
 </html>

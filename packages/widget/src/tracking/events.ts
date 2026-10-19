@@ -93,7 +93,8 @@ export function trackReco(
         const count = hooks.getResultCount?.()
         if (count !== undefined) params.result_count = count
       }
-      ;(window.dataLayer ??= []).push(params)
+      const dataLayer = (window.dataLayer ??= [])
+      dataLayer.push(params)
     },
     { signal }
   )

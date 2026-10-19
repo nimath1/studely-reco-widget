@@ -1,8 +1,16 @@
 import { expect, test, type Page } from '@playwright/test'
 
-/** Page de dev : le mock MSW est activé par ?recoMock=<scénario>, la locale par ?lang=. */
-const open = (page: Page, scenario = 'nominal', lang = 'fr') =>
-  page.goto(`/?recoMock=${scenario}&lang=${lang}`, { waitUntil: 'networkidle' })
+/**
+ * Page de dev : le mock MSW est activé par ?recoMock=<scénario>, la locale
+ * par ?lang=. Attente web-first : le widget est prêt quand les options de
+ * l'étape 1 sont rendues (GET /v1/options intercepté par le worker MSW).
+ */
+async function open(page: Page, scenario = 'nominal', lang = 'fr'): Promise<void> {
+  await page.goto(`/?recoMock=${scenario}&lang=${lang}`)
+  await expect(
+    page.locator('[data-reco-widget] [data-reco-options="level"] input').first()
+  ).toBeAttached()
+}
 
 const widget = (page: Page) => page.locator('[data-reco-widget]')
 const state = (page: Page) => widget(page).getAttribute('data-reco-state')
@@ -93,8 +101,9 @@ test.describe('parcours widget (mock MSW)', () => {
     await expect.poll(() => state(page)).toBe('results')
   })
 
-  test('mobile 360 px : pas de débordement horizontal', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile', 'projet mobile uniquement')
+  // R14 : aucun débordement sur un écran de 360 px, quel que soit le projet.
+  test('mobile 360 px : pas de débordement horizontal', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 740 })
     await open(page)
     await click(page, '[data-reco-action="start"]')
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth)
