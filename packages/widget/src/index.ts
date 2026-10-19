@@ -8,6 +8,7 @@ import { fetchOptions, postRecommendations, RecoApiError } from './api/client'
 import type { RecommendationsRequest } from './api/types'
 import { readConfig, type WidgetConfig } from './config'
 import { CONSENT_VERSION } from './consent/consent'
+import { makeFormatters } from './i18n/format'
 import { readLabels } from './i18n/labels'
 import { logger } from './logger'
 import { RecoMachine, stepOf, STEP_COUNT, type WidgetState } from './state/machine'
@@ -74,6 +75,7 @@ function turnstileToken(el: HTMLElement): string | undefined {
  */
 function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void {
   const t = readLabels(el)
+  const fmt = makeFormatters(config.locale)
   const machine = new RecoMachine(el, 'intro')
   const draft = loadDraft(config.origin)
 
@@ -102,11 +104,21 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
   function syncChrome(): void {
     const step = stepOf(machine.state)
     if (step !== null) {
-      updateStepChrome(el, step, t)
-      announce(t('reco.progress', { step, total: STEP_COUNT }))
+      updateStepChrome(el, step, t, fmt.number)
+      announce(t('reco.progress', { step: fmt.number(step), total: fmt.number(STEP_COUNT) }))
       const legend = el.querySelector<HTMLElement>(`[data-reco-step="${step}"] legend`)
       legend?.focus()
     }
+  }
+
+  /** Focus sur le titre du panel (results, empty, error) : le focus ne se perd pas. */
+  function focusPanel(state: WidgetState): void {
+    const title = el.querySelector<HTMLElement>(
+      `[data-reco-panel="${state}"] :is(h1, h2, h3, h4, h5, h6, [data-reco-title])`
+    )
+    if (!title) return
+    title.tabIndex = -1
+    title.focus()
   }
 
   function showError(error: unknown): void {
@@ -117,6 +129,7 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
       announce(t(ERROR_KEYS[kind]))
     }
     machine.dispatch('error')
+    focusPanel('error')
   }
 
   async function loadOptions(): Promise<void> {
@@ -139,15 +152,32 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     }
   }
 
+  /** Mention « recommandations indicatives » avec son lien, si l'API le fournit. */
+  function renderDisclaimer(url: string | undefined): void {
+    const link = el.querySelector<HTMLAnchorElement>('[data-reco-disclaimer]')
+    if (!link) return
+    link.hidden = !url
+    if (url) {
+      link.href = url
+      link.textContent = t('reco.disclaimer')
+    }
+  }
+
   /** Envoie le dernier payload : résultats, empty ou mapping d'erreur §5.3. */
   async function sendPayload(): Promise<void> {
     try {
-      const recommendations = await postRecommendations(lastPayload!, turnstileToken(el))
+      const { items, disclaimerUrl } = await postRecommendations(lastPayload!, turnstileToken(el))
       if (signal.aborted) return
-      if (recommendations.length === 0) machine.dispatch('empty')
-      else {
-        renderResults(el, recommendations)
+      const count = renderResults(el, items)
+      if (count === 0) {
+        machine.dispatch('empty')
+        announce(t('reco.empty'))
+        focusPanel('empty')
+      } else {
+        renderDisclaimer(disclaimerUrl)
         machine.dispatch('results')
+        announce(t('reco.results.count', { count: fmt.number(count) }))
+        focusPanel('results')
       }
     } catch (error) {
       if (signal.aborted) return
@@ -196,12 +226,14 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     }
     lastFailure = null
     machine.dispatch('submit')
+    announce(t('reco.loading'))
     await sendPayload()
   }
 
   function retry(): void {
     if (Date.now() < retryLockUntil) return
     machine.dispatch('retry')
+    announce(t('reco.loading'))
     void (lastFailure === 'submit' && lastPayload ? sendPayload() : loadOptions())
   }
 

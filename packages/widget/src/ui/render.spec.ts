@@ -1,5 +1,5 @@
 import { mountStepsWidget } from '../testing/widget.fixture'
-import { renderOptions, renderResults, resetInputs } from './render'
+import { isAllowedUrl, renderOptions, renderResults, resetInputs } from './render'
 import type { RecoOptions } from '../api/types'
 
 const OPTIONS: RecoOptions = {
@@ -76,7 +76,7 @@ describe('renderResults', () => {
         tags: ['info', 'public'],
         url: 'https://studely.com/p/1'
       },
-      { title: 'Sans champs' }
+      { title: 'Sans champs', url: 'https://www.studely.com/p/2' }
     ])
 
     const cards = el.querySelectorAll('[data-reco-results] > article')
@@ -90,6 +90,47 @@ describe('renderResults', () => {
     )
     expect(cards[0]!.querySelectorAll('[data-reco-field="tags"] li')).toHaveLength(2)
     expect(cards[0]!.querySelectorAll('[data-reco-template]')).toHaveLength(0)
+  })
+
+  it('écarte les URL hors https studely.com et renvoie le compte affiché (R10)', () => {
+    const el = mountStepsWidget()
+    const items = [
+      { title: 'http', url: 'http://studely.com/p/1' },
+      { title: 'autre domaine', url: 'https://evil.com/p/1' },
+      { title: 'sous-domaine', url: 'https://api.studely.com/p/1' },
+      { title: 'sans url' },
+      { title: 'ok', url: 'https://www.studely.com/p/2' }
+    ]
+    expect(renderResults(el, items)).toBe(1)
+    expect(el.querySelectorAll('[data-reco-results] > article')).toHaveLength(1)
+    expect(el.querySelector('[data-reco-results]')!.textContent).not.toContain('sous-domaine')
+  })
+
+  it('plafonne à 5 cartes et 4 étiquettes', () => {
+    const el = mountStepsWidget()
+    const url = 'https://studely.com/p'
+    const items = Array.from({ length: 7 }, (_, i) => ({
+      title: `P${i}`,
+      url: `${url}/${i}`,
+      tags: ['a', 'b', 'c', 'd', 'e']
+    }))
+    expect(renderResults(el, items)).toBe(5)
+    expect(el.querySelectorAll('[data-reco-results] [data-reco-field="tags"] li')).toHaveLength(20)
+  })
+})
+
+describe('isAllowedUrl', () => {
+  it.each([
+    ['https://studely.com/p', true],
+    ['https://www.studely.com/p', true],
+    ['http://studely.com/p', false],
+    ['https://studely.com.evil.com/', false],
+    ['https://api.studely.com/', false],
+    ['/relative', false],
+    [undefined, false],
+    ['pas une url', false]
+  ])('%s → %s', (url, expected) => {
+    expect(isAllowedUrl(url)).toBe(expected)
   })
 })
 

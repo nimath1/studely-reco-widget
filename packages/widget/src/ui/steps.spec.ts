@@ -4,6 +4,7 @@ import {
   applyAnswers,
   buildProfile,
   clearDraft,
+  clearFieldError,
   collectAnswers,
   DRAFT_KEY,
   emptyAnswers,
@@ -124,6 +125,34 @@ describe('validateStep', () => {
       'Consentement requis'
     )
     expect(validateStep(el, 5, FULL, t(el), true)).toBe(true)
+  })
+})
+
+describe('aria-invalid / aria-describedby', () => {
+  it('marque les champs en erreur et les démarque une fois corrigés', () => {
+    const el = mountStepsWidget()
+    renderOptions(el, OPTIONS)
+
+    showFieldError(el, 'level', 'Champ requis')
+    const slot = el.querySelector<HTMLElement>('[data-reco-error-for="level"]')!
+    expect(slot.id).toBeTruthy()
+    const input = el.querySelector<HTMLElement>('[data-reco-options="level"] input')!
+    expect(input.getAttribute('aria-invalid')).toBe('true')
+    expect(input.getAttribute('aria-describedby')).toBe(slot.id)
+
+    clearFieldError(el, 'level')
+    expect(input.hasAttribute('aria-invalid')).toBe(false)
+    expect(input.hasAttribute('aria-describedby')).toBe(false)
+    expect(slot.textContent).toBe('')
+  })
+
+  it('marque aussi les inputs dédiés (consent)', () => {
+    const el = mountStepsWidget()
+    showFieldError(el, 'consent', 'Consentement requis')
+    const box = el.querySelector<HTMLElement>('[data-reco-input="consent"]')!
+    expect(box.getAttribute('aria-invalid')).toBe('true')
+    clearFieldError(el, 'consent')
+    expect(box.hasAttribute('aria-invalid')).toBe(false)
   })
 })
 

@@ -21,8 +21,8 @@ const OPTIONS: RecoOptions = {
 }
 
 const RECOS = [
-  { type: 'programme', title: 'Licence Info', url: '/p/1', tags: ['info'] },
-  { type: 'programme', title: 'Licence Droit', url: '/p/2', tags: [] }
+  { type: 'programme', title: 'Licence Info', url: 'https://studely.com/p/1', tags: ['info'] },
+  { type: 'programme', title: 'Licence Droit', url: 'https://www.studely.com/p/2', tags: [] }
 ]
 
 async function load(): Promise<IndexModule> {
@@ -47,7 +47,7 @@ function mockFetch(handler: (url: string, init?: { headers?: Record<string, stri
 }
 
 const optionsResponse = { json: OPTIONS }
-const recosResponse = { json: { recommendations: RECOS } }
+const recosResponse = { json: { items: RECOS } }
 
 function click(el: HTMLElement, action: string) {
   el.querySelector<HTMLElement>(`[data-reco-action="${action}"]`)!.click()
@@ -136,6 +136,10 @@ describe('parcours du questionnaire', () => {
     })
     expect(fetchSpy).toHaveBeenCalledTimes(2)
     expect(el.querySelectorAll('[data-reco-results] > article')).toHaveLength(2)
+
+    // Annoncé dans la région live et focus posé sur le titre du panel.
+    expect(el.querySelector('[data-reco-live]')!.textContent).toBe('2 recommandations')
+    expect(document.activeElement).toBe(el.querySelector('[data-reco-title]'))
   })
 
   it('restart revient à intro et vide le brouillon', async () => {
@@ -256,9 +260,7 @@ describe('erreurs API', () => {
   })
 
   it('réponse vide → panel empty', async () => {
-    mockFetch((url) =>
-      url.includes('/v1/options') ? optionsResponse : { json: { recommendations: [] } }
-    )
+    mockFetch((url) => (url.includes('/v1/options') ? optionsResponse : { json: { items: [] } }))
     const { init } = await load()
     const el = mountStepsWidget()
     await initAndWait(init, el)

@@ -2,12 +2,7 @@
  * Client de l'API de recommandation (§6) : GET /v1/options et
  * POST /v1/recommendations, timeout 20 s, mapping des erreurs (§5.3).
  */
-import type {
-  RecoOptions,
-  RecoRecommendation,
-  RecommendationsRequest,
-  RecommendationsResponse
-} from './types'
+import type { RecoOptions, RecommendationsRequest, RecommendationsResponse } from './types'
 
 /** Injectée au build par environnement (`VITE_RECO_API_URL`), jamais lue depuis la page. */
 export const API_BASE_URL: string = import.meta.env.VITE_RECO_API_URL
@@ -116,7 +111,7 @@ export async function fetchOptions(locale: string, origin: string): Promise<Reco
 export async function postRecommendations(
   payload: RecommendationsRequest,
   turnstileToken?: string
-): Promise<RecoRecommendation[]> {
+): Promise<RecommendationsResponse> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'X-Request-Id': requestId()
@@ -127,5 +122,5 @@ export async function postRecommendations(
     headers,
     body: JSON.stringify(payload)
   })
-  return res.recommendations ?? []
+  return { items: res.items ?? [], disclaimerUrl: res.disclaimerUrl }
 }

@@ -22,6 +22,13 @@
       [data-reco-widget] [data-reco-step]:not(.is-reco-active) {
         display: none !important;
       }
+      /* Pas de transition pour prefers-reduced-motion (WCAG 2.2, §8.2). */
+      @media (prefers-reduced-motion: reduce) {
+        [data-reco-widget] * {
+          transition: none !important;
+          animation: none !important;
+        }
+      }
     </style>
   </head>
   <body>
@@ -81,6 +88,7 @@
       <div data-reco-panel="loading">Chargement…</div>
       <div data-reco-panel="results">
         <div data-reco-results></div>
+        <a data-reco-disclaimer hidden></a>
         <button type="button" data-reco-action="edit">Modifier mes réponses</button>
         <button type="button" data-reco-action="restart">Recommencer</button>
         <a data-reco-action="advisor">Parler à un conseiller</a>
@@ -125,10 +133,23 @@
         <span data-reco-label="reco.error.rate">Trop de demandes. Réessaie dans un instant.</span>
         <span data-reco-label="reco.error.server">Le service est indisponible. Réessaie.</span>
         <span data-reco-label="reco.error.input">Ta réponse semble invalide.</span>
+        <span data-reco-label="reco.disclaimer">Recommandations indicatives générées automatiquement.</span>
+        <span data-reco-label="reco.loading">Recherche de tes parcours…</span>
+        <span data-reco-label="reco.results.count">{count} recommandations pour toi.</span>
         <span data-reco-label="reco.empty">Aucun parcours ne correspond…</span>
       </div>
     </section>
 
+    <script type="module">
+      // Mock MSW (dev uniquement) : ?recoMock=<scénario> ou localStorage.recoMock.
+      // Voir README — jamais inclus dans dist/reco.js.
+      if (
+        new URLSearchParams(location.search).get('recoMock') ||
+        localStorage.getItem('recoMock')
+      ) {
+        await import('/mock/browser.ts')
+      }
+    </script>
     <script type="module" src="/src/index.ts"></script>
   </body>
 </html>

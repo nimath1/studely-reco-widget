@@ -49,6 +49,23 @@ avertissement `[studely-reco]` est émis en console.
 - `window.StudelyReco.init(element)` — réinitialise un bloc.
 - `window.StudelyReco.version` — version du bundle.
 
+## Mock de l'API (dev local et CI)
+
+L'API de recommandation est mockée par MSW, uniquement sur la page de dev —
+`mock/` n'entre jamais dans `dist/reco.js`.
+
+```bash
+pnpm dev
+# puis ouvrir http://localhost:5173/?recoMock=<scénario>
+# ou : localStorage.setItem('recoMock', '<scénario>')
+```
+
+Scénarios (`?recoMock=`) : `nominal`, `empty`, `field-error` (400 avec
+`field`), `forbidden` (403 CAPTCHA_FAILED), `rate` (429 + Retry-After 30 s),
+`server` (500), `unavailable` (503), `timeout` (réponse jamais reçue,
+timeout 20 s du widget), `bad-url` (URLs hors studely.com), `html-reason`
+(HTML injecté dans `reason`). Les réponses sont fournies dans les 5 locales.
+
 ## Règles
 
 - Données de l'API injectées via `textContent` uniquement : `innerHTML`,

@@ -57,5 +57,7 @@ export interface RecoRecommendation {
 }
 
 export interface RecommendationsResponse {
-  recommendations: RecoRecommendation[]
+  items: RecoRecommendation[]
+  /** Lien de la mention « recommandations indicatives » affichée sous les cartes. */
+  disclaimerUrl?: string
 }

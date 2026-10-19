@@ -28,13 +28,16 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
       </form>
       <div data-reco-panel="loading">Chargement…</div>
       <div data-reco-panel="results">
+        <h3 data-reco-title>Tes recommandations</h3>
         <div data-reco-results></div>
+        <a data-reco-disclaimer hidden></a>
         <button type="button" data-reco-action="edit">Modifier</button>
         <button type="button" data-reco-action="restart">Recommencer</button>
         <a data-reco-action="advisor">Conseiller</a>
       </div>
-      <div data-reco-panel="empty"><a data-reco-action="advisor">Conseiller</a></div>
+      <div data-reco-panel="empty"><h3>Aucun parcours</h3><a data-reco-action="advisor">Conseiller</a></div>
       <div data-reco-panel="error">
+        <h3>Une erreur est survenue</h3>
         <p data-reco-error-message></p>
         <button type="button" data-reco-action="retry">Réessayer</button>
         <a data-reco-action="advisor">Conseiller</a>
@@ -65,6 +68,10 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
         <span data-reco-label="reco.error.rate">Trop de demandes</span>
         <span data-reco-label="reco.error.server">Serveur</span>
         <span data-reco-label="reco.error.input">Saisie invalide</span>
+        <span data-reco-label="reco.disclaimer">Recommandations indicatives.</span>
+        <span data-reco-label="reco.loading">Recherche en cours…</span>
+        <span data-reco-label="reco.results.count">{count} recommandations</span>
+        <span data-reco-label="reco.empty">Aucun parcours</span>
       </div>
     </section>`
   const el = document.querySelector<HTMLElement>('[data-reco-widget]')

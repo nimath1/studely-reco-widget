@@ -15,7 +15,18 @@ it('interpole les {variables}', () => {
   expect(t('reco.progress', { step: 2, total: 5 })).toBe('Étape 2 sur 5')
 })
 
-it('renvoie la clé absente telle quelle, jamais de texte en dur', () => {
-  const t = readLabels(mountWidget())
+it('clé absente : console.warn nommant la clé, repli FR si disponible', () => {
+  const el = mountWidget()
+  el.insertAdjacentHTML(
+    'beforeend',
+    '<span data-reco-label-fr="reco.fallback">Repli français</span>'
+  )
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+  const t = readLabels(el)
+
+  expect(t('reco.fallback')).toBe('Repli français')
+  expect(warn).toHaveBeenCalledWith('[studely-reco]', 'clé i18n absente :', 'reco.fallback')
+
   expect(t('reco.inconnu')).toBe('reco.inconnu')
+  expect(warn).toHaveBeenCalledWith('[studely-reco]', 'clé i18n absente :', 'reco.inconnu')
 })

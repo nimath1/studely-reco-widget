@@ -147,13 +147,37 @@ function isEmpty(answers: Answers, field: keyof Answers): boolean {
   return Array.isArray(value) ? value.length === 0 : !value
 }
 
+// Ids uniques des messages d'erreur (aria-describedby) — deux widgets d'une
+// même page ne doivent pas partager le même id.
+let errorUid = 0
+
+/** Champs contrôlés par le slot d'erreur de `field` (options ou input dédié). */
+function fieldControls(el: HTMLElement, field: string): HTMLElement[] {
+  return [
+    ...el.querySelectorAll<HTMLElement>(
+      `[data-reco-options="${field}"] :is(input, select, textarea), [data-reco-input="${field}"]`
+    )
+  ]
+}
+
 export function showFieldError(el: HTMLElement, field: string, message: string): void {
-  const slot = el.querySelector(`[data-reco-error-for="${field}"]`)
-  if (slot) slot.textContent = message
+  const slot = el.querySelector<HTMLElement>(`[data-reco-error-for="${field}"]`)
+  if (!slot) return
+  slot.textContent = message
+  if (!slot.id) slot.id = `reco-err-${++errorUid}-${field}`
+  fieldControls(el, field).forEach((control) => {
+    control.setAttribute('aria-invalid', 'true')
+    control.setAttribute('aria-describedby', slot.id)
+  })
 }
 
 export function clearFieldError(el: HTMLElement, field: string): void {
-  showFieldError(el, field, '')
+  const slot = el.querySelector<HTMLElement>(`[data-reco-error-for="${field}"]`)
+  if (slot) slot.textContent = ''
+  fieldControls(el, field).forEach((control) => {
+    control.removeAttribute('aria-invalid')
+    control.removeAttribute('aria-describedby')
+  })
 }
 
 /**
@@ -189,9 +213,19 @@ export function validateStep(
  * Chrome de l'étape courante : « Étape x sur 5 », barre de progression,
  * Retour masqué à l'étape 1, « Voir mes recommandations » à l'étape 5.
  */
-export function updateStepChrome(el: HTMLElement, step: number, t: Translate): void {
+export function updateStepChrome(
+  el: HTMLElement,
+  step: number,
+  t: Translate,
+  formatNumber: (value: number) => string = String
+): void {
   const progress = el.querySelector('[data-reco-progress]')
-  if (progress) progress.textContent = t('reco.progress', { step, total: STEP_COUNT })
+  if (progress) {
+    progress.textContent = t('reco.progress', {
+      step: formatNumber(step),
+      total: formatNumber(STEP_COUNT)
+    })
+  }
   const bar = el.querySelector<HTMLElement>('[data-reco-progress-bar]')
   if (bar) bar.style.width = `${(step / STEP_COUNT) * 100}%`
 

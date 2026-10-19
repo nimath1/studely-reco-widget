@@ -101,12 +101,34 @@ export function resetInputs(el: HTMLElement): void {
   if (consent) consent.checked = false
 }
 
-/** Remplit `[data-reco-results]` d'une carte par recommandation (3 à 5). */
-export function renderResults(el: HTMLElement, items: RecoRecommendation[]): void {
+/** Une carte ne mène que vers une page du site : https sur studely.com (R10). */
+export function isAllowedUrl(url: string | undefined): boolean {
+  if (!url) return false
+  try {
+    const parsed = new URL(url)
+    return (
+      parsed.protocol === 'https:' &&
+      (parsed.hostname === 'studely.com' || parsed.hostname === 'www.studely.com')
+    )
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Remplit `[data-reco-results]` d'une carte par recommandation (3 à 5, 0 à 4
+ * étiquettes). Les cartes dont l'URL sort de studely.com sont écartées ; le
+ * score de l'API n'est jamais affiché. Renvoie le nombre de cartes rendues :
+ * zéro doit basculer le widget en `empty`.
+ */
+export function renderResults(el: HTMLElement, items: RecoRecommendation[]): number {
   const container = el.querySelector('[data-reco-results]')
-  if (!container) return
+  if (!container) return 0
   container.replaceChildren()
+  let rendered = 0
   for (const item of items) {
+    if (!isAllowedUrl(item.url)) continue
+    if (rendered >= 5) break
     const card = cloneTemplate(el, 'result-card')
     if (!card) break
     fillField(card, 'type', item.type ?? '')
@@ -118,7 +140,7 @@ export function renderResults(el: HTMLElement, items: RecoRecommendation[]): voi
     const tagTemplate = list?.querySelector('[data-reco-template="tag"]')
     if (list && tagTemplate) {
       list.replaceChildren()
-      for (const tag of item.tags ?? []) {
+      for (const tag of (item.tags ?? []).slice(0, 4)) {
         const tagItem = tagTemplate.cloneNode(true)
         if (tagItem instanceof HTMLElement) {
           delete tagItem.dataset.recoTemplate
@@ -128,5 +150,7 @@ export function renderResults(el: HTMLElement, items: RecoRecommendation[]): voi
       }
     }
     container.append(card)
+    rendered += 1
   }
+  return rendered
 }

@@ -74,7 +74,7 @@ describe('postRecommendations', () => {
   it('envoie JSON, X-Request-Id unique et X-Turnstile-Token', async () => {
     const spy = mockFetch(async () => ({
       ok: true,
-      json: async () => ({ recommendations: [{ title: 'A' }] })
+      json: async () => ({ items: [{ title: 'A' }] })
     }))
     await postRecommendations(PAYLOAD, 'tok')
     await postRecommendations(PAYLOAD, 'tok')
@@ -99,9 +99,9 @@ describe('postRecommendations', () => {
     expect(init.headers).not.toHaveProperty('X-Turnstile-Token')
   })
 
-  it('retourne [] sans champ recommendations', async () => {
+  it('sans champ items → items vide', async () => {
     mockFetch(async () => ({ ok: true, json: async () => ({}) }))
-    expect(await postRecommendations(PAYLOAD)).toEqual([])
+    expect(await postRecommendations(PAYLOAD)).toEqual({ items: [] })
   })
 
   it('mappe réseau et timeout vers network', async () => {
