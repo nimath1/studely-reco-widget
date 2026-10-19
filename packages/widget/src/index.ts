@@ -152,6 +152,9 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
           machine.goTo(`step-${draft.step}` as WidgetState, 'resume')
         }
       }
+      // Retry après un échec options : la machine est passée par « loading »
+      // et rien ne la ramène à l'intro — sans ça le widget resterait bloqué.
+      if (machine.state === 'loading') machine.goTo('intro', 'retry')
       syncChrome()
     } catch (error) {
       if (signal.aborted) return

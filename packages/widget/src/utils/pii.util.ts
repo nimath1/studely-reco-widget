@@ -10,7 +10,9 @@
  */
 // Labels du domaine ancrés par leur point : la lettre après un « . » ne
 // peut être ni TLD ni début de label alternatif — pas de double chemin.
-const EMAIL_PATTERN = /[\p{L}\p{N}._%+-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+/gu
+// Quantificateurs bornés (tailles réelles : local ≤64, label ≤63) : sans
+// borne, `+` retourne en arrière linéairement quand « @ » n'apparaît pas.
+const EMAIL_PATTERN = /[\p{L}\p{N}._%+-]{1,64}@[\p{L}\p{N}-]{1,63}(?:\.[\p{L}\p{N}-]{1,63})+/gu
 
 // IBAN : code pays + 2 chiffres de contrôle + groupes de 4, espaces facultatifs.
 const IBAN_PATTERN = /\b[A-Z]{2}\d{2}(?:\s?[A-Z0-9]{4}){2,7}(?:\s?[A-Z0-9]{1,4})?\b/gi

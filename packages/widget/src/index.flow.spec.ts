@@ -272,6 +272,7 @@ describe('erreurs API', () => {
     await vi.waitFor(() => {
       if (el.dataset.recoState !== 'empty') throw new Error('pas empty')
     })
+    expect(el.querySelector('[data-reco-panel="empty"]')!.classList).toContain('is-reco-active')
   })
 
   it('retry après un échec options recharge les options', async () => {
@@ -288,12 +289,11 @@ describe('erreurs API', () => {
     })
     click(el, 'retry')
     await vi.waitFor(() => {
-      if (
-        el.dataset.recoState !== 'loading' &&
-        !el.querySelector('[data-reco-options="level"] input')
-      )
-        throw new Error('pas rechargé')
+      if (el.dataset.recoState !== 'intro') throw new Error('pas rechargé')
     })
+    expect(calls).toBeGreaterThan(1)
+    click(el, 'start')
+    expect(el.querySelector('[data-reco-options="level"] input')).not.toBeNull()
   })
 })
 
