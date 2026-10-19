@@ -13,18 +13,51 @@ const WIDGET_SELECTOR = '[data-reco-widget]'
 // Aucun appel réseau tant que le bloc n'est pas à moins de 200 px de l'écran.
 const LAZY_ROOT_MARGIN = '200px'
 
+interface Instance {
+  /** Observer en attente de l'approche de l'écran, s'il y en a un. */
+  observer?: IntersectionObserver
+  /** Tous les écouteurs du bloc sont attachés avec ce signal : l'annuler les retire. */
+  controller?: AbortController
+}
+
+// Un état par bloc : plusieurs widgets d'une même page restent indépendants.
+const instances = new WeakMap<HTMLElement, Instance>()
+
+function instanceOf(el: HTMLElement): Instance {
+  let instance = instances.get(el)
+  if (!instance) {
+    instance = {}
+    instances.set(el, instance)
+  }
+  return instance
+}
+
 /**
- * (Ré)initialise un bloc, par exemple après une interaction Webflow.
+ * (Ré)initialise un bloc, par exemple après une interaction Webflow : les
+ * écouteurs de l'initialisation précédente et l'observer en attente sont
+ * retirés avant de repartir, sans doublon.
  * Config invalide : le bloc reste sur son panel `fallback` (CTA conseiller).
  */
 export function init(el: HTMLElement): WidgetConfig | null {
+  const instance = instanceOf(el)
+  instance.observer?.disconnect()
+  instance.observer = undefined
+  instance.controller?.abort()
+  instance.controller = undefined
+
   let config: WidgetConfig
   try {
     config = readConfig(el)
   } catch (error) {
-    logger.warn(error)
+    logger.error(
+      error instanceof Error ? error.message : error,
+      '— le bloc reste sur le panel fallback.',
+      el
+    )
     return null
   }
+
+  instance.controller = new AbortController()
 
   if (config.dir === 'rtl') el.setAttribute('dir', 'rtl')
   else el.removeAttribute('dir')
@@ -39,13 +72,11 @@ function initWhenNear(el: HTMLElement): void {
   }
   const observer = new IntersectionObserver(
     (entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) {
-        observer.disconnect()
-        init(el)
-      }
+      if (entries.some((entry) => entry.isIntersecting)) init(el)
     },
     { rootMargin: LAZY_ROOT_MARGIN }
   )
+  instanceOf(el).observer = observer
   observer.observe(el)
 }
 

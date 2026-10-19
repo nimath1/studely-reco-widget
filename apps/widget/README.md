@@ -14,6 +14,18 @@ pnpm --filter @studely/widget test
 pnpm --filter @studely/widget test:coverage  # seuils : 90 % lignes/fonctions/instructions
 ```
 
+## Variables de build
+
+| Variable            | Rôle                                                       |
+| ------------------- | ---------------------------------------------------------- |
+| `VITE_RECO_API_URL` | URL HTTPS de l'API de recommandation, fixée dans le bundle |
+
+- Dev : `.env.development` (versionné, URL publique de dev).
+- Staging et production : fournie par l'environnement de build (Vercel, CI).
+  Sans URL HTTPS valide, `pnpm build` échoue.
+
+L'URL n'est jamais lue depuis la page (§7.4).
+
 ## Intégration Webflow
 
 ```html

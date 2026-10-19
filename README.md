@@ -3,10 +3,9 @@
 Monorepo **pnpm + Turborepo** du widget de recommandation de parcours
 Studely : widget front intégré à Webflow et API de recommandation.
 
-> Socle repris d'un projet existant (API NestJS, moteur assistant/retrieval,
-> outillage). Le moteur lit encore le catalogue via Directus et son prompt
-> cible l'ancien catalogue : son adaptation au catalogue Studely reste à
-> faire (cahier des charges, point Q1).
+> Socle repris d'un projet existant (API NestJS, outillage). L'API ne garde
+> que son socle technique : le moteur de recommandation reste à brancher
+> (cahier des charges, point Q1).
 
 ---
 
@@ -25,7 +24,7 @@ pnpm dev
 | `apps/widget` | http://localhost:5173 | Widget (page de dev reprenant le squelette Webflow) |
 | `apps/api`    | http://localhost:3001 | API NestJS (`/health`, `/docs`)                     |
 
-Stack locale complète (Postgres, Redis, MinIO, Directus, API) :
+Stack locale (Redis, API) :
 
 ```bash
 docker compose up --build
@@ -38,11 +37,9 @@ docker compose up --build
 ```
 apps/
   widget/         Bundle reco.js (Vite, IIFE, sans framework) — voir son README
-  api/            NestJS — assistant (LLM), retrieval (BM25 + embeddings),
-                  catalogue, rate limiting Redis
+  api/            NestJS — socle (config, santé, cache et rate limiting Redis)
 packages/
   types/          Types TypeScript partagés (@studely/types)
-directus/         Schéma et seed Directus (source actuelle du catalogue)
 ```
 
 ---

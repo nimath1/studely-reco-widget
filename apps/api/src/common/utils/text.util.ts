@@ -105,7 +105,7 @@ export function normalizeText(text: string | null | undefined): string {
   return (text ?? '').toLowerCase().normalize('NFD').replace(DIACRITICS, '')
 }
 
-/** Texte brut d'un champ WYSIWYG Directus : balises retirées, entités courantes décodées. */
+/** Texte brut d'un champ HTML : balises retirées, entités courantes décodées. */
 export function stripHtml(html: string | null | undefined): string {
   if (!html) return ''
   return html

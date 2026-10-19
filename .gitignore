@@ -30,6 +30,8 @@ lerna-debug.log*
 .env.test
 .env.production
 .env.local
+# Exception : URL publique de l'API pour le dev du widget (aucun secret).
+!apps/widget/.env.development
 
 # docker compose local overrides (ports, env spécifiques machine)
 docker-compose.override.yml
@@ -38,10 +40,6 @@ docker-compose.override.yml
 .temp
 .tmp
 /tmp
-
-# Directus data backups (contiennent des données réelles — jamais versionnés)
-/backups
-directus/schema/.backups
 
 # OS / editor
 .DS_Store

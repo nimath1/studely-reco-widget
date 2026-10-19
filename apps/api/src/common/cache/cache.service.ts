@@ -124,8 +124,8 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Abonne un consommateur aux invalidations catalogue (sync Digiforma,
-   * purges déclenchées par Directus) — index en mémoire à reconstruire, etc.
+   * Abonne un consommateur aux invalidations catalogue — index en mémoire à
+   * reconstruire, etc.
    * Retourne la fonction de désabonnement.
    */
   onCatalogInvalidated(listener: () => void): () => void {
@@ -168,8 +168,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Rattrape les invalidations faites par d'autres instances (déploiement
-   * multi-instances : la sync ou le webhook Directus n'atterrit que sur
-   * l'une d'elles) : réaligne la version des clés et prévient les
+   * multi-instances : une invalidation n'atterrit que sur l'une d'elles) : réaligne la version des clés et prévient les
    * abonnés. Retourne `true` quand une invalidation a été rattrapée.
    */
   async syncInvalidations(): Promise<boolean> {

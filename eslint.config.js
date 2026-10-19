@@ -65,12 +65,6 @@ export default defineConfig(
     }
   },
   {
-    files: ['directus/**/*.mjs'],
-    languageOptions: {
-      globals: globals.node
-    }
-  },
-  {
     // Données de l'API injectées via textContent uniquement (cahier §7.4).
     files: ['apps/widget/src/**/*.ts'],
     ignores: ['apps/widget/src/**/*.spec.ts'],
@@ -85,13 +79,13 @@ export default defineConfig(
     }
   },
   {
-    files: ['apps/widget/scripts/**/*.mjs'],
+    files: ['apps/widget/scripts/**/*.mjs', 'apps/widget/*.config.ts'],
     languageOptions: {
       globals: globals.node
     }
   },
   {
-    files: ['directus/logger.mjs', 'apps/widget/src/logger.ts', 'apps/widget/scripts/**/*.mjs'],
+    files: ['apps/widget/src/logger.ts', 'apps/widget/scripts/**/*.mjs'],
     rules: {
       'no-console': 'off'
     }
