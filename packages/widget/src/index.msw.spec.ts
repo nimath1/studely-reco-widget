@@ -70,14 +70,15 @@ describe('parcours complet contre le mock MSW', () => {
     return el
   }
 
-  it('nominal : de intro à results avec des cartes cliquables', async () => {
+  it('nominal : de intro à results avec le texte du bot et ses liens', async () => {
     const el = await mount('nominal')
     await play(el)
     await waitState(el, 'results')
+    expect(el.querySelector('[data-reco-field="text"]')?.textContent).toContain('pistes')
     const links = [
-      ...el.querySelectorAll<HTMLAnchorElement>('[data-reco-results] [data-reco-field="url"]')
+      ...el.querySelectorAll<HTMLAnchorElement>('[data-reco-results] [data-reco-field="links"] a')
     ]
-    expect(links.length).toBeGreaterThan(0)
+    expect(links.length).toBe(3)
     for (const link of links) {
       expect(link.href).toMatch(/^https:\/\/(www\.)?studely\.com/)
     }
@@ -102,11 +103,11 @@ describe('parcours complet contre le mock MSW', () => {
     ).toBeTruthy()
   })
 
-  it("field-error : 400 avec field ramène à l'étape du champ", async () => {
+  it('field-error : 422 FastAPI affiche l’erreur de saisie', async () => {
     const el = await mount('field-error')
     await play(el)
-    await waitState(el, 'step-2')
-    expect(el.querySelector('[data-reco-error-for="fields"]')?.textContent).not.toBe('')
+    await waitState(el, 'error')
+    expect(el.querySelector('[data-reco-error-message]')?.textContent).toBe('Saisie invalide')
   })
 
   it("forbidden : 403 relance le défi puis affiche l'erreur captcha au 2e échec", async () => {
@@ -139,24 +140,19 @@ describe('parcours complet contre le mock MSW', () => {
     }
   )
 
-  it('bad-url : les cartes hors studely.com sont écartées', async () => {
+  it('bad-url : citations hors studely.com et texte vide → empty', async () => {
     const el = await mount('bad-url')
     await play(el)
-    await waitState(el, 'results')
-    const links = [
-      ...el.querySelectorAll<HTMLAnchorElement>('[data-reco-results] [data-reco-field="url"]')
-    ]
-    for (const link of links) {
-      expect(link.href).toMatch(/^https:\/\/(www\.)?studely\.com/)
-    }
+    await waitState(el, 'empty')
+    expect(el.querySelectorAll('[data-reco-results] a')).toHaveLength(0)
   })
 
-  it('html-reason : la raison HTML reste du texte brut', async () => {
+  it('html-reason : le texte HTML reste du texte brut', async () => {
     const el = await mount('html-reason')
     await play(el)
     await waitState(el, 'results')
-    const reason = el.querySelector('[data-reco-results] [data-reco-field="reason"]')
-    expect(reason?.textContent).toContain('<img')
+    const text = el.querySelector('[data-reco-results] [data-reco-field="text"]')
+    expect(text?.textContent).toContain('<img')
     expect(el.querySelector('[data-reco-results] img')).toBeNull()
   })
 })

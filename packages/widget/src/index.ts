@@ -4,17 +4,24 @@
  * `window.StudelyReco` (build IIFE, §7.6) — n'exporter que l'API publique.
  */
 import { version as pkgVersion } from '../package.json'
-import { fetchOptions, postRecommendations, RecoApiError } from './api/client'
-import type { RecommendationsRequest } from './api/types'
+import {
+  clearChatSession,
+  loadChatSession,
+  postChat,
+  RecoApiError,
+  saveChatSession
+} from './api/client'
+import { buildChatMessage } from './api/message'
+import { optionsFor } from './api/options'
+import type { RecoProfile } from './api/types'
 import { readConfig, type WidgetConfig } from './config'
-import { CONSENT_VERSION } from './consent/consent'
 import { ensureChallenge, resetChallenge, turnstileToken } from './consent/turnstile'
 import { makeFormatters } from './i18n/format'
 import { readLabels } from './i18n/labels'
 import { logger } from './logger'
 import { RecoMachine, stepOf, STEP_COUNT, type WidgetState } from './state/machine'
 import { emitRecoEvent, trackReco } from './tracking/events'
-import { renderOptions, renderResults, resetInputs } from './ui/render'
+import { renderChatReply, renderOptions, resetInputs } from './ui/render'
 import {
   applyAnswers,
   buildProfile,
@@ -80,8 +87,9 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     link.href = config.advisorUrl
   })
 
-  let lastPayload: RecommendationsRequest | null = null
-  let lastFailure: 'options' | 'submit' | null = null
+  let lastProfile: RecoProfile | null = null
+  /** La session /chat continue d'un envoi à l'autre (retry compris). */
+  let sessionId = loadChatSession(config.origin)
   let retryLockUntil = 0
   /** Échecs captcha consécutifs : relance du défi au 1er, erreur au 2e (§9.1). */
   let captchaFailures = 0
@@ -140,62 +148,51 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     focusPanel('error')
   }
 
-  async function loadOptions(): Promise<void> {
-    lastFailure = null
-    try {
-      const options = await fetchOptions(config.locale, config.origin)
-      if (signal.aborted) return
-      renderOptions(el, options)
-      if (draft) {
-        applyAnswers(el, draft.answers)
-        if (draft.step >= 1 && draft.step <= STEP_COUNT) {
-          machine.goTo(`step-${draft.step}` as WidgetState, 'resume')
-        }
+  /**
+   * Options statiques (src/api/options.ts) : l'API chatbot ne sert pas
+   * d'endpoint options — le rendu est synchrone, sans appel réseau, donc
+   * sans chemin d'échec à gérer.
+   */
+  function loadOptions(): void {
+    renderOptions(el, optionsFor(config.locale))
+    if (draft) {
+      applyAnswers(el, draft.answers)
+      if (draft.step >= 1 && draft.step <= STEP_COUNT) {
+        machine.goTo(`step-${draft.step}` as WidgetState, 'resume')
       }
-      // Retry après un échec options : la machine est passée par « loading »
-      // et rien ne la ramène à l'intro — sans ça le widget resterait bloqué.
-      if (machine.state === 'loading') machine.goTo('intro', 'retry')
-      syncChrome()
-    } catch (error) {
-      if (signal.aborted) return
-      lastFailure = 'options'
-      showError(error)
     }
+    if (machine.state === 'loading') machine.goTo('intro', 'retry')
+    syncChrome()
   }
 
-  /** Mention « recommandations indicatives » avec son lien, si l'API le fournit. */
-  function renderDisclaimer(url: string | undefined): void {
-    const link = el.querySelector<HTMLAnchorElement>('[data-reco-disclaimer]')
-    if (!link) return
-    link.hidden = !url
-    if (url) {
-      link.href = url
-      link.textContent = t('reco.disclaimer')
-    }
-  }
-
-  /** Envoie le dernier payload : résultats, empty ou mapping d'erreur §5.3. */
+  /** Envoie le profil à /chat : réponse texte + citations, empty ou erreur. */
   async function sendPayload(): Promise<void> {
     submittedAt = Date.now()
     try {
-      const { items, disclaimerUrl } = await postRecommendations(lastPayload!, turnstileToken(el))
+      const reply = await postChat(
+        buildChatMessage(lastProfile!, config.locale),
+        sessionId,
+        turnstileToken(el)
+      )
       if (signal.aborted) return
       captchaFailures = 0
-      const count = renderResults(el, items)
-      lastResultCount = count
-      if (count === 0) {
+      if (reply.meta.session_id) {
+        sessionId = reply.meta.session_id
+        saveChatSession(config.origin, sessionId)
+      }
+      const { pieces, links } = renderChatReply(el, reply.text, reply.meta.citations)
+      lastResultCount = links > 0 ? links : pieces
+      if (pieces === 0) {
         machine.dispatch('empty')
         announce(t('reco.empty'))
         focusPanel('empty')
       } else {
-        renderDisclaimer(disclaimerUrl)
         machine.dispatch('results')
-        announce(t('reco.results.count', { count: fmt.number(count) }))
+        announce(t('reco.results.count', { count: fmt.number(lastResultCount) }))
         focusPanel('results')
       }
     } catch (error) {
       if (signal.aborted) return
-      lastFailure = 'submit'
       if (error instanceof RecoApiError && error.kind === 'forbidden' && captchaFailures === 0) {
         // Premier 403 : relance du défi et retour à l'étape 5 — l'erreur
         // reco.error.captcha n'apparaît qu'au second échec (§9.1).
@@ -241,23 +238,17 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
   }
 
   async function submitProfile(): Promise<void> {
-    lastPayload = {
-      locale: config.locale,
-      origin: config.origin,
-      profile: buildProfile(collectAnswers(el)),
-      consent: { accepted: true, version: CONSENT_VERSION }
-    }
-    lastFailure = null
+    lastProfile = buildProfile(collectAnswers(el))
     machine.dispatch('submit')
     announce(t('reco.loading'))
     await sendPayload()
   }
 
   function retry(): void {
-    if (Date.now() < retryLockUntil) return
+    if (Date.now() < retryLockUntil || !lastProfile) return
     machine.dispatch('retry')
     announce(t('reco.loading'))
-    void (lastFailure === 'submit' && lastPayload ? sendPayload() : loadOptions())
+    void sendPayload()
   }
 
   function next(step: number | null): void {
@@ -277,6 +268,11 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     clearDraft()
     captchaFailures = 0
     lastResultCount = undefined
+    lastProfile = null
+    // Nouvelle recommandation = nouvelle conversation : le contexte du bot
+    // ne doit pas mélanger deux profils.
+    sessionId = null
+    clearChatSession(config.origin)
     resetInputs(el)
     el.querySelectorAll('[data-reco-error-for]').forEach((node) => {
       node.textContent = ''
@@ -350,7 +346,7 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     signal
   })
 
-  void loadOptions()
+  loadOptions()
 }
 
 /**

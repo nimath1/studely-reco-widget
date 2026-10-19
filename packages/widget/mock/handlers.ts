@@ -1,14 +1,14 @@
 /**
- * Handlers MSW de l'API de recommandation (§6) — développement local et CI
- * uniquement, jamais dans le bundle de production.
+ * Handlers MSW du chatbot réel (POST /chat en SSE) — développement local
+ * et CI uniquement, jamais dans le bundle de production.
  *
  * Le scénario se choisit sans toucher au code :
  * `?recoMock=<scénario>` dans l'URL, ou `localStorage.setItem('recoMock', …)`.
  */
 import { delay, http, HttpResponse } from 'msw'
-import { optionsFor, recommendationsFor } from './data'
-import { SUPPORTED_LOCALES, type Locale } from '../src/config'
-import type { RecommendationsRequest } from '../src/api/types'
+import { chatReplyFor } from './data'
+import type { Locale } from '../src/config'
+import type { ChatReply } from '../src/api/types'
 
 export const SCENARIOS = [
   'nominal',
@@ -34,63 +34,81 @@ export function currentScenario(): Scenario {
   return (SCENARIOS as readonly string[]).includes(value) ? (value as Scenario) : DEFAULT_SCENARIO
 }
 
-function localeOf(raw: unknown): Locale {
-  return (SUPPORTED_LOCALES as readonly string[]).includes(raw as Locale) ? (raw as Locale) : 'fr'
-}
-
 const BASE = (): string => import.meta.env.VITE_RECO_API_URL as string
 
-export const handlers = [
-  http.get(`${BASE()}/v1/options`, async ({ request }) => {
-    if (currentScenario() === 'timeout') await delay(60_000)
-    const locale = localeOf(new URL(request.url).searchParams.get('locale'))
-    return HttpResponse.json(optionsFor(locale))
-  }),
+/** Locale devinée depuis l'intro localisée du message profil (buildChatMessage). */
+function localeOf(message: string): Locale {
+  if (message.startsWith('I am looking')) return 'en'
+  if (message.startsWith('Busco')) return 'es'
+  if (message.startsWith('Ich suche')) return 'de'
+  if (message.startsWith('أبحث')) return 'ar'
+  return 'fr'
+}
 
-  http.post(`${BASE()}/v1/recommendations`, async ({ request }) => {
+/** Flux SSE du contrat : chunks `delta` puis un `final` de métadonnées. */
+function sse(reply: ChatReply): HttpResponse<string> {
+  const chunks = reply.text.match(/.{1,80}/gs) ?? []
+  const body =
+    chunks.map((text) => `event: delta\ndata: ${JSON.stringify({ text })}\n\n`).join('') +
+    `event: final\ndata: ${JSON.stringify(reply.meta)}\n\n`
+  return new HttpResponse(body, { headers: { 'Content-Type': 'text/event-stream' } })
+}
+
+export const handlers = [
+  http.post(`${BASE()}/chat`, async ({ request }) => {
     const scenario = currentScenario()
-    const body = (await request.json()) as RecommendationsRequest
-    const locale = localeOf(body.locale)
+    const body = (await request.json()) as { message?: string; session_id?: string | null }
+    const locale = localeOf(body.message ?? '')
 
     switch (scenario) {
       case 'timeout':
         await delay(60_000)
-        return HttpResponse.json({ items: [] })
+        return sse({ text: '', meta: { session_id: 'mock-session-1' } })
       case 'field-error':
+        // Forme FastAPI du contrat : detail[] avec loc body → champ.
         return HttpResponse.json(
-          { error: 'INVALID_FIELD', field: 'profile.fields' },
-          { status: 400 }
+          { detail: [{ loc: ['body', 'message'], msg: 'field required', type: 'value_error' }] },
+          { status: 422 }
         )
       case 'forbidden':
-        return HttpResponse.json({ error: 'CAPTCHA_FAILED' }, { status: 403 })
+        return HttpResponse.json({ detail: 'CAPTCHA_FAILED' }, { status: 403 })
       case 'rate':
         return HttpResponse.json(
-          { error: 'RATE_LIMITED' },
-          {
-            status: 429,
-            headers: { 'Retry-After': '30' }
-          }
+          { detail: 'RATE_LIMITED' },
+          { status: 429, headers: { 'Retry-After': '30' } }
         )
       case 'server':
-        return HttpResponse.json({ error: 'INTERNAL' }, { status: 500 })
+        return HttpResponse.json({ detail: 'INTERNAL' }, { status: 500 })
       case 'unavailable':
-        return HttpResponse.json({ error: 'UNAVAILABLE' }, { status: 503 })
+        return HttpResponse.json({ detail: 'UNAVAILABLE' }, { status: 503 })
       case 'empty':
-        return HttpResponse.json({ items: [] })
-      case 'bad-url': {
-        const res = recommendationsFor(locale)
-        res.items[0]!.url = 'https://example.com/hors-studely'
-        res.items[1]!.url = 'javascript:alert(1)'
-        return HttpResponse.json(res)
-      }
-      case 'html-reason': {
-        const res = recommendationsFor(locale)
-        res.items[0]!.reason = '<img src=x onerror=alert(1)> Parcours adapté.'
-        return HttpResponse.json(res)
-      }
-      default:
+        return sse({ text: '', meta: { session_id: 'mock-session-1' } })
+      case 'bad-url':
+        // Toutes les citations sortent de studely.com et le texte est vide :
+        // tout est écarté, le widget doit basculer en « empty ».
+        return sse({
+          text: '',
+          meta: {
+            session_id: 'mock-session-1',
+            citations: [
+              { title: 'Hors domaine', url: 'https://example.com/hors-studely' },
+              { title: 'Script', url: 'javascript:alert(1)' }
+            ]
+          }
+        })
+      case 'html-reason':
+        // HTML dans le texte : doit rester du texte brut à l'affichage.
+        return sse({
+          text: '<img src=x onerror=alert(1)> Voici une piste adaptée à ton profil.',
+          meta: { session_id: 'mock-session-1' }
+        })
+      default: {
         await delay(400)
-        return HttpResponse.json(recommendationsFor(locale))
+        const reply = chatReplyFor(locale)
+        // La session entrante continue ; sinon le mock en ouvre une.
+        reply.meta.session_id = body.session_id ?? 'mock-session-1'
+        return sse(reply)
+      }
     }
   })
 ]

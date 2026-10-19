@@ -3,7 +3,8 @@ import { expect, test, type Page } from '@playwright/test'
 /**
  * Page de dev : le mock MSW est activé par ?recoMock=<scénario>, la locale
  * par ?lang=. Attente web-first : le widget est prêt quand les options de
- * l'étape 1 sont rendues (GET /v1/options intercepté par le worker MSW).
+ * l'étape 1 sont rendues (dictionnaire statique local ; POST /chat SSE
+ * intercepté par le worker MSW).
  */
 async function open(page: Page, scenario = 'nominal', lang = 'fr'): Promise<void> {
   await page.goto(`/?recoMock=${scenario}&lang=${lang}`)
@@ -37,11 +38,15 @@ async function play(page: Page): Promise<void> {
 }
 
 test.describe('parcours widget (mock MSW)', () => {
-  test('nominal : 5 étapes puis cartes vers studely.com', async ({ page }) => {
+  test('nominal : 5 étapes puis réponse du bot et liens studely.com', async ({ page }) => {
     await open(page)
     await play(page)
     await expect.poll(() => state(page)).toBe('results')
-    const links = widget(page).locator('[data-reco-results] [data-reco-field="url"]')
+    await expect(
+      widget(page).locator('[data-reco-results] [data-reco-field="text"]')
+    ).not.toBeEmpty()
+    const links = widget(page).locator('[data-reco-results] [data-reco-field="links"] a')
+    await expect(links).toHaveCount(3)
     for (const link of await links.all()) {
       await expect(link).toHaveAttribute('href', /https:\/\/(www\.)?studely\.com/)
     }

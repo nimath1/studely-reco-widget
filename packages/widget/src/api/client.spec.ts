@@ -1,19 +1,13 @@
-import { fetchOptions, postRecommendations, RecoApiError, requestId, API_BASE_URL } from './client'
-import type { RecommendationsRequest } from './types'
-
-const PAYLOAD: RecommendationsRequest = {
-  locale: 'fr',
-  origin: 'mexique',
-  profile: {
-    level: 'licence',
-    fields: ['info'],
-    destinations: ['france'],
-    languages: [{ language: 'fr', level: 'b2' }],
-    budget: 'lt10k',
-    intake: 'sep'
-  },
-  consent: { accepted: true, version: '1' }
-}
+import {
+  API_BASE_URL,
+  clearChatSession,
+  loadChatSession,
+  parseSse,
+  postChat,
+  RecoApiError,
+  requestId,
+  saveChatSession
+} from './client'
 
 function mockFetch(impl: (...args: unknown[]) => Promise<Partial<Response>>) {
   const spy = vi.fn(impl)
@@ -21,7 +15,12 @@ function mockFetch(impl: (...args: unknown[]) => Promise<Partial<Response>>) {
   return spy
 }
 
-const JSON_HEADERS = { 'Content-Type': 'application/json' }
+const SSE = (text: string, meta: object = {}) =>
+  `event: delta\ndata: ${JSON.stringify({ text })}\n\nevent: final\ndata: ${JSON.stringify(meta)}\n\n`
+
+function ok(body: string): Partial<Response> {
+  return { ok: true, text: async () => body }
+}
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -38,80 +37,91 @@ describe('requestId', () => {
   })
 })
 
-describe('fetchOptions', () => {
-  it('appelle /v1/options avec locale et origin', async () => {
-    const spy = mockFetch(async () => ({
-      ok: true,
-      json: async () => ({ levels: [] })
-    }))
-    const res = await fetchOptions('fr', 'mexique')
-    expect(res).toEqual({ levels: [] })
-    expect(spy.mock.calls[0]![0]).toBe(`${API_BASE_URL}/v1/options?locale=fr&origin=mexique`)
+describe('parseSse', () => {
+  it('concatène les delta et garde les métadonnées final', () => {
+    const stream =
+      'event: delta\ndata: {"text":"Bon"}\n\n' +
+      'event: delta\ndata: {"text":"jour"}\n\n' +
+      'event: final\ndata: {"session_id":"s1","out_of_scope":false,"citations":[{"title":"P","url":"https://www.studely.com/p"}]}\n\n'
+    const reply = parseSse(stream)
+    expect(reply.text).toBe('Bonjour')
+    expect(reply.meta.session_id).toBe('s1')
+    expect(reply.meta.citations).toHaveLength(1)
   })
 
-  it('sert le cache sessionStorage au second appel', async () => {
-    const spy = mockFetch(async () => ({ ok: true, json: async () => ({ levels: [1] }) }))
-    await fetchOptions('fr', 'mexique')
-    const again = await fetchOptions('fr', 'mexique')
-    expect(again).toEqual({ levels: [1] })
-    expect(spy).toHaveBeenCalledTimes(1)
+  it('ignore les chunks non-JSON et les événements inconnus', () => {
+    const stream =
+      'event: delta\ndata: {oops}\n\n' +
+      'event: ping\ndata: {"x":1}\n\n' +
+      'event: delta\ndata: {"text":"ok"}\n\n'
+    const reply = parseSse(stream)
+    expect(reply.text).toBe('ok')
+    expect(reply.meta).toEqual({})
   })
 
-  it('ignore un cache corrompu et rappelle l’API', async () => {
-    sessionStorage.setItem('studely.reco.options.fr.mexique', '{oops')
-    const spy = mockFetch(async () => ({ ok: true, json: async () => ({ ok: 1 }) }))
-    await fetchOptions('fr', 'mexique')
-    expect(spy).toHaveBeenCalledTimes(1)
-  })
-
-  it('mappe un 503 en erreur server', async () => {
-    mockFetch(async () => ({ ok: false, status: 503 }))
-    await expect(fetchOptions('fr', 'mexique')).rejects.toMatchObject({ kind: 'server' })
+  it('flux vide → réponse vide', () => {
+    expect(parseSse('')).toEqual({ text: '', meta: {} })
   })
 })
 
-describe('postRecommendations', () => {
-  it('envoie JSON, X-Request-Id unique et X-Turnstile-Token', async () => {
-    const spy = mockFetch(async () => ({
-      ok: true,
-      json: async () => ({ items: [{ title: 'A' }] })
-    }))
-    await postRecommendations(PAYLOAD, 'tok')
-    await postRecommendations(PAYLOAD, 'tok')
+describe('session /chat', () => {
+  it('persiste, recharge et purge par origine', () => {
+    expect(loadChatSession('mexique')).toBeNull()
+    saveChatSession('mexique', 's1')
+    saveChatSession('bresil', 's2')
+    expect(loadChatSession('mexique')).toBe('s1')
+    expect(loadChatSession('bresil')).toBe('s2')
+    clearChatSession('mexique')
+    expect(loadChatSession('mexique')).toBeNull()
+    expect(loadChatSession('bresil')).toBe('s2')
+  })
 
-    const [, init1] = spy.mock.calls[0]! as [
+  it('ignore un session_id absent', () => {
+    saveChatSession('mexique', undefined)
+    expect(loadChatSession('mexique')).toBeNull()
+  })
+})
+
+describe('postChat', () => {
+  it('POST /chat : message + session_id, X-Request-Id unique et X-Turnstile-Token', async () => {
+    const spy = mockFetch(async () => ok(SSE('Salut', { session_id: 's9' })))
+    const reply = await postChat('Bonjour', 's8', 'tok')
+    await postChat('Bonjour', null)
+
+    const [url1, init1] = spy.mock.calls[0]! as [
       string,
       { method: string; headers: Record<string, string>; body: string }
     ]
-    const [, init2] = spy.mock.calls[1]! as [string, { headers: Record<string, string> }]
+    const [, init2] = spy.mock.calls[1]! as [
+      string,
+      { headers: Record<string, string>; body: string }
+    ]
+    expect(url1).toBe(`${API_BASE_URL}/chat`)
     expect(init1.method).toBe('POST')
-    expect(init1.headers['Content-Type']).toBe(JSON_HEADERS['Content-Type'])
+    expect(init1.headers['Content-Type']).toBe('application/json')
     expect(init1.headers['X-Turnstile-Token']).toBe('tok')
     expect(init1.headers['X-Request-Id']).toMatch(/^.{36}$/)
     expect(init1.headers['X-Request-Id']).not.toBe(init2.headers['X-Request-Id'])
-    expect(JSON.parse(init1.body)).toEqual(PAYLOAD)
+    expect(JSON.parse(init1.body)).toEqual({ message: 'Bonjour', session_id: 's8' })
+    expect(JSON.parse(init2.body)).toEqual({ message: 'Bonjour', session_id: null })
+    expect(reply).toEqual({ text: 'Salut', meta: { session_id: 's9' } })
   })
 
   it('omet X-Turnstile-Token sans token', async () => {
-    const spy = mockFetch(async () => ({ ok: true, json: async () => ({}) }))
-    await postRecommendations(PAYLOAD)
+    const spy = mockFetch(async () => ok(SSE('x')))
+    await postChat('m', null)
     const [, init] = spy.mock.calls[0]! as [string, { headers: Record<string, string> }]
     expect(init.headers).not.toHaveProperty('X-Turnstile-Token')
-  })
-
-  it('sans champ items → items vide', async () => {
-    mockFetch(async () => ({ ok: true, json: async () => ({}) }))
-    expect(await postRecommendations(PAYLOAD)).toEqual({ items: [] })
   })
 
   it('mappe réseau et timeout vers network', async () => {
     mockFetch(async () => {
       throw new TypeError('fetch failed')
     })
-    await expect(postRecommendations(PAYLOAD)).rejects.toMatchObject({ kind: 'network' })
+    await expect(postChat('m', null)).rejects.toMatchObject({ kind: 'network' })
   })
 
-  it('coupe la requête à 20 s', async () => {
+  it('coupe la requête à 45 s (réponse SSE potentiellement longue)', async () => {
     vi.useFakeTimers()
     mockFetch((...args: unknown[]) => {
       const init = args[1] as { signal: AbortSignal }
@@ -121,9 +131,9 @@ describe('postRecommendations', () => {
         )
       })
     })
-    const pending = postRecommendations(PAYLOAD)
+    const pending = postChat('m', null)
     const assertion = expect(pending).rejects.toMatchObject({ kind: 'network' })
-    await vi.advanceTimersByTimeAsync(20_000)
+    await vi.advanceTimersByTimeAsync(45_000)
     await assertion
     vi.useRealTimers()
   })
@@ -134,32 +144,28 @@ describe('postRecommendations', () => {
       status: 429,
       headers: new Headers({ 'Retry-After': '30' })
     }))
-    await expect(postRecommendations(PAYLOAD)).rejects.toMatchObject({
-      kind: 'rate',
-      retryAfter: 30
-    })
+    await expect(postChat('m', null)).rejects.toMatchObject({ kind: 'rate', retryAfter: 30 })
   })
 
-  it('400 → input avec le champ fautif du corps', async () => {
+  it('422 FastAPI → input avec le dernier segment de loc', async () => {
     mockFetch(async () => ({
       ok: false,
-      status: 400,
-      json: async () => ({ field: 'profile.fields' })
+      status: 422,
+      json: async () => ({ detail: [{ loc: ['body', 'message'], msg: 'field required' }] })
     }))
-    await expect(postRecommendations(PAYLOAD)).rejects.toMatchObject({
-      kind: 'input',
-      field: 'profile.fields'
-    })
+    await expect(postChat('m', null)).rejects.toMatchObject({ kind: 'input', field: 'message' })
   })
 
-  it('400 sans corps lisible → input sans champ', async () => {
-    mockFetch(async () => ({ ok: false, status: 400, json: async () => null }))
-    await expect(postRecommendations(PAYLOAD)).rejects.toMatchObject({ kind: 'input' })
+  it('422 sans corps lisible → input sans champ', async () => {
+    mockFetch(async () => ({ ok: false, status: 422, json: async () => null }))
+    await expect(postChat('m', null)).rejects.toMatchObject({ kind: 'input' })
   })
 
-  it('403 → forbidden (flux Turnstile)', async () => {
+  it('403 → forbidden (flux Turnstile) ; 503 → server', async () => {
     mockFetch(async () => ({ ok: false, status: 403 }))
-    await expect(postRecommendations(PAYLOAD)).rejects.toMatchObject({ kind: 'forbidden' })
+    await expect(postChat('m', null)).rejects.toMatchObject({ kind: 'forbidden' })
+    mockFetch(async () => ({ ok: false, status: 503 }))
+    await expect(postChat('m', null)).rejects.toMatchObject({ kind: 'server' })
   })
 
   it('l’erreur porte son nom', () => {

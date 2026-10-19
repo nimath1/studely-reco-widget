@@ -20,10 +20,10 @@ pnpm --filter @studely/widget lint
 
 ## Variables de build
 
-| Variable                  | Rôle                                                        |
-| ------------------------- | ----------------------------------------------------------- |
-| `VITE_RECO_API_URL`       | URL HTTPS de l'API de recommandation, fixée dans le bundle  |
-| `VITE_TURNSTILE_SITE_KEY` | Site key Cloudflare Turnstile (publique, par environnement) |
+| Variable                  | Rôle                                                                |
+| ------------------------- | ------------------------------------------------------------------- |
+| `VITE_RECO_API_URL`       | URL HTTPS de l'API chatbot (`POST /chat` SSE), fixée dans le bundle |
+| `VITE_TURNSTILE_SITE_KEY` | Site key Cloudflare Turnstile (publique, par environnement)         |
 
 - Dev : `.env.development` (versionné, URL publique de dev).
 - Staging : `.env.staging`, production : `.env.production` — valeurs
@@ -74,7 +74,8 @@ R12) et un avertissement `[studely-reco]` est émis en console.
   `data-reco-error-for`, hint `data-reco-hint="goal"`.
 - Boutons `data-reco-action` : `start`, `next`, `back`, `submit`, `edit`,
   `restart`, `retry` ; lien `data-reco-action="advisor"` disponible partout.
-- Templates `data-reco-template` : `result-card` (avec `tag`),
+- Templates `data-reco-template` : `reply` (bulle de réponse : champ
+  `text` + zone `links` remplie de liens-citations),
   `option-radio`, `option-checkbox`, `option-language` ; bloc
   `data-reco-labels` (une entrée `data-reco-label` par clé i18n) ;
   `data-reco-results`, `data-reco-disclaimer`, `data-reco-error-message`,
@@ -100,8 +101,7 @@ Nombres et dates via `Intl` dans la locale active.
 ## RGPD, consentement, tracking
 
 - La case consentement n'est **jamais** pré-cochée — pas même après
-  rechargement du brouillon (R15) — et bloque l'envoi. La requête porte
-  `consent: { accepted: true, version }` (version dans `consent/consent.ts`).
+  rechargement du brouillon (R15) — et bloque l'envoi.
 - Aucun appel API tant que la case n'est pas cochée ; ni nom, email,
   téléphone ni nationalité collectés. Le hint sous `goal` rappelle de ne
   pas saisir de données personnelles ; `goal` est nettoyé
@@ -157,8 +157,13 @@ timeout 20 s du widget), `bad-url` (URLs hors studely.com), `html-reason`
 
 ## Limites connues
 
-- Le contrat `api/types.ts` suit l'OpenAPI §6 supposé ; à ajuster quand le
-  contrat signé arrive — le mock devra suivre.
+- Le widget est branché sur l'API chatbot déployée (`POST /chat`, SSE
+  `delta`/`final`, `mode: "sav"` — seul mode accepté par le contrat actuel).
+  Le backend répond aujourd'hui `out_of_scope` aux demandes de parcours :
+  les recommandations structurées arriveront avec l'évolution serveur ;
+  le widget affiche déjà le texte du bot et ses citations.
+- Les options du questionnaire sont statiques (`src/api/options.ts`) : à
+  resynchroniser si le catalogue produit évolue.
 - La CMP reconnue est Cookiebot ; Didomi/Axeptio s'ajoutent dans
   `hasAnalyticsConsent` si le site les utilise.
 - Les URL `.env.staging`/`.env.production` suivent le pattern de dev ;

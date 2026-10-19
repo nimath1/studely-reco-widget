@@ -1,73 +1,58 @@
 import { mountStepsWidget } from './testing/widget.fixture'
 import { DRAFT_KEY } from './ui/steps'
 import { RECO_EVENT } from './tracking/events'
-import type { RecoOptions } from './api/types'
 
 type IndexModule = typeof import('./index')
-
-const OPTIONS: RecoOptions = {
-  levels: [{ id: 'licence', label: 'Licence' }],
-  fields: [
-    { id: 'info', label: 'Informatique' },
-    { id: 'droit', label: 'Droit' },
-    { id: 'sante', label: 'Santé' },
-    { id: 'art', label: 'Art' }
-  ],
-  destinations: [{ id: 'france', label: 'France' }],
-  languages: [{ id: 'fr', label: 'Français' }],
-  languageLevels: [{ id: 'b2', label: 'B2' }],
-  budgets: [{ id: 'lt10k', label: '< 10 k€' }],
-  intakes: [{ id: 'sep', label: 'Septembre' }]
-}
-
-const RECOS = [
-  { type: 'programme', title: 'Licence Info', url: 'https://studely.com/p/1', tags: ['info'] },
-  { type: 'programme', title: 'Licence Droit', url: 'https://www.studely.com/p/2', tags: [] }
-]
 
 async function load(): Promise<IndexModule> {
   vi.resetModules()
   return import('./index')
 }
 
-function mockFetch(handler: (url: string, init?: { headers?: Record<string, string> }) => unknown) {
-  const spy = vi.fn(async (url: unknown, init?: { headers?: Record<string, string> }) => {
-    const res = handler(String(url), init)
-    if (res instanceof Response) return res
-    const body = res as { status?: number; json?: unknown }
-    return {
-      ok: !body.status || body.status < 400,
-      status: body.status ?? 200,
-      headers: new Headers((body as { headers?: Record<string, string> }).headers),
-      json: async () => body.json ?? body
-    } as Response
-  })
+/** Réponse SSE du contrat /chat : chunks delta puis un final. */
+function sse(text: string, meta: object = {}): Response {
+  const body =
+    `event: delta\ndata: ${JSON.stringify({ text })}\n\n` +
+    `event: final\ndata: ${JSON.stringify(meta)}\n\n`
+  return new Response(body, { headers: { 'Content-Type': 'text/event-stream' } })
+}
+
+type FetchInit = { headers?: Record<string, string>; body?: string }
+
+function mockFetch(handler: (url: string, init?: FetchInit) => Response) {
+  const spy = vi.fn(async (url: unknown, init?: FetchInit) => handler(String(url), init))
   vi.stubGlobal('fetch', spy)
   return spy
 }
 
-const optionsResponse = { json: OPTIONS }
-const recosResponse = { json: { items: RECOS } }
+const NOMINAL = {
+  session_id: 's1',
+  citations: [
+    { title: 'Licence Info', url: 'https://www.studely.com/p/1' },
+    { title: 'Bachelor Business', url: 'https://www.studely.com/p/2' }
+  ]
+}
+
+const chatOk = () => sse('Voici trois pistes adaptées à ton profil.', NOMINAL)
 
 function click(el: HTMLElement, action: string) {
   el.querySelector<HTMLElement>(`[data-reco-action="${action}"]`)!.click()
 }
 
 function fillAll(el: HTMLElement) {
-  const check = (field: string, value: string) => {
+  const check = (field: string) => {
     const input = el.querySelector<HTMLInputElement>(`[data-reco-options="${field}"] input`)
     input!.checked = true
     input!.dispatchEvent(new Event('change', { bubbles: true }))
-    void value
   }
-  check('level', 'licence')
-  check('fields', 'info')
-  check('destinations', 'france')
-  const select = el.querySelector<HTMLSelectElement>('[data-reco-value="fr"] select')!
-  select.value = 'b2'
+  check('level')
+  check('fields')
+  check('destinations')
+  const select = el.querySelector<HTMLSelectElement>('[data-reco-options="languages"] select')!
+  select.value = select.options[1]!.value
   select.dispatchEvent(new Event('change', { bubbles: true }))
-  check('budget', 'lt10k')
-  check('intake', 'sep')
+  check('budget')
+  check('intake')
 }
 
 async function initAndWait(init: IndexModule['init'], el: HTMLElement) {
@@ -79,7 +64,7 @@ async function initAndWait(init: IndexModule['init'], el: HTMLElement) {
 }
 
 beforeEach(() => {
-  mockFetch((url) => (url.includes('/v1/options') ? optionsResponse : recosResponse))
+  mockFetch(chatOk)
 })
 
 afterEach(() => {
@@ -107,12 +92,12 @@ describe('parcours du questionnaire', () => {
     expect(el.querySelector('[data-reco-error-for="level"]')!.textContent).toBe('Champ requis')
   })
 
-  it('va au bout : 5 étapes, consentement exigé, résultats affichés', async () => {
+  it('va au bout : 5 étapes, consentement exigé, réponse /chat affichée', async () => {
     const { init } = await load()
     const el = mountStepsWidget()
     const fetchSpy = globalThis.fetch as ReturnType<typeof vi.fn>
     await initAndWait(init, el)
-    expect(fetchSpy).toHaveBeenCalledTimes(1) // options seulement
+    expect(fetchSpy).not.toHaveBeenCalled() // options statiques : aucun fetch
 
     click(el, 'start')
     fillAll(el)
@@ -124,7 +109,7 @@ describe('parcours du questionnaire', () => {
     expect(el.querySelector('[data-reco-error-for="consent"]')!.textContent).toBe(
       'Consentement requis'
     )
-    expect(fetchSpy).toHaveBeenCalledTimes(1) // aucun POST sans consentement
+    expect(fetchSpy).not.toHaveBeenCalled() // aucun POST sans consentement
 
     const consent = el.querySelector<HTMLInputElement>('[data-reco-input="consent"]')!
     consent.checked = true
@@ -134,18 +119,23 @@ describe('parcours du questionnaire', () => {
     await vi.waitFor(() => {
       if (el.dataset.recoState !== 'results') throw new Error('pas results')
     })
-    expect(fetchSpy).toHaveBeenCalledTimes(2)
-    expect(el.querySelectorAll('[data-reco-results] > article')).toHaveLength(2)
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+
+    // Texte du bot + liens de citations ; session persistée pour la suite.
+    expect(el.querySelector('[data-reco-field="text"]')!.textContent).toContain('trois pistes')
+    expect(el.querySelectorAll('[data-reco-field="links"] a')).toHaveLength(2)
+    expect(sessionStorage.getItem('studely.reco.session.mexique')).toBe('s1')
 
     // Annoncé dans la région live et focus posé sur le titre du panel.
     expect(el.querySelector('[data-reco-live]')!.textContent).toBe('2 recommandations')
     expect(document.activeElement).toBe(el.querySelector('[data-reco-title]'))
   })
 
-  it('restart revient à intro et vide le brouillon', async () => {
+  it('restart revient à intro, vide le brouillon et réinitialise la session', async () => {
     const { init } = await load()
     const el = mountStepsWidget()
     await initAndWait(init, el)
+    sessionStorage.setItem('studely.reco.session.mexique', 's-old')
     click(el, 'start')
     fillAll(el)
     expect(sessionStorage.getItem(DRAFT_KEY)).toBeTruthy()
@@ -154,6 +144,7 @@ describe('parcours du questionnaire', () => {
     click(el, 'restart')
     expect(el.dataset.recoState).toBe('intro')
     expect(sessionStorage.getItem(DRAFT_KEY)).toBeNull()
+    expect(sessionStorage.getItem('studely.reco.session.mexique')).toBeNull()
     expect(el.querySelectorAll('[data-reco-options] input:checked')).toHaveLength(0)
   })
 
@@ -192,18 +183,28 @@ describe('parcours du questionnaire', () => {
     )
     await initAndWait(init, el)
     expect(el.dataset.recoState).toBe('step-3')
-    expect(el.querySelector<HTMLInputElement>('[data-reco-options="level"] input')!.checked).toBe(
-      true
-    )
+    expect(
+      el.querySelector<HTMLInputElement>('[data-reco-options="level"] input[value="licence"]')!
+        .checked
+    ).toBe(true)
   })
 })
 
 describe('erreurs API', () => {
-  it('options indisponibles → panel error', async () => {
-    mockFetch(() => ({ status: 503 }))
+  async function submitFullForm(el: HTMLElement) {
+    click(el, 'start')
+    fillAll(el)
+    for (let n = 0; n < 4; n++) click(el, 'next')
+    el.querySelector<HTMLInputElement>('[data-reco-input="consent"]')!.checked = true
+    click(el, 'submit')
+  }
+
+  it('chat indisponible au submit → panel error', async () => {
+    mockFetch(() => new Response('{"detail":"UNAVAILABLE"}', { status: 503 }))
     const { init } = await load()
     const el = mountStepsWidget()
-    init(el)
+    await initAndWait(init, el)
+    await submitFullForm(el)
     await vi.waitFor(() => {
       if (el.dataset.recoState !== 'error') throw new Error('pas error')
     })
@@ -212,19 +213,17 @@ describe('erreurs API', () => {
 
   it('429 → error rate, Réessayer désactivé pendant Retry-After', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
-    const spy = mockFetch((url) =>
-      url.includes('/v1/options')
-        ? optionsResponse
-        : { status: 429, headers: { 'Retry-After': '30' } }
+    const spy = mockFetch(
+      () =>
+        new Response('{"detail":"RATE_LIMITED"}', {
+          status: 429,
+          headers: { 'Retry-After': '30' }
+        })
     )
     const { init } = await load()
     const el = mountStepsWidget()
     await initAndWait(init, el)
-    click(el, 'start')
-    fillAll(el)
-    for (let n = 0; n < 4; n++) click(el, 'next')
-    el.querySelector<HTMLInputElement>('[data-reco-input="consent"]')!.checked = true
-    click(el, 'submit')
+    await submitFullForm(el)
     await vi.waitFor(() => {
       if (el.dataset.recoState !== 'error') throw new Error('pas error')
     })
@@ -232,68 +231,66 @@ describe('erreurs API', () => {
     const retry = el.querySelector<HTMLButtonElement>('[data-reco-action="retry"]')!
     expect(retry.disabled).toBe(true)
     click(el, 'retry')
-    expect(spy).toHaveBeenCalledTimes(2) // options + POST : pas de renvoi
+    expect(spy).toHaveBeenCalledTimes(1) // pas de renvoi pendant le verrou
     vi.advanceTimersByTime(30_000)
     expect(retry.disabled).toBe(false)
     vi.useRealTimers()
   })
 
-  it('400 sur profile.fields ramène à l’étape 2', async () => {
+  it('422 FastAPI sur le message → panel error « saisie invalide »', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    mockFetch((url) =>
-      url.includes('/v1/options')
-        ? optionsResponse
-        : { status: 400, json: { field: 'profile.fields' } }
+    mockFetch(
+      () =>
+        new Response(
+          JSON.stringify({ detail: [{ loc: ['body', 'message'], msg: 'field required' }] }),
+          { status: 422, headers: { 'Content-Type': 'application/json' } }
+        )
     )
     const { init } = await load()
     const el = mountStepsWidget()
     await initAndWait(init, el)
-    click(el, 'start')
-    fillAll(el)
-    for (let n = 0; n < 4; n++) click(el, 'next')
-    el.querySelector<HTMLInputElement>('[data-reco-input="consent"]')!.checked = true
-    click(el, 'submit')
+    await submitFullForm(el)
     await vi.waitFor(() => {
-      if (el.dataset.recoState !== 'step-2') throw new Error('pas step-2')
+      if (el.dataset.recoState !== 'error') throw new Error('pas error')
     })
-    expect(el.querySelector('[data-reco-error-for="fields"]')!.textContent).toBe('Saisie invalide')
+    expect(el.querySelector('[data-reco-error-message]')!.textContent).toBe('Saisie invalide')
   })
 
   it('réponse vide → panel empty', async () => {
-    mockFetch((url) => (url.includes('/v1/options') ? optionsResponse : { json: { items: [] } }))
+    mockFetch(() => sse('', { session_id: 's1' }))
     const { init } = await load()
     const el = mountStepsWidget()
     await initAndWait(init, el)
-    click(el, 'start')
-    fillAll(el)
-    for (let n = 0; n < 4; n++) click(el, 'next')
-    el.querySelector<HTMLInputElement>('[data-reco-input="consent"]')!.checked = true
-    click(el, 'submit')
+    await submitFullForm(el)
     await vi.waitFor(() => {
       if (el.dataset.recoState !== 'empty') throw new Error('pas empty')
     })
     expect(el.querySelector('[data-reco-panel="empty"]')!.classList).toContain('is-reco-active')
   })
 
-  it('retry après un échec options recharge les options', async () => {
+  it('retry après un échec /chat renvoie la demande avec la même session', async () => {
     let calls = 0
-    mockFetch(() => {
+    const spy = mockFetch(() => {
       calls += 1
-      return calls === 1 ? { status: 503 } : optionsResponse
+      return calls === 1
+        ? new Response('{"detail":"INTERNAL"}', { status: 500 })
+        : sse('Voici des pistes.', { session_id: 's2' })
     })
     const { init } = await load()
     const el = mountStepsWidget()
-    init(el)
+    await initAndWait(init, el)
+    await submitFullForm(el)
     await vi.waitFor(() => {
       if (el.dataset.recoState !== 'error') throw new Error('pas error')
     })
     click(el, 'retry')
     await vi.waitFor(() => {
-      if (el.dataset.recoState !== 'intro') throw new Error('pas rechargé')
+      if (el.dataset.recoState !== 'results') throw new Error('pas results')
     })
-    expect(calls).toBeGreaterThan(1)
-    click(el, 'start')
-    expect(el.querySelector('[data-reco-options="level"] input')).not.toBeNull()
+    expect(spy).toHaveBeenCalledTimes(2)
+    // Le corps du retry renvoie le même message profil.
+    const second = spy.mock.calls[1]![1] as { body: string }
+    expect(JSON.parse(second.body).message).toContain('Mon profil')
   })
 })
 

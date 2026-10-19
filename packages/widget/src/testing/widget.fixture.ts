@@ -42,14 +42,10 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
         <button type="button" data-reco-action="retry">Réessayer</button>
         <a data-reco-action="advisor">Conseiller</a>
       </div>
-      <article data-reco-template="result-card">
-        <span data-reco-field="type"></span>
-        <h3 data-reco-field="title"></h3>
-        <p data-reco-field="destination"></p>
-        <p data-reco-field="reason"></p>
-        <ul data-reco-field="tags"><li data-reco-template="tag"></li></ul>
-        <a data-reco-field="url">Voir</a>
-      </article>
+      <div data-reco-template="reply">
+        <p data-reco-field="text"></p>
+        <div data-reco-field="links"></div>
+      </div>
       <label data-reco-template="option-radio">
         <input type="radio" data-reco-field="input" /><span data-reco-field="label"></span>
       </label>

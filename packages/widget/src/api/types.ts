@@ -1,15 +1,16 @@
 /**
- * Types du contrat d'API, générés depuis l'OpenAPI (§6) — ne pas modifier
- * à la main.
+ * Types du contrat d'API réel (chatbot « AI Mobility Coach », OpenAPI
+ * chatbot.dev.ml.studely.com) : POST /chat en SSE + structures du
+ * questionnaire (options statiques, src/api/options.ts).
  */
 
-/** Choix affiché dans le questionnaire : `id` envoyé à l'API, `label` affiché. */
+/** Choix affiché dans le questionnaire : `id` technique, `label` affiché. */
 export interface RecoOption {
   id: string
   label: string
 }
 
-/** Réponse de GET /v1/options — déjà traduite dans la locale demandée. */
+/** Options du questionnaire — issues du dictionnaire statique localisé. */
 export interface RecoOptions {
   levels: RecoOption[]
   fields: RecoOption[]
@@ -26,7 +27,7 @@ export interface LanguagePair {
   level: string
 }
 
-/** Profil du questionnaire (§5.1), embarqué dans le payload (§6.1). */
+/** Réponses du questionnaire (§5.1) — converties en message /chat. */
 export interface RecoProfile {
   level: string
   fields: string[]
@@ -37,27 +38,38 @@ export interface RecoProfile {
   goal?: string
 }
 
-export interface RecommendationsRequest {
-  locale: string
-  origin: string
-  profile: RecoProfile
-  consent: {
-    accepted: true
-    version: string
-  }
+/** Corps de POST /chat : `mode` n'accepte que « sav » en surface V0. */
+export interface ChatRequest {
+  message: string
+  session_id?: string | null
+  user_id?: string | null
+  mode?: string
 }
 
-export interface RecoRecommendation {
-  type?: string
-  title: string
-  destination?: string
-  reason?: string
-  tags?: string[]
+/** Chunk `event: delta` du flux SSE : fragment du texte de réponse. */
+export interface ChatDelta {
+  text?: string
+}
+
+/** Source citée par l'agent dans l'événement `final`. */
+export interface ChatCitation {
+  title?: string
   url?: string
 }
 
-export interface RecommendationsResponse {
-  items: RecoRecommendation[]
-  /** Lien de la mention « recommandations indicatives » affichée sous les cartes. */
-  disclaimerUrl?: string
+/** Événement `final` du flux SSE : métadonnées de la réponse. */
+export interface ChatFinal {
+  session_id?: string
+  handoff_proposed?: boolean
+  out_of_scope?: boolean
+  intent?: string
+  lang?: string
+  topic?: string
+  citations?: ChatCitation[]
+}
+
+/** Réponse complète d'un appel /chat : texte reconstitué + métadonnées. */
+export interface ChatReply {
+  text: string
+  meta: ChatFinal
 }

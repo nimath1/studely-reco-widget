@@ -1,5 +1,5 @@
 import { mountStepsWidget } from '../testing/widget.fixture'
-import { isAllowedUrl, renderOptions, renderResults, resetInputs } from './render'
+import { isAllowedUrl, renderChatReply, renderOptions, resetInputs } from './render'
 import type { RecoOptions } from '../api/types'
 
 const OPTIONS: RecoOptions = {
@@ -64,58 +64,68 @@ describe('renderOptions', () => {
   })
 })
 
-describe('renderResults', () => {
-  it('remplit une carte par recommandation, href sur le lien', () => {
+describe('renderChatReply', () => {
+  it('clone le template reply : texte brut, jamais interprété', () => {
     const el = mountStepsWidget()
-    renderResults(el, [
-      {
-        type: 'programme',
-        title: 'Licence Info',
-        destination: 'Lyon, France',
-        reason: 'Profil <script>alert(1)</script> adapté',
-        tags: ['info', 'public'],
-        url: 'https://studely.com/p/1'
-      },
-      { title: 'Sans champs', url: 'https://www.studely.com/p/2' }
-    ])
+    const { pieces, links } = renderChatReply(
+      el,
+      'Profil <script>alert(1)</script> adapté',
+      undefined
+    )
 
-    const cards = el.querySelectorAll('[data-reco-results] > article')
-    expect(cards).toHaveLength(2)
-    expect(cards[0]!.querySelector('[data-reco-field="reason"]')!.textContent).toBe(
-      'Profil <script>alert(1)</script> adapté'
-    )
-    expect(cards[0]!.querySelector('script')).toBeNull()
-    expect(cards[0]!.querySelector<HTMLAnchorElement>('[data-reco-field="url"]')!.href).toBe(
-      'https://studely.com/p/1'
-    )
-    expect(cards[0]!.querySelectorAll('[data-reco-field="tags"] li')).toHaveLength(2)
-    expect(cards[0]!.querySelectorAll('[data-reco-template]')).toHaveLength(0)
+    expect(pieces).toBe(1)
+    expect(links).toBe(0)
+    const body = el.querySelector('[data-reco-results] [data-reco-field="text"]')
+    expect(body!.textContent).toBe('Profil <script>alert(1)</script> adapté')
+    expect(el.querySelector('[data-reco-results] script')).toBeNull()
+    expect(el.querySelectorAll('[data-reco-results] [data-reco-template]')).toHaveLength(0)
   })
 
-  it('écarte les URL hors https studely.com et renvoie le compte affiché (R10)', () => {
+  it('les citations deviennent des liens, filtrés https studely.com (R10)', () => {
     const el = mountStepsWidget()
-    const items = [
+    const { pieces, links } = renderChatReply(el, 'Trois pistes.', [
       { title: 'http', url: 'http://studely.com/p/1' },
       { title: 'autre domaine', url: 'https://evil.com/p/1' },
       { title: 'sous-domaine', url: 'https://api.studely.com/p/1' },
-      { title: 'sans url' },
       { title: 'ok', url: 'https://www.studely.com/p/2' }
-    ]
-    expect(renderResults(el, items)).toBe(1)
-    expect(el.querySelectorAll('[data-reco-results] > article')).toHaveLength(1)
+    ])
+
+    expect(pieces).toBe(2) // texte + 1 lien
+    expect(links).toBe(1)
+    const anchors = el.querySelectorAll<HTMLAnchorElement>('[data-reco-field="links"] a')
+    expect(anchors).toHaveLength(1)
+    expect(anchors[0]!.href).toBe('https://www.studely.com/p/2')
+    expect(anchors[0]!.textContent).toBe('ok')
+    expect(anchors[0]!.rel).toBe('noopener')
     expect(el.querySelector('[data-reco-results]')!.textContent).not.toContain('sous-domaine')
   })
 
-  it('plafonne à 5 cartes et 4 étiquettes', () => {
+  it('sans titre de citation, l’URL sert de libellé', () => {
     const el = mountStepsWidget()
-    const url = 'https://studely.com/p'
-    const items = Array.from({ length: 7 }, (_, i) => ({
+    renderChatReply(el, '', [{ url: 'https://studely.com/p' }])
+    const link = el.querySelector<HTMLAnchorElement>('[data-reco-field="links"] a')!
+    expect(link.textContent).toBe('https://studely.com/p')
+  })
+
+  it('plafonne à 5 liens', () => {
+    const el = mountStepsWidget()
+    const citations = Array.from({ length: 7 }, (_, i) => ({
       title: `P${i}`,
-      url: `${url}/${i}`,
-      tags: ['a', 'b', 'c', 'd', 'e']
+      url: `https://studely.com/p/${i}`
     }))
-    expect(renderResults(el, items)).toBe(5)
-    expect(el.querySelectorAll('[data-reco-results] [data-reco-field="tags"] li')).toHaveLength(20)
+    expect(renderChatReply(el, '', citations).links).toBe(5)
+    expect(el.querySelectorAll('[data-reco-field="links"] a')).toHaveLength(5)
+  })
+
+  it('texte vide et citations toutes écartées → 0 (panel empty)', () => {
+    const el = mountStepsWidget()
+    expect(
+      renderChatReply(el, '  ', [
+        { title: 'x', url: 'https://evil.com' },
+        { title: 'y', url: 'javascript:alert(1)' }
+      ]).pieces
+    ).toBe(0)
+    expect(el.querySelector('[data-reco-results]')!.children).toHaveLength(0)
   })
 })
 

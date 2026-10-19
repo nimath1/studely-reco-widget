@@ -462,60 +462,42 @@
         flex-direction: column;
         gap: 12px;
       }
-      [data-reco-widget] [data-reco-results] article {
-        border: 1.5px solid var(--reco-rule);
-        border-radius: 16px;
+      [data-reco-widget] [data-reco-results] > div {
+        background: var(--reco-bubble);
+        border-radius: 16px 16px 16px 4px;
         padding: 14px 16px;
+        font-size: 0.95rem;
+        line-height: 1.5;
+      }
+      [dir='rtl'] [data-reco-widget] [data-reco-results] > div {
+        border-radius: 16px 16px 4px 16px;
+      }
+      [data-reco-widget] [data-reco-results] [data-reco-field='text'] {
+        margin: 0;
+      }
+      [data-reco-widget] [data-reco-field='links'] {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-top: 10px;
+      }
+      [data-reco-widget] [data-reco-field='links']:empty {
+        margin-top: 0;
+      }
+      [data-reco-widget] [data-reco-field='links'] a {
+        display: block;
+        padding: 9px 12px;
+        border: 1.5px solid var(--reco-rule);
+        border-radius: 12px;
+        background: var(--reco-paper, #fff);
+        font-size: 0.83rem;
+        font-weight: 600;
+        color: var(--reco-primary);
+        text-decoration: none;
         transition: border-color 0.15s;
       }
-      [data-reco-widget] [data-reco-results] article:hover {
+      [data-reco-widget] [data-reco-field='links'] a:hover {
         border-color: var(--reco-primary);
-      }
-      [data-reco-widget] [data-reco-field='type'] {
-        font-size: 0.7rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        color: var(--reco-primary);
-      }
-      [data-reco-widget] [data-reco-field='title'] {
-        margin: 4px 0 4px;
-        font-size: 0.98rem;
-      }
-      [data-reco-widget] [data-reco-field='destination'],
-      [data-reco-widget] [data-reco-field='reason'] {
-        margin: 0 0 8px;
-        font-size: 0.83rem;
-        color: var(--reco-ink-muted);
-      }
-      [data-reco-widget] [data-reco-field='tags'] {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        list-style: none;
-        margin: 0 0 10px;
-        padding: 0;
-      }
-      [data-reco-widget] [data-reco-field='tags'] li {
-        padding: 3px 10px;
-        border-radius: 999px;
-        background: var(--reco-primary-soft);
-        font-size: 0.72rem;
-        font-weight: 600;
-        color: var(--reco-primary);
-      }
-      [data-reco-widget] [data-reco-field='url'],
-      [data-reco-widget] [data-reco-disclaimer] {
-        font-size: 0.83rem;
-        font-weight: 600;
-        color: var(--reco-primary);
-      }
-      [data-reco-disclaimer] {
-        display: block;
-        margin-top: 14px;
-        font-size: 0.75rem;
-        font-weight: 400;
-        color: var(--reco-ink-muted);
       }
       [data-reco-widget] [data-reco-panel='results'] > :is(button, a[data-reco-action]),
       [data-reco-widget] [data-reco-panel='empty'] > :is(button, a[data-reco-action]),
@@ -713,16 +695,10 @@
         <a data-reco-action="advisor">Parler à un conseiller</a>
       </div>
 
-      <article data-reco-template="result-card">
-        <span data-reco-field="type">Type</span>
-        <h3 data-reco-field="title">Titre du parcours</h3>
-        <p data-reco-field="destination">Destination</p>
-        <p data-reco-field="reason">Justification</p>
-        <ul data-reco-field="tags">
-          <li data-reco-template="tag">Étiquette</li>
-        </ul>
-        <a data-reco-field="url">Voir</a>
-      </article>
+      <div data-reco-template="reply">
+        <p data-reco-field="text">Réponse du coach…</p>
+        <div data-reco-field="links"></div>
+      </div>
       <label data-reco-template="option-radio">
         <input type="radio" data-reco-field="input" /><span data-reco-field="label">Option</span>
       </label>

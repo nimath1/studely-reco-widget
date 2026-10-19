@@ -8,11 +8,14 @@
   budget/rentrée) avec validation à la sortie de chaque étape, progression
   « Étape x sur 5 », brouillon `sessionStorage` restauré au rechargement —
   sauf le consentement, jamais pré-coché (R15).
-- Recommandations via `POST /v1/recommendations` : ≤ 5 cartes, ≤ 4 tags,
-  URLs filtrées sur `https://(www.)studely.com`, score jamais affiché,
-  mention disclaimer, état `empty` si tout est écarté.
-- Erreurs §5.3 : réseau/timeout (20 s), 429 + verrou `Retry-After`,
-  5xx, 400 avec `field` → retour à l'étape du champ, 403 → relance du défi
+- Recommandations via `POST /chat` (API chatbot, SSE `delta`/`final`) :
+  texte du bot + citations affichées en liens ≤ 5, filtrés sur
+  `https://(www.)studely.com` (R10), `session_id` persisté par origine,
+  état `empty` si texte vide et citations toutes écartées.
+- Options du questionnaire en dictionnaire statique localisé
+  (`src/api/options.ts`) : l'API chatbot ne sert pas d'endpoint options.
+- Erreurs §5.3 : réseau/timeout (45 s, flux SSE), 429 + verrou `Retry-After`,
+  5xx, 422 FastAPI → `reco.error.input`, 403 → relance du défi
   Turnstile puis `reco.error.captcha` au second échec.
 - Turnstile chargé uniquement à l'arrivée sur l'étape 5 (§9.1).
 - 5 locales (fr, es, en, de, ar), arabe en `dir="rtl"`, libellés 100 %
