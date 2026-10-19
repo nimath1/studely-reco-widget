@@ -1,11 +1,8 @@
 # Studely Reco
 
 Monorepo **pnpm + Turborepo** du widget de recommandation de parcours
-Studely : widget front intégré à Webflow et API de recommandation.
-
-> Socle repris d'un projet existant (API NestJS, outillage). L'API ne garde
-> que son socle technique : le moteur de recommandation reste à brancher
-> (cahier des charges, point Q1).
+Studely, intégré à Webflow. Le moteur de recommandation est une API
+externe, hors de ce dépôt (cahier des charges, §2).
 
 ---
 
@@ -19,27 +16,19 @@ pnpm install
 pnpm dev
 ```
 
-| App           | URL                   | Rôle                                                |
-| ------------- | --------------------- | --------------------------------------------------- |
-| `apps/widget` | http://localhost:5173 | Widget (page de dev reprenant le squelette Webflow) |
-| `apps/api`    | http://localhost:3001 | API NestJS (`/health`, `/docs`)                     |
-
-Stack locale (Redis, API) :
-
-```bash
-docker compose up --build
-```
+| App               | URL                   | Rôle                                                |
+| ----------------- | --------------------- | --------------------------------------------------- |
+| `packages/widget` | http://localhost:5173 | Widget (page de dev reprenant le squelette Webflow) |
 
 ---
 
 ## Structure du monorepo
 
 ```
-apps/
-  widget/         Bundle reco.js (Vite, IIFE, sans framework) — voir son README
-  api/            NestJS — socle (config, santé, cache et rate limiting Redis)
 packages/
-  types/          Types TypeScript partagés (@studely/types)
+  widget/         Bundle reco.js (Vite, IIFE, sans framework) — voir son README
+reference/
+  front-assistant/ Chatbot de l'ancien front (Vue), en lecture seule
 ```
 
 ---
@@ -48,8 +37,8 @@ packages/
 
 | Script               | Effet                               |
 | -------------------- | ----------------------------------- |
-| `pnpm dev`           | Démarre widget + api en watch       |
-| `pnpm build`         | Build tous les apps/packages        |
+| `pnpm dev`           | Démarre le widget en watch          |
+| `pnpm build`         | Build tous les packages             |
 | `pnpm lint`          | ESLint sur tout le monorepo         |
 | `pnpm format`        | Prettier `--write` sur tout le repo |
 | `pnpm test`          | Tests unitaires Vitest              |

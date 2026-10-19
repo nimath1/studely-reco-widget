@@ -25,26 +25,19 @@ export default defineConfig(
       '**/playwright-report/**',
       '**/test-results/**',
       // Code Vue/Nuxt de l'ancien front, gardé en lecture seule (voir son README).
-      'reference/**',
-      'apps/api/prisma/generated/**'
+      'reference/**'
     ]
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ['apps/api/**/*.ts'],
-    languageOptions: {
-      globals: globals.node
-    }
-  },
-  {
-    files: ['apps/api/**/*.spec.ts', 'apps/widget/**/*.spec.ts'],
+    files: ['packages/widget/**/*.spec.ts'],
     languageOptions: {
       globals: vitestGlobals
     }
   },
   {
-    files: ['apps/widget/**/*.ts'],
+    files: ['packages/widget/**/*.ts'],
     languageOptions: {
       globals: globals.browser
     }
@@ -66,8 +59,8 @@ export default defineConfig(
   },
   {
     // Données de l'API injectées via textContent uniquement (cahier §7.4).
-    files: ['apps/widget/src/**/*.ts'],
-    ignores: ['apps/widget/src/**/*.spec.ts'],
+    files: ['packages/widget/src/**/*.ts'],
+    ignores: ['packages/widget/src/**/*.spec.ts'],
     rules: {
       'no-restricted-properties': [
         'error',
@@ -79,13 +72,13 @@ export default defineConfig(
     }
   },
   {
-    files: ['apps/widget/scripts/**/*.mjs', 'apps/widget/*.config.ts'],
+    files: ['packages/widget/scripts/**/*.mjs', 'packages/widget/*.config.ts'],
     languageOptions: {
       globals: globals.node
     }
   },
   {
-    files: ['apps/widget/src/logger.ts', 'apps/widget/scripts/**/*.mjs'],
+    files: ['packages/widget/src/logger.ts', 'packages/widget/scripts/**/*.mjs'],
     rules: {
       'no-console': 'off'
     }
