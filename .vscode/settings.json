@@ -1,7 +1,7 @@
 {
   "sonarlint.connectedMode.project": {
     "connectionId": "sonarcloud-learnup",
-    "projectKey": "eagle"
+    "projectKey": "studely-reco"
   },
   "sonarlint.connectedMode.connections.sonarcloud": [
     {
