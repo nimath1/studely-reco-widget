@@ -31,7 +31,10 @@ export default defineConfig(({ command, mode }) => {
       // API est testable localement sans mock (`?recoMock=` reste prioritaire).
       proxy: {
         '/chat': {
-          target: 'https://chatbot.dev.ml.studely.com',
+          target:
+            process.env.VITE_RECO_PROXY_TARGET ??
+            loadEnv(mode, process.cwd(), 'VITE_').VITE_RECO_PROXY_TARGET ??
+            'https://chatbot.dev.ml.studely.com',
           changeOrigin: true
         }
       }
