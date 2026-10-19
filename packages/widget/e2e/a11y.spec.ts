@@ -6,7 +6,9 @@ import { expect, test, type Page } from '@playwright/test'
  * « serious » ou « critical » acceptée (R13, WCAG 2.2 AA).
  */
 async function open(page: Page, scenario = 'nominal'): Promise<void> {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.goto(`/?recoMock=${scenario}`)
+  await page.locator('[data-reco-launcher]').click()
   await expect(
     page.locator('[data-reco-widget] [data-reco-options="level"] input').first()
   ).toBeAttached()

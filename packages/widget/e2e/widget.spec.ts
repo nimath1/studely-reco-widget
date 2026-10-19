@@ -7,6 +7,8 @@ import { expect, test, type Page } from '@playwright/test'
  */
 async function open(page: Page, scenario = 'nominal', lang = 'fr'): Promise<void> {
   await page.goto(`/?recoMock=${scenario}&lang=${lang}`)
+  await page.locator('[data-reco-launcher]').click()
+  await expect(widget(page)).toHaveAttribute('data-reco-open', '')
   await expect(
     page.locator('[data-reco-widget] [data-reco-options="level"] input').first()
   ).toBeAttached()

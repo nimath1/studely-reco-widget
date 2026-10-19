@@ -69,12 +69,66 @@
       [data-reco-widget] [hidden] {
         display: none !important;
       }
-      /* ── Conteneur chat ── */
+      /* ── Lanceur flottant + fenêtre (façon Intercom) ── */
+      [data-reco-launcher] {
+        position: fixed;
+        inset-inline-end: 20px;
+        bottom: 20px;
+        z-index: 60;
+        display: grid;
+        place-items: center;
+        width: 56px;
+        height: 56px;
+        border: none;
+        border-radius: 50%;
+        background: var(--reco-primary);
+        color: #fff;
+        cursor: pointer;
+        box-shadow: 0 10px 28px rgb(37 64 190 / 45%);
+        transition:
+          transform 0.15s,
+          background 0.15s;
+      }
+      [data-reco-launcher]:hover {
+        transform: scale(1.06);
+      }
+      [data-reco-launcher]:focus-visible {
+        outline: 3px solid var(--reco-accent);
+        outline-offset: 3px;
+      }
+      [data-reco-launcher] svg {
+        width: 26px;
+        height: 26px;
+      }
+      /* Fenêtre : ancrée coin bas droite, masquée sans data-reco-open.
+         visibility (pas display) → l'IntersectionObserver voit le widget
+         et l'init/prefetch a lieu dès le chargement de la page. */
       [data-reco-widget] {
+        position: fixed;
+        inset-inline-end: 20px;
+        bottom: 92px;
+        z-index: 50;
         display: block;
-        max-width: 480px;
-        margin: 5vh auto;
-        padding: 0 16px;
+        width: min(400px, calc(100vw - 32px));
+        max-height: min(620px, calc(100dvh - 120px));
+        overflow-y: auto;
+        border-radius: var(--reco-radius);
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(12px) scale(0.98);
+        transform-origin: bottom right;
+        transition:
+          opacity 0.2s,
+          transform 0.2s,
+          visibility 0.2s;
+      }
+      [data-reco-widget][data-reco-open] {
+        opacity: 1;
+        visibility: visible;
+        transform: none;
+      }
+      [data-reco-widget][dir='rtl'] {
+        transform-origin: bottom left;
       }
       [data-reco-widget] > header {
         display: flex;
@@ -101,7 +155,6 @@
       }
       [data-reco-widget] > header small {
         font-size: 0.75rem;
-        opacity: 0.8;
       }
       [data-reco-widget] > header small::before {
         content: '●';
@@ -144,7 +197,7 @@
         margin: 0 0 6px;
         font-size: 0.72rem;
         font-weight: 700;
-        color: var(--reco-ink-subtle);
+        color: var(--reco-ink-muted);
         text-transform: uppercase;
         letter-spacing: 0.06em;
       }
@@ -170,6 +223,7 @@
         gap: 8px;
       }
       [data-reco-widget] [data-reco-options] label:has(input) {
+        position: relative;
         display: inline-flex;
         align-items: center;
         gap: 8px;
@@ -190,11 +244,16 @@
         border-color: var(--reco-primary);
         color: var(--reco-primary);
       }
+      /* Input natif : couvre la chip en transparent (clic/lecteur d'écran
+         OK) au lieu d'être retiré du flux. */
       [data-reco-widget] [data-reco-options] input {
         position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        margin: 0;
         opacity: 0;
-        width: 0;
-        height: 0;
+        cursor: pointer;
       }
       [data-reco-widget] [data-reco-options] label:has(input:focus-visible) {
         outline: 3px solid var(--reco-primary);
@@ -255,7 +314,7 @@
       [data-reco-hint] {
         margin: 4px 0 12px;
         font-size: 0.75rem;
-        color: var(--reco-ink-subtle);
+        color: var(--reco-ink-muted);
       }
       [data-reco-widget] [data-reco-step='5'] label:has(input) {
         display: flex;
@@ -378,7 +437,7 @@
         border-radius: 18px 18px 18px 4px;
         background: var(--reco-bubble);
         font-size: 0.9rem;
-        color: var(--reco-ink-muted);
+        color: var(--reco-ink);
         text-align: start;
       }
       [data-reco-widget] [data-reco-panel='intro'] > button {
@@ -456,7 +515,7 @@
         margin-top: 14px;
         font-size: 0.75rem;
         font-weight: 400;
-        color: var(--reco-ink-subtle);
+        color: var(--reco-ink-muted);
       }
       [data-reco-widget] [data-reco-panel='results'] > :is(button, a[data-reco-action]),
       [data-reco-widget] [data-reco-panel='empty'] > :is(button, a[data-reco-action]),
@@ -511,10 +570,42 @@
           animation: none !important;
         }
       }
+      /* Bouton fermer du header (data-reco-close : spécificité au-dessus
+         de la règle générique des boutons). */
+      [data-reco-widget] > header button[data-reco-close] {
+        margin-inline-start: auto;
+        display: grid;
+        place-items: center;
+        width: 32px;
+        height: 32px;
+        min-height: 0;
+        padding: 0;
+        border: none;
+        border-radius: 50%;
+        background: transparent;
+        color: #fff;
+        font-size: 0.9rem;
+        line-height: 1;
+        cursor: pointer;
+      }
+      [data-reco-widget] > header button[data-reco-close]:hover {
+        background: rgb(255 255 255 / 18%);
+      }
+      [data-reco-widget] > header button[data-reco-close]:focus-visible {
+        outline: 2px solid #fff;
+        outline-offset: 2px;
+      }
       @media (max-width: 420px) {
         [data-reco-widget] {
-          margin: 0 auto;
-          padding: 0;
+          inset: 0;
+          width: auto;
+          max-width: none;
+          max-height: none;
+          border-radius: 0;
+          transform: translateY(16px);
+        }
+        [data-reco-widget][data-reco-open] {
+          transform: none;
         }
         [data-reco-widget] > header,
         [data-reco-widget] [data-reco-panel] {
@@ -524,13 +615,19 @@
     </style>
   </head>
   <body>
-    <section data-reco-widget data-reco-origin="mexique" data-reco-advisor-url="/mexique#contact">
+    <section
+      id="reco-chat"
+      data-reco-widget
+      data-reco-origin="mexique"
+      data-reco-advisor-url="/mexique#contact"
+    >
       <header>
         <span aria-hidden="true">S</span>
         <div>
           <strong>Studely</strong>
           <small>Assistant parcours</small>
         </div>
+        <button type="button" data-reco-close aria-label="Fermer l'assistant">✕</button>
       </header>
       <div data-reco-live class="sr-only"></div>
 
@@ -657,6 +754,39 @@
         <span data-reco-label="reco.empty">Aucun parcours ne correspond…</span>
       </div>
     </section>
+
+    <button
+      type="button"
+      data-reco-launcher
+      aria-expanded="false"
+      aria-controls="reco-chat"
+      aria-label="Ouvrir l'assistant Studely"
+    >
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path
+          d="M12 3C6.48 3 2 6.94 2 11.8c0 2.7 1.47 5.1 3.76 6.66-.14 1.07-.63 2.36-1.58 3.54 1.9-.3 3.7-1.08 4.9-1.9.94.2 1.9.3 2.92.3 5.52 0 10-3.94 10-8.8S17.52 3 12 3Z"
+        />
+      </svg>
+    </button>
+
+    <script>
+      // Dev uniquement : ouverture/fermeture façon Intercom via
+      // data-reco-open. En prod Webflow, même mécanisme sur l'attribut.
+      {
+        const w = document.querySelector('[data-reco-widget]')
+        const l = document.querySelector('[data-reco-launcher]')
+        const setOpen = (open) => {
+          w.toggleAttribute('data-reco-open', open)
+          l.setAttribute('aria-expanded', String(open))
+          if (!open) l.focus()
+        }
+        l.addEventListener('click', () => setOpen(!w.hasAttribute('data-reco-open')))
+        w.querySelector('[data-reco-close]').addEventListener('click', () => setOpen(false))
+        addEventListener('keydown', (e) => {
+          if (e.key === 'Escape' && w.hasAttribute('data-reco-open')) setOpen(false)
+        })
+      }
+    </script>
 
     <script type="module">
       // Mock MSW (dev uniquement) : ?recoMock=<scénario> ou localStorage.recoMock.
