@@ -8,7 +8,9 @@
  * Limite assumée : un nom ou une donnée personnelle sans motif reconnaissable
  * (« Jean Dupont », « mon manager est malade ») n'est pas détecté.
  */
-const EMAIL_PATTERN = /[\p{L}\p{N}._%+-]+@(?:[\p{L}\p{N}-]+\.)+\p{L}{2,}/gu
+// Labels du domaine ancrés par leur point : la lettre après un « . » ne
+// peut être ni TLD ni début de label alternatif — pas de double chemin.
+const EMAIL_PATTERN = /[\p{L}\p{N}._%+-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+/gu
 
 // IBAN : code pays + 2 chiffres de contrôle + groupes de 4, espaces facultatifs.
 const IBAN_PATTERN = /\b[A-Z]{2}\d{2}(?:\s?[A-Z0-9]{4}){2,7}(?:\s?[A-Z0-9]{1,4})?\b/gi
@@ -37,10 +39,10 @@ const LONG_DIGITS_PATTERN = /\b\d{10,}\b/g
 const FR_ADDRESS_TYPES = [
   'rue',
   'avenue',
-  'av\\.?',
+  'av[.]?',
   'boulevard',
-  'bd\\.?',
-  'blvd\\.?',
+  'bd[.]?',
+  'blvd[.]?',
   'chemin',
   'impasse',
   'all[ée]e',

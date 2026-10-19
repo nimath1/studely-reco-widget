@@ -86,7 +86,9 @@ export const FRENCH_STOP_WORDS: ReadonlySet<string> = new Set([
 ])
 
 const DIACRITICS = /[̀-ͯ]/g
-const HTML_TAG = /<[^>]+>/g
+// `[^<>]` et pas `[^>]` : sinon chaque « < » peut appartenir au tag en
+// cours ou en démarrer un nouveau — partition ambiguë (S5852).
+const HTML_TAG = /<[^<>]+>/g
 const HTML_ENTITIES: Record<string, string> = {
   '&nbsp;': ' ',
   '&amp;': '&',
