@@ -12,6 +12,41 @@
       document.documentElement.lang = new URLSearchParams(location.search).get('lang') || 'fr'
     </script>
     <style>
+      /* ═══ CSS de dev inspiré des tokens de référence (§10.4) : aucune
+         classe, uniquement des sélecteurs data-reco-*. Sert aussi de
+         démonstration que le visuel entier tient sur les attributs. ═══ */
+      :root {
+        --reco-ink: #1a1a2e;
+        --reco-ink-muted: #5c5c70;
+        --reco-ink-subtle: #8a8a99;
+        --reco-paper: #ffffff;
+        --reco-surface: #f4f4f8;
+        --reco-rule: #e2e2ea;
+        --reco-primary: #2540be;
+        --reco-accent: #ffb020;
+        --reco-error: #c92a2a;
+        --reco-radius: 10px;
+        --reco-control: 44px;
+      }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+      }
+      body {
+        margin: 0;
+        font-family:
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
+        color: var(--reco-ink);
+        background: var(--reco-surface);
+      }
+      /* ── Machine à états : masquage par attributs ── */
       [data-reco-template],
       [data-reco-labels],
       [data-reco-widget] [data-reco-panel]:not([data-reco-panel='fallback']) {
@@ -27,11 +62,315 @@
       [data-reco-widget] [data-reco-step]:not(.is-reco-active) {
         display: none !important;
       }
+      /* Les display: inline-flex ci-dessous neutralisent sinon l'attribut
+         `hidden` utilisé par le JS (Retour étape 1, Suivant/submit étape 5,
+         disclaimer sans URL). */
+      [data-reco-widget] [hidden] {
+        display: none !important;
+      }
+      /* ── Carte widget ── */
+      [data-reco-widget] {
+        display: block;
+        max-width: 560px;
+        margin: 6vh auto;
+        padding: 0 16px;
+      }
+      [data-reco-widget] [data-reco-panel] {
+        background: var(--reco-paper);
+        border: 1px solid var(--reco-rule);
+        border-radius: var(--reco-radius);
+        padding: 28px;
+        min-height: 320px;
+        box-shadow: 0 2px 12px rgb(26 26 46 / 6%);
+      }
+      /* ── Boutons (pill, accent ambre du primaire) ── */
+      [data-reco-widget] :is(button, a[data-reco-action]) {
+        min-height: var(--reco-control);
+        padding: 0 20px;
+        border-radius: 999px;
+        border: 1px solid var(--reco-rule);
+        background: var(--reco-paper);
+        color: var(--reco-ink);
+        font: inherit;
+        font-weight: 600;
+        font-size: 0.9rem;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      [data-reco-widget] :is(button, a[data-reco-action]):hover {
+        border-color: var(--reco-primary);
+        color: var(--reco-primary);
+      }
+      /* Type `button` requis : la règle de base passe par :is() dont la
+         spécificité vaut celle de son argument le plus fort. */
+      [data-reco-widget] button[data-reco-action='start'],
+      [data-reco-widget] button[data-reco-action='submit'],
+      [data-reco-widget] [data-reco-panel='fallback'] a {
+        background: var(--reco-accent);
+        border-color: var(--reco-accent);
+        color: var(--reco-ink);
+      }
+      [data-reco-widget] button[data-reco-action='start']:hover,
+      [data-reco-widget] button[data-reco-action='submit']:hover {
+        background: #e79b00;
+        color: var(--reco-ink);
+      }
+      [data-reco-widget] :is(button, a):focus-visible {
+        outline: 3px solid var(--reco-primary);
+        outline-offset: 2px;
+      }
+      [data-reco-widget] button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      [data-reco-widget] [data-reco-action='advisor'] {
+        border: none;
+        color: var(--reco-primary);
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+      /* ── Progression ── */
+      [data-reco-progress] {
+        margin: 0 0 8px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--reco-ink-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      [data-reco-widget] form > div:has(> [data-reco-progress-bar]) {
+        height: 6px;
+        border-radius: 999px;
+        background: var(--reco-surface);
+        overflow: hidden;
+        margin-bottom: 20px;
+      }
+      [data-reco-progress-bar] {
+        height: 100%;
+        width: 0;
+        border-radius: 999px;
+        background: var(--reco-primary);
+        transition: width 0.3s ease;
+      }
+      /* ── Étapes & options ── */
+      [data-reco-widget] fieldset {
+        border: none;
+        margin: 0 0 16px;
+        padding: 0;
+      }
+      [data-reco-widget] legend {
+        font-size: 1.15rem;
+        font-weight: 700;
+        margin-bottom: 14px;
+        padding: 0;
+      }
+      [data-reco-widget] [data-reco-options] {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      /* Option = carte cliquable ; cochée = bordure primaire + fond. */
+      [data-reco-widget] [data-reco-options] label:has(input) {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-height: var(--reco-control);
+        padding: 10px 14px;
+        border: 1px solid var(--reco-rule);
+        border-radius: var(--reco-radius);
+        background: var(--reco-paper);
+        cursor: pointer;
+        transition:
+          border-color 0.15s,
+          background 0.15s;
+      }
+      [data-reco-widget] [data-reco-options] label:has(input:hover) {
+        border-color: var(--reco-primary);
+      }
+      [data-reco-widget] [data-reco-options] label:has(input:checked) {
+        border-color: var(--reco-primary);
+        border-width: 2px;
+        padding: 9px 13px;
+        background: color-mix(in srgb, var(--reco-primary) 6%, var(--reco-paper));
+      }
+      [data-reco-widget] [data-reco-options] input {
+        width: 18px;
+        height: 18px;
+        accent-color: var(--reco-primary);
+        flex-shrink: 0;
+      }
+      [data-reco-widget] [data-reco-options] :focus-visible {
+        outline: 3px solid var(--reco-primary);
+        outline-offset: 2px;
+      }
+      /* Langues : ligne libellé + select. */
+      [data-reco-widget] [data-reco-options='languages'] > div {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: var(--reco-control);
+        padding: 10px 14px;
+        border: 1px solid var(--reco-rule);
+        border-radius: var(--reco-radius);
+      }
+      [data-reco-widget] [data-reco-options='languages'] select {
+        min-height: 36px;
+        padding: 0 10px;
+        border: 1px solid var(--reco-rule);
+        border-radius: 8px;
+        font: inherit;
+        background: var(--reco-paper);
+      }
+      /* ── Champs étape 5 ── */
+      [data-reco-widget] [data-reco-step='5'] > label {
+        display: block;
+        margin: 14px 0 6px;
+        font-size: 0.9rem;
+        font-weight: 600;
+      }
+      [data-reco-widget] textarea {
+        width: 100%;
+        min-height: 72px;
+        padding: 10px 12px;
+        border: 1px solid var(--reco-rule);
+        border-radius: 8px;
+        font: inherit;
+        resize: vertical;
+        box-sizing: border-box;
+      }
+      [data-reco-hint] {
+        margin: 4px 0 12px;
+        font-size: 0.8rem;
+        color: var(--reco-ink-subtle);
+      }
+      [data-reco-widget] [data-reco-step='5'] label:has(input) {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        font-size: 0.85rem;
+        font-weight: 400;
+        line-height: 1.4;
+        cursor: pointer;
+      }
+      [data-reco-error-for] {
+        margin: 6px 0 0;
+        font-size: 0.8rem;
+        color: var(--reco-error);
+      }
+      [data-reco-error-for]:empty {
+        display: none;
+      }
+      [aria-invalid='true'] {
+        border-color: var(--reco-error) !important;
+      }
+      /* ── Navigation bas de formulaire ── */
+      [data-reco-widget] form > [data-reco-action] {
+        margin-top: 16px;
+        margin-inline-end: 8px;
+      }
+      /* ── Résultats ── */
+      [data-reco-widget] [data-reco-results] {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      [data-reco-widget] [data-reco-results] article {
+        border: 1px solid var(--reco-rule);
+        border-radius: var(--reco-radius);
+        padding: 16px;
+      }
+      [data-reco-widget] [data-reco-field='type'] {
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--reco-primary);
+      }
+      [data-reco-widget] [data-reco-field='title'] {
+        margin: 6px 0 4px;
+        font-size: 1rem;
+      }
+      [data-reco-widget] [data-reco-field='destination'],
+      [data-reco-widget] [data-reco-field='reason'] {
+        margin: 0 0 8px;
+        font-size: 0.85rem;
+        color: var(--reco-ink-muted);
+      }
+      [data-reco-widget] [data-reco-field='tags'] {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        list-style: none;
+        margin: 0 0 10px;
+        padding: 0;
+      }
+      [data-reco-widget] [data-reco-field='tags'] li {
+        padding: 3px 10px;
+        border-radius: 999px;
+        background: var(--reco-surface);
+        font-size: 0.72rem;
+        font-weight: 500;
+        color: var(--reco-ink-muted);
+      }
+      [data-reco-widget] [data-reco-field='url'],
+      [data-reco-widget] [data-reco-disclaimer] {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--reco-primary);
+      }
+      [data-reco-widget] [data-reco-panel='results'] > :is(button, a[data-reco-action]),
+      [data-reco-widget] [data-reco-panel='error'] > :is(button, a[data-reco-action]) {
+        margin-top: 16px;
+        margin-inline-end: 8px;
+      }
+      [data-reco-disclaimer] {
+        display: block;
+        margin-top: 14px;
+        font-size: 0.78rem;
+        font-weight: 400;
+        color: var(--reco-ink-subtle);
+      }
+      /* ── Panels intro / empty / error / fallback / loading ── */
+      [data-reco-widget]
+        :is(
+          [data-reco-panel='fallback'],
+          [data-reco-panel='intro'],
+          [data-reco-panel='empty'],
+          [data-reco-panel='error'],
+          [data-reco-panel='loading']
+        ) {
+        text-align: center;
+      }
+      [data-reco-widget] [data-reco-panel='intro'] > button {
+        margin-top: 40px;
+        padding: 0 32px;
+      }
+      [data-reco-error-message] {
+        color: var(--reco-error);
+        font-weight: 600;
+      }
+      /* ── RTL (§10.4) : marges logiques déjà couvertes par inline-* ;
+            barre de progression inversée. ── */
+      [data-reco-widget][dir='rtl'] [data-reco-progress-bar] {
+        margin-inline-start: auto;
+      }
+      [data-reco-widget][dir='rtl'] [data-reco-options='languages'] > div {
+        flex-direction: row-reverse;
+      }
       /* Pas de transition pour prefers-reduced-motion (WCAG 2.2, §8.2). */
       @media (prefers-reduced-motion: reduce) {
         [data-reco-widget] * {
           transition: none !important;
           animation: none !important;
+        }
+      }
+      @media (max-width: 420px) {
+        [data-reco-widget] [data-reco-panel] {
+          padding: 20px;
         }
       }
     </style>
@@ -44,6 +383,11 @@
         <a href="/mexique#contact">Parler à un conseiller</a>
       </div>
       <div data-reco-panel="intro">
+        <h2>Trouve ton parcours d'études en Europe</h2>
+        <p>
+          Réponds à 5 questions — moins de 2 minutes — et reçois des parcours adaptés à ton niveau,
+          ton budget et tes destinations.
+        </p>
         <button type="button" data-reco-action="start">Commencer</button>
       </div>
 
@@ -96,6 +440,7 @@
 
       <div data-reco-panel="loading">Chargement…</div>
       <div data-reco-panel="results">
+        <h2 data-reco-title tabindex="-1">Tes recommandations</h2>
         <div data-reco-results></div>
         <a data-reco-disclaimer hidden>Recommandations indicatives</a>
         <button type="button" data-reco-action="edit">Modifier mes réponses</button>
@@ -103,10 +448,12 @@
         <a data-reco-action="advisor">Parler à un conseiller</a>
       </div>
       <div data-reco-panel="empty">
-        Aucun parcours ne correspond…
+        <h2 data-reco-title tabindex="-1">Aucun parcours ne correspond</h2>
+        <p>Élargis tes critères ou parle à un conseiller pour explorer d'autres options.</p>
         <a data-reco-action="advisor">Parler à un conseiller</a>
       </div>
       <div data-reco-panel="error">
+        <h2 data-reco-title tabindex="-1">Une erreur est survenue</h2>
         <p data-reco-error-message></p>
         <button type="button" data-reco-action="retry">Réessayer</button>
         <a data-reco-action="advisor">Parler à un conseiller</a>
