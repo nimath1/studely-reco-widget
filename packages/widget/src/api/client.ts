@@ -56,7 +56,11 @@ async function toApiError(res: Response): Promise<RecoApiError> {
       detail?: { loc?: (string | number)[] }[] | string
     } | null
     const first = Array.isArray(body?.detail) ? body?.detail[0] : undefined
-    const field = first?.loc?.filter((p): p is string => typeof p === 'string').at(-1)
+    // Dernier segment texte de `loc` (`findLast` exigerait iOS 15.4+).
+    const field = first?.loc?.reduce<string | undefined>(
+      (found, p) => (typeof p === 'string' ? p : found),
+      undefined
+    )
     return new RecoApiError('input', String(res.status), field)
   }
   if (res.status === 403) return new RecoApiError('forbidden', '403')

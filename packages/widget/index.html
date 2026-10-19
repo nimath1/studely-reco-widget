@@ -756,10 +756,10 @@
           l.setAttribute('aria-expanded', String(open))
           if (!open) l.focus()
         }
-        l.addEventListener('click', () => setOpen(!w.hasAttribute('data-reco-open')))
+        l.addEventListener('click', () => setOpen(w.dataset.recoOpen === undefined))
         w.querySelector('[data-reco-close]').addEventListener('click', () => setOpen(false))
         addEventListener('keydown', (e) => {
-          if (e.key === 'Escape' && w.hasAttribute('data-reco-open')) setOpen(false)
+          if (e.key === 'Escape' && w.dataset.recoOpen !== undefined) setOpen(false)
         })
       }
     </script>

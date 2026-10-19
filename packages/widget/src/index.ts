@@ -13,7 +13,7 @@ import {
 } from './api/client'
 import { buildChatMessage } from './api/message'
 import { optionsFor } from './api/options'
-import type { RecoProfile } from './api/types'
+import type { ChatReply, RecoProfile } from './api/types'
 import { readConfig, type WidgetConfig } from './config'
 import { ensureChallenge, resetChallenge, turnstileToken } from './consent/turnstile'
 import { makeFormatters } from './i18n/format'
@@ -165,6 +165,39 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     syncChrome()
   }
 
+  /** Réponse /chat affichée : résultats, ou empty si tout est écarté. */
+  function showReply(reply: ChatReply): void {
+    const { pieces, links } = renderChatReply(el, reply.text, reply.meta.citations)
+    lastResultCount = links > 0 ? links : pieces
+    if (pieces === 0) {
+      machine.dispatch('empty')
+      announce(t('reco.empty'))
+      focusPanel('empty')
+    } else {
+      machine.dispatch('results')
+      announce(t('reco.results.count', { count: fmt.number(lastResultCount) }))
+      focusPanel('results')
+    }
+  }
+
+  /** Erreur d'envoi : captcha relancé une fois, champ fautif, 429, sinon panel. */
+  function handleSendError(error: unknown): void {
+    if (error instanceof RecoApiError && error.kind === 'forbidden' && captchaFailures === 0) {
+      // Premier 403 : relance du défi et retour à l'étape 5 — l'erreur
+      // reco.error.captcha n'apparaît qu'au second échec (§9.1).
+      captchaFailures += 1
+      resetChallenge(el)
+      machine.goTo('step-5')
+      syncChrome()
+      return
+    }
+    if (handleFieldError(error)) return
+    if (error instanceof RecoApiError && error.kind === 'rate') {
+      lockRetry(error.retryAfter ?? 0)
+    }
+    showError(error)
+  }
+
   /** Envoie le profil à /chat : réponse texte + citations, empty ou erreur. */
   async function sendPayload(): Promise<void> {
     submittedAt = Date.now()
@@ -180,33 +213,10 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
         sessionId = reply.meta.session_id
         saveChatSession(config.origin, sessionId)
       }
-      const { pieces, links } = renderChatReply(el, reply.text, reply.meta.citations)
-      lastResultCount = links > 0 ? links : pieces
-      if (pieces === 0) {
-        machine.dispatch('empty')
-        announce(t('reco.empty'))
-        focusPanel('empty')
-      } else {
-        machine.dispatch('results')
-        announce(t('reco.results.count', { count: fmt.number(lastResultCount) }))
-        focusPanel('results')
-      }
+      showReply(reply)
     } catch (error) {
       if (signal.aborted) return
-      if (error instanceof RecoApiError && error.kind === 'forbidden' && captchaFailures === 0) {
-        // Premier 403 : relance du défi et retour à l'étape 5 — l'erreur
-        // reco.error.captcha n'apparaît qu'au second échec (§9.1).
-        captchaFailures += 1
-        resetChallenge(el)
-        machine.goTo('step-5')
-        syncChrome()
-        return
-      }
-      if (handleFieldError(error)) return
-      if (error instanceof RecoApiError && error.kind === 'rate') {
-        lockRetry(error.retryAfter ?? 0)
-      }
-      showError(error)
+      handleSendError(error)
     }
   }
 

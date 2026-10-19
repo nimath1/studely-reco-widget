@@ -78,7 +78,7 @@ describe('parcours complet contre le mock MSW', () => {
     const links = [
       ...el.querySelectorAll<HTMLAnchorElement>('[data-reco-results] [data-reco-field="links"] a')
     ]
-    expect(links.length).toBe(3)
+    expect(links).toHaveLength(3)
     for (const link of links) {
       expect(link.href).toMatch(/^https:\/\/(www\.)?studely\.com/)
     }
