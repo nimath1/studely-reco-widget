@@ -139,6 +139,54 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     }
   }
 
+  /** Envoie le dernier payload : résultats, empty ou mapping d'erreur §5.3. */
+  async function sendPayload(): Promise<void> {
+    try {
+      const recommendations = await postRecommendations(lastPayload!, turnstileToken(el))
+      if (signal.aborted) return
+      if (recommendations.length === 0) machine.dispatch('empty')
+      else {
+        renderResults(el, recommendations)
+        machine.dispatch('results')
+      }
+    } catch (error) {
+      if (signal.aborted) return
+      lastFailure = 'submit'
+      if (handleFieldError(error)) return
+      if (error instanceof RecoApiError && error.kind === 'rate') {
+        lockRetry(error.retryAfter ?? 0)
+      }
+      showError(error)
+    }
+  }
+
+  /** 400 avec champ : retour à l'étape du champ fautif, message dessous. */
+  function handleFieldError(error: unknown): boolean {
+    if (!(error instanceof RecoApiError) || error.kind !== 'input' || !error.field) return false
+    const step = stepOfField(error.field)
+    if (step === null) {
+      logger.error('Champ 400 inconnu :', error.field)
+      return false
+    }
+    machine.goTo(`step-${step}` as WidgetState)
+    const name = error.field.replace(/^profile\./, '').split('.')[0] ?? ''
+    showFieldError(el, name, t('reco.error.input'))
+    syncChrome()
+    return true
+  }
+
+  /** « Réessayer » désactivé pendant Retry-After (R9). */
+  function lockRetry(seconds: number): void {
+    retryLockUntil = Date.now() + seconds * 1000
+    const button = el.querySelector<HTMLButtonElement>('[data-reco-action="retry"]')
+    if (!button) return
+    button.disabled = true
+    const timer = setTimeout(() => {
+      button.disabled = false
+    }, seconds * 1000)
+    signal.addEventListener('abort', () => clearTimeout(timer), { once: true })
+  }
+
   async function submitProfile(): Promise<void> {
     lastPayload = {
       locale: config.locale,
@@ -148,68 +196,13 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     }
     lastFailure = null
     machine.dispatch('submit')
-    try {
-      const recommendations = await postRecommendations(lastPayload, turnstileToken(el))
-      if (signal.aborted) return
-      if (recommendations.length === 0) {
-        machine.dispatch('empty')
-      } else {
-        renderResults(el, recommendations)
-        machine.dispatch('results')
-      }
-    } catch (error) {
-      if (signal.aborted) return
-      lastFailure = 'submit'
-      // 400 avec champ : retour à l'étape du champ fautif, message dessous.
-      if (error instanceof RecoApiError && error.kind === 'input' && error.field) {
-        const step = stepOfField(error.field)
-        const name = error.field.replace(/^profile\./, '').split('.')[0] ?? ''
-        if (step !== null) {
-          machine.goTo(`step-${step}` as WidgetState)
-          showFieldError(el, name, t('reco.error.input'))
-          syncChrome()
-          return
-        }
-        logger.error('Champ 400 inconnu :', error.field)
-      }
-      if (error instanceof RecoApiError && error.kind === 'rate') {
-        // « Réessayer » désactivé pendant Retry-After (R9).
-        retryLockUntil = Date.now() + (error.retryAfter ?? 0) * 1000
-        const retry = el.querySelector<HTMLButtonElement>('[data-reco-action="retry"]')
-        if (retry) {
-          retry.disabled = true
-          const unlock = () => {
-            retry.disabled = false
-          }
-          const timer = setTimeout(unlock, (error.retryAfter ?? 0) * 1000)
-          signal.addEventListener('abort', () => clearTimeout(timer), { once: true })
-        }
-      }
-      showError(error)
-    }
+    await sendPayload()
   }
 
   function retry(): void {
     if (Date.now() < retryLockUntil) return
-    if (lastFailure === 'submit' && lastPayload) {
-      machine.dispatch('retry')
-      void (async () => {
-        try {
-          const recommendations = await postRecommendations(lastPayload!, turnstileToken(el))
-          if (signal.aborted) return
-          if (recommendations.length === 0) machine.dispatch('empty')
-          else {
-            renderResults(el, recommendations)
-            machine.dispatch('results')
-          }
-        } catch (error) {
-          if (!signal.aborted) showError(error)
-        }
-      })()
-    } else {
-      machine.dispatch('retry')
-      void loadOptions()
-    }
+    machine.dispatch('retry')
+    void (lastFailure === 'submit' && lastPayload ? sendPayload() : loadOptions())
   }
 
   function next(step: number | null): void {

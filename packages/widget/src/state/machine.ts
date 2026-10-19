@@ -40,39 +40,38 @@ export function stepOf(state: WidgetState): number | null {
   return match ? Number(match[1]) : null
 }
 
+/** Transitions depuis un état `step-N` (le questionnaire proprement dit). */
+function fromStep(step: number, action: RecoAction): WidgetState | null {
+  if (action === 'back') return step > 1 ? `step-${step - 1}` : 'intro'
+  if (action === 'next') return step < STEP_COUNT ? `step-${step + 1}` : null
+  if (action === 'submit') return step === STEP_COUNT ? 'loading' : null
+  return null
+}
+
+/** Transitions depuis les états hors questionnaire. */
+function fromLeaf(state: WidgetState, action: RecoAction): WidgetState | null {
+  if (state === 'intro') return action === 'start' ? 'step-1' : null
+  if (state === 'loading') return action === 'results' || action === 'empty' ? action : null
+  if (state === 'error') return action === 'retry' ? 'loading' : null
+  // results et empty : « Modifier mes réponses » garde le brouillon (R5).
+  if (action === 'edit') return 'step-1'
+  if (state === 'empty' && action === 'retry') return 'loading'
+  return null
+}
+
 /**
  * Table de transitions du §4 : toute action non prévue depuis l'état courant
  * est ignorée (`null`) — un double-clic ou un événement tardif ne peut pas
  * sortir le widget de son flot.
  */
 export function nextState(state: WidgetState, action: RecoAction): WidgetState | null {
-  // Recommencer vide le brouillon et revient à l'intro depuis tout état.
+  // Recommencer vide le brouillon et revient à l'intro depuis tout état ;
+  // une erreur est joignable depuis n'importe quel autre état.
   if (action === 'restart') return state === 'intro' ? null : 'intro'
+  if (action === 'error') return state === 'error' ? null : 'error'
 
   const step = stepOf(state)
-  switch (action) {
-    case 'start':
-      return state === 'intro' ? 'step-1' : null
-    case 'back':
-      if (step === null) return null
-      return step > 1 ? `step-${step - 1}` : 'intro'
-    case 'next':
-      if (step === null || step >= STEP_COUNT) return null
-      return `step-${step + 1}`
-    case 'submit':
-      return state === `step-${STEP_COUNT}` ? 'loading' : null
-    // « Modifier mes réponses » : étape 1 avec le brouillon conservé (R5).
-    case 'edit':
-      return state === 'results' || state === 'empty' ? 'step-1' : null
-    case 'retry':
-      return state === 'error' || state === 'empty' ? 'loading' : null
-    case 'results':
-      return state === 'loading' ? 'results' : null
-    case 'empty':
-      return state === 'loading' ? 'empty' : null
-    case 'error':
-      return state === 'error' ? null : 'error'
-  }
+  return step === null ? fromLeaf(state, action) : fromStep(step, action)
 }
 
 /**
