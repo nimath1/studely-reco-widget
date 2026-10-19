@@ -6,10 +6,7 @@
  * pour la revue produit.
  *
  * Limite assumée : un nom ou une donnée personnelle sans motif reconnaissable
- * (« Jean Dupont », « mon manager est malade ») n'est pas détecté. Le texte
- * journalisé est donc traité comme une donnée à accès restreint : rôles
- * internes uniquement, endpoints admin sous clé d'API, purge automatique
- * (`SEARCH_MISS_RETENTION_DAYS`) — voir `apps/api/AGENTS.md`.
+ * (« Jean Dupont », « mon manager est malade ») n'est pas détecté.
  */
 const EMAIL_PATTERN = /[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+\.\p{L}{2,}/gu
 

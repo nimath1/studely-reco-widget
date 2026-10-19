@@ -7,17 +7,10 @@
       "dependsOn": ["^build"],
       "outputs": ["dist/**", ".vercel/output/**"]
     },
-    "@studely/api#build": {
-      "dependsOn": ["^build"],
-      "outputs": ["dist/**"]
-    },
     "@studely/widget#build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**"],
       "env": ["VITE_RECO_API_URL"]
-    },
-    "@studely/types#build": {
-      "outputs": []
     },
     "dev": {
       "dependsOn": ["^build"],

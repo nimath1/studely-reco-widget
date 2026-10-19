@@ -10,8 +10,6 @@
   "scripts": {
     "prepare": "husky",
     "dev": "turbo run dev",
-    "dev:api": "pnpm --filter @studely/api dev",
-    "dev:api:debug": "pnpm --filter @studely/api dev:debug",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,js,json,md,yml,yaml}\"",

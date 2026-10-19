@@ -7,9 +7,6 @@ dist
 build
 .turbo
 
-# Generated code
-apps/api/prisma/generated
-
 # Tests / coverage
 coverage
 playwright-report
@@ -31,10 +28,7 @@ lerna-debug.log*
 .env.production
 .env.local
 # Exception : URL publique de l'API pour le dev du widget (aucun secret).
-!apps/widget/.env.development
-
-# docker compose local overrides (ports, env spécifiques machine)
-docker-compose.override.yml
+!packages/widget/.env.development
 
 # temp directory
 .temp
@@ -56,7 +50,5 @@ docker-compose.override.yml
 /eagle.code-workspace
 /.agents/
 /.vscode/
-/apps/api/AGENTS.md
-/apps/api/skills-lock.json
 /.husky/pre-push
 /scripts/agents.mjs
