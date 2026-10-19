@@ -1,0 +1,30 @@
+{
+  "sonarlint.connectedMode.project": {
+    "connectionId": "sonarcloud-learnup",
+    "projectKey": "eagle"
+  },
+  "sonarlint.connectedMode.connections.sonarcloud": [
+    {
+      "connectionId": "sonarcloud-learnup",
+      "organizationKey": "learnup"
+    }
+  ],
+  "sonarlint.pathToNodeExecutable": "",
+  "sonarlint.rules": {
+    "typescript:S3776": {
+      "level": "on",
+      "params": { "threshold": 15 }
+    }
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  "[html]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  }
+}

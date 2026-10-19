@@ -51,6 +51,7 @@ lerna-debug.log*
 /.mcp.json
 /eagle.code-workspace
 /.agents/
-/.vscode/
+/.vscode/*
+!/.vscode/settings.json
 /.husky/pre-push
 /scripts/agents.mjs
