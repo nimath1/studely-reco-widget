@@ -25,6 +25,17 @@ export default defineConfig(({ command, mode }) => {
   if (command === 'build') assertApiUrl(mode)
 
   return {
+    server: {
+      // Dev : les appels `/chat` du widget partent en même-origine et sont
+      // relayés au chatbot réel — pas de CORS côté navigateur, la vraie
+      // API est testable localement sans mock (`?recoMock=` reste prioritaire).
+      proxy: {
+        '/chat': {
+          target: 'https://chatbot.dev.ml.studely.com',
+          changeOrigin: true
+        }
+      }
+    },
     build: {
       outDir: 'dist',
       // Safari iOS 15+ est la cible la plus ancienne du cahier (§7.6).

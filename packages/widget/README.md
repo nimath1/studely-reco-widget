@@ -124,8 +124,14 @@ Nombres et dates via `Intl` dans la locale active.
 L'API de recommandation est mockée par MSW, uniquement hors bundle —
 `mock/` n'entre jamais dans `dist/reco.js`.
 
+Sans `?recoMock=`, la page de dev appelle le **vrai chatbot** : en dev
+`VITE_RECO_API_URL` est vide, les appels `/chat` restent même-origine et
+`server.proxy` (vite.config.ts) les relaie à `chatbot.dev.ml.studely.com` —
+aucun CORS côté navigateur.
+
 ```bash
 pnpm dev
+# http://localhost:5173                  → vrai chatbot (via proxy)
 # http://localhost:5173/?recoMock=<scénario>&lang=<fr|es|en|de|ar>
 # ou : localStorage.setItem('recoMock', '<scénario>')
 ```
