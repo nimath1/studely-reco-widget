@@ -8,7 +8,7 @@
  * Limite assumée : un nom ou une donnée personnelle sans motif reconnaissable
  * (« Jean Dupont », « mon manager est malade ») n'est pas détecté.
  */
-const EMAIL_PATTERN = /[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+\.\p{L}{2,}/gu
+const EMAIL_PATTERN = /[\p{L}\p{N}._%+-]+@(?:[\p{L}\p{N}-]+\.)+\p{L}{2,}/gu
 
 // IBAN : code pays + 2 chiffres de contrôle + groupes de 4, espaces facultatifs.
 const IBAN_PATTERN = /\b[A-Z]{2}\d{2}(?:\s?[A-Z0-9]{4}){2,7}(?:\s?[A-Z0-9]{1,4})?\b/gi
@@ -31,8 +31,13 @@ const LONG_DIGITS_PATTERN = /\b\d{10,}\b/g
 // « cours » et « place » sont volontairement absents : dans un catalogue de
 // formations ils désignent d'abord des cours et des places (« 2 cours de
 // management », « 1 place en SST ») — les masquer détruirait le besoin.
-const FR_ADDRESS_PATTERN =
-  /\b\d{1,4}\s?(?:bis|ter|quater)?\s*,?\s*(?:rue|avenue|av\.?|boulevard|bd\.?|blvd\.?|chemin|impasse|all[ée]e|route|quai|square|voie|chauss[ée]e|faubourg|r[ée]sidence|lotissement)(?![\p{L}\p{N}_])[^,;.\n]*/giu
+// L'alternance est éclatée en trois motifs (complexité et backtracking
+// bornés — SonarLint S5852) ; séparateurs regroupés dans une classe unique.
+const FR_ADDRESS_PATTERNS = [
+  /\b\d{1,4}[\s,]*(?:(?:bis|ter|quater)[\s,]*)?(?:rue|avenue|av\.?|boulevard|bd\.?|blvd\.?)(?![\p{L}\p{N}_])[^,;.\n]*/giu,
+  /\b\d{1,4}[\s,]*(?:(?:bis|ter|quater)[\s,]*)?(?:chemin|impasse|all[ée]e|route|quai)(?![\p{L}\p{N}_])[^,;.\n]*/giu,
+  /\b\d{1,4}[\s,]*(?:(?:bis|ter|quater)[\s,]*)?(?:square|voie|chauss[ée]e|faubourg|r[ée]sidence|lotissement)(?![\p{L}\p{N}_])[^,;.\n]*/giu
+]
 
 export const PII_PLACEHOLDERS = {
   email: '[email]',
@@ -44,10 +49,13 @@ export const PII_PLACEHOLDERS = {
 } as const
 
 export function scrubPersonalData(text: string): string {
-  return text
+  let result = text
     .replace(EMAIL_PATTERN, PII_PLACEHOLDERS.email)
     .replace(IBAN_PATTERN, PII_PLACEHOLDERS.iban)
-    .replace(FR_ADDRESS_PATTERN, PII_PLACEHOLDERS.address)
+  for (const pattern of FR_ADDRESS_PATTERNS) {
+    result = result.replace(pattern, PII_PLACEHOLDERS.address)
+  }
+  return result
     .replace(FR_PHONE_PATTERN, PII_PLACEHOLDERS.phone)
     .replace(SIRET_PATTERN, PII_PLACEHOLDERS.siret)
     .replace(LONG_DIGITS_PATTERN, PII_PLACEHOLDERS.number)
