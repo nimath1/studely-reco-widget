@@ -116,4 +116,131 @@ test.describe('parcours widget (mock MSW)', () => {
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth)
     expect(scrollWidth).toBeLessThanOrEqual(360)
   })
+
+  test('coquille : ouverture, fermeture et Échap rendent le focus au lanceur', async ({ page }) => {
+    await open(page)
+    await click(page, '[data-reco-action="start"]')
+    const input = widget(page).locator('[data-reco-options="level"] input').first()
+    await input.check()
+    await click(page, '[data-reco-close]')
+    await expect(widget(page)).not.toHaveAttribute('data-reco-open', '')
+    await expect(page.locator('[data-reco-launcher]')).toBeFocused()
+    // The draft survives closing: the selection is still there.
+    await page.locator('[data-reco-launcher]').click()
+    await expect(input).toBeChecked()
+    await page.keyboard.press('Escape')
+    await expect(page.locator('[data-reco-launcher]')).toBeFocused()
+    await expect(page.locator('[data-reco-launcher]')).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  test('réouverture à l’étape 5 : la légende active prend le focus', async ({ page }) => {
+    await open(page)
+    await click(page, '[data-reco-action="start"]')
+    for (const field of ['level', 'fields', 'destinations']) {
+      await widget(page).locator(`[data-reco-options="${field}"] input`).first().check()
+      await click(page, '[data-reco-action="next"]')
+    }
+    await widget(page)
+      .locator('[data-reco-options="languages"] select')
+      .first()
+      .selectOption({ index: 1 })
+    await click(page, '[data-reco-action="next"]')
+    await click(page, '[data-reco-close]')
+    await page.locator('[data-reco-launcher]').click()
+    // The active question (step 5) regains focus, not the first step.
+    await expect(widget(page).locator('[data-reco-step="5"] legend')).toBeFocused()
+    // And the first budget choice is visible in the scrolling body.
+    const budget = widget(page).locator('[data-reco-options="budget"] input').first()
+    await expect(budget).toBeInViewport()
+  })
+
+  test('historique : paires question/réponse en avant, nettoyé au retour', async ({ page }) => {
+    await open(page)
+    await click(page, '[data-reco-action="start"]')
+    const levelLabel = await widget(page)
+      .locator('[data-reco-options="level"] [data-reco-field="label"]')
+      .first()
+      .textContent()
+    await widget(page).locator('[data-reco-options="level"] input').first().check()
+    await click(page, '[data-reco-action="next"]')
+    // At step 2, question 1 and the chosen answer appear as bubbles.
+    const history = widget(page).locator('[data-reco-history] [data-reco-msg]')
+    await expect(history).toHaveCount(2)
+    await expect(history.first()).toContainText('niveau')
+    await expect(history.nth(1)).toHaveText(levelLabel!.trim())
+    await widget(page).locator('[data-reco-options="fields"] input').first().check()
+    await click(page, '[data-reco-action="next"]')
+    await expect(history).toHaveCount(4)
+    // Back to step 2: the future 'destinations' answer disappears.
+    await click(page, '[data-reco-action="back"]')
+    await expect(history).toHaveCount(2)
+  })
+
+  test('étape 5 : groupes distincts, footer d’action visible (360x740)', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 740 })
+    await open(page)
+    await click(page, '[data-reco-action="start"]')
+    for (const field of ['level', 'fields', 'destinations']) {
+      await widget(page).locator(`[data-reco-options="${field}"] input`).first().check()
+      await click(page, '[data-reco-action="next"]')
+    }
+    await widget(page)
+      .locator('[data-reco-options="languages"] select')
+      .first()
+      .selectOption({ index: 1 })
+    await click(page, '[data-reco-action="next"]')
+    await expect.poll(() => state(page)).toBe('step-5')
+    // Distinct groups, yearly label: no giant consent-style card.
+    await expect(widget(page).locator('[data-reco-group]').first()).toHaveText('Budget annuel')
+    const budgetCard = widget(page).locator('[data-reco-options="budget"] label').first()
+    const budgetBox = await budgetCard.boundingBox()
+    expect(budgetBox!.height).toBeLessThan(80)
+    // On arrival at step 5, the first budget choice is visible in the
+    // scrolling body, above the action footer.
+    const geo = await page.evaluate(() => {
+      const body = document.querySelector('[data-reco-body]')!.getBoundingClientRect()
+      const card = document
+        .querySelector('[data-reco-options="budget"] label')!
+        .getBoundingClientRect()
+      const footer = document
+        .querySelector('form > div:has(> [data-reco-action="back"])')!
+        .getBoundingClientRect()
+      const submit = document.querySelector('[data-reco-action="submit"]')!.getBoundingClientRect()
+      const hit = document.elementFromPoint(
+        submit.x + submit.width / 2,
+        submit.y + submit.height - 4
+      )
+      return {
+        body,
+        card,
+        footer,
+        submit,
+        hitAction: hit?.closest?.('[data-reco-action]')?.getAttribute('data-reco-action') ?? null
+      }
+    })
+    // The active question sits at the top of the body, choices below.
+    expect(geo.card.top).toBeGreaterThanOrEqual(geo.body.top)
+    expect(geo.card.bottom).toBeLessThan(geo.footer.top)
+    // The submit button is fully inside the window and clickable
+    // (no overlap from the advisor bar).
+    expect(geo.submit.bottom).toBeLessThanOrEqual(geo.body.bottom)
+    expect(geo.hitAction).toBe('submit')
+  })
+
+  test('étape 5 : footer visible sur viewport desktop court (520 px)', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 520 })
+    await open(page)
+    await click(page, '[data-reco-action="start"]')
+    for (const field of ['level', 'fields', 'destinations']) {
+      await widget(page).locator(`[data-reco-options="${field}"] input`).first().check()
+      await click(page, '[data-reco-action="next"]')
+    }
+    await widget(page)
+      .locator('[data-reco-options="languages"] select')
+      .first()
+      .selectOption({ index: 1 })
+    await click(page, '[data-reco-action="next"]')
+    const submitBox = await widget(page).locator('[data-reco-action="submit"]').boundingBox()
+    expect(submitBox!.y + submitBox!.height).toBeLessThanOrEqual(520)
+  })
 })

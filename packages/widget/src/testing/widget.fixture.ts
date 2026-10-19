@@ -35,7 +35,13 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
         <button type="button" data-reco-action="restart">Recommencer</button>
         <a data-reco-action="advisor">Conseiller</a>
       </div>
-      <div data-reco-panel="empty"><h3>Aucun parcours</h3><a data-reco-action="advisor">Conseiller</a></div>
+      <div data-reco-panel="empty">
+        <h3 data-reco-title>Aucun parcours</h3>
+        <p data-reco-empty-default>Modifie tes réponses ou contacte un conseiller.</p>
+        <p data-reco-empty-reason hidden></p>
+        <button type="button" data-reco-action="edit">Modifier</button>
+        <a data-reco-action="advisor">Conseiller</a>
+      </div>
       <div data-reco-panel="error">
         <h3>Une erreur est survenue</h3>
         <p data-reco-error-message></p>

@@ -38,7 +38,7 @@ export interface RecoProfile {
   goal?: string
 }
 
-/** Corps de POST /chat : `mode` n'accepte que « sav » en surface V0. */
+/** POST /chat body: `mode` defaults to « sav » server-side (no other mode documented). */
 export interface ChatRequest {
   message: string
   session_id?: string | null

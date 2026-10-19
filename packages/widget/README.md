@@ -82,8 +82,20 @@ R12) et un avertissement `[studely-reco]` est émis en console.
   `data-reco-live`, `data-reco-progress`, `data-reco-progress-bar`.
 - Templates et labels : visibles dans le Designer, masqués en ligne par le
   CSS `[data-reco-template], [data-reco-labels] { display: none }`.
+- Historique optionnel : un conteneur `[data-reco-history]` posé dans le
+  `form` (avant les fieldsets) est repeint à chaque étape en paires de
+  bulles question/réponse (`data-reco-msg="assistant|user"`) pour les
+  étapes déjà validées — reconstruit à chaque navigation, sans étape
+  future. Absent du gabarit : no-op, aucun style ni texte embarqué.
 - Le JS n'utilise aucune classe de style : nommage BEM `reco-*` libre pour
   Webflow ; RTL via la feuille `[data-reco-widget][dir="rtl"]`.
+
+Le visuel de référence (shell, header, cartes, bulles) vit dans
+`index.html` (page de dev / composant Webflow) : `dist/reco.js` reste
+volontairement sans style et n'embarque aucun CSS. Les assets statiques
+qu'il référence — `public/studely-brand.jpg` (logo du header) et
+`public/fonts/Montserrat-*.otf` (@font-face 400/600/700/800) — doivent
+être déployés avec la page : le bundle ne les inclut pas.
 
 ## API JS
 
@@ -164,10 +176,13 @@ timeout 20 s du widget), `bad-url` (URLs hors studely.com), `html-reason`
 ## Limites connues
 
 - Le widget est branché sur l'API chatbot déployée (`POST /chat`, SSE
-  `delta`/`final`, `mode: "sav"` — seul mode accepté par le contrat actuel).
-  Le backend répond aujourd'hui `out_of_scope` aux demandes de parcours :
-  les recommandations structurées arriveront avec l'évolution serveur ;
-  le widget affiche déjà le texte du bot et ses citations.
+  `delta`/`final` ; `mode` non envoyé, défaut serveur `sav` — aucun autre
+  mode documenté dans l'OpenAPI actuel). Constaté sur session fraîche :
+  le backend répond `out_of_scope` aux demandes de parcours ; le widget
+  route alors vers le panel `empty` (texte de refus dans
+  `data-reco-empty-reason`, jamais compté en recommandations) plutôt que
+  `results`. Les recommandations proprement dites attendent l'évolution
+  du backend mobilité.
 - Les options du questionnaire sont statiques (`src/api/options.ts`) : à
   resynchroniser si le catalogue produit évolue.
 - La CMP reconnue est Cookiebot ; Didomi/Axeptio s'ajoutent dans

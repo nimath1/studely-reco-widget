@@ -292,6 +292,96 @@ describe('erreurs API', () => {
     const second = spy.mock.calls[1]![1] as { body: string }
     expect(JSON.parse(second.body).message).toContain('Mon profil')
   })
+
+  describe('refus hors périmètre', () => {
+    // Rejected replies never count as recommendations, even when their
+    // text/citations look supported.
+    it.each([
+      { intent: 'faq', out_of_scope: true, citations: NOMINAL.citations },
+      { intent: 'out_of_scope' }
+    ])('meta %j → panel empty, pas de comptage', async (meta) => {
+      mockFetch(() => sse('Voici une piste <b>refus</b> littérale.', { session_id: 's1', ...meta }))
+      const { init } = await load()
+      const el = mountStepsWidget()
+      const events: unknown[] = []
+      el.addEventListener(RECO_EVENT, (e) => events.push((e as CustomEvent).detail))
+      await initAndWait(init, el)
+      await submitFullForm(el)
+      await vi.waitFor(() => {
+        if (el.dataset.recoState !== 'empty') throw new Error('pas empty')
+      })
+      expect(el.querySelector('[data-reco-panel="empty"]')!.classList).toContain('is-reco-active')
+      // The live region says empty, not a recommendation count.
+      expect(el.querySelector('[data-reco-live]')!.textContent).toBe('Aucun parcours')
+      expect(events).toContainEqual(expect.objectContaining({ name: 'empty' }))
+      expect(window.dataLayer?.some((p) => p.event === 'reco_empty')).toBe(true)
+      // Refusal text injected as plain text — markup stays literal.
+      const reason = el.querySelector<HTMLElement>('[data-reco-empty-reason]')!
+      expect(reason.hidden).toBe(false)
+      expect(reason.textContent).toBe('Voici une piste <b>refus</b> littérale.')
+      expect(reason.querySelector('b')).toBeNull()
+      expect(el.querySelector<HTMLElement>('[data-reco-empty-default]')!.hidden).toBe(true)
+    })
+
+    it('edit → retry accepté : résultats affichés, motif effacé ; refus suivant les vide', async () => {
+      let refused = true
+      mockFetch(() =>
+        refused
+          ? sse('Je ne peux pas répondre à cela.', { intent: 'out_of_scope' })
+          : sse('Voici trois pistes adaptées à ton profil.', NOMINAL)
+      )
+      const { init } = await load()
+      const el = mountStepsWidget()
+      await initAndWait(init, el)
+      await submitFullForm(el)
+      await vi.waitFor(() => {
+        if (el.dataset.recoState !== 'empty') throw new Error('pas empty')
+      })
+      const reason = el.querySelector<HTMLElement>('[data-reco-empty-reason]')!
+      const generic = el.querySelector<HTMLElement>('[data-reco-empty-default]')!
+      expect(reason.textContent).toBe('Je ne peux pas répondre à cela.')
+
+      // Edit goes back to step-1; revalidate steps and resubmit — accepted
+      // reply shows results and clears the refusal reason.
+      refused = false
+      click(el, 'edit')
+      expect(el.dataset.recoState).toBe('step-1')
+      for (let n = 0; n < 4; n++) click(el, 'next')
+      el.querySelector<HTMLInputElement>('[data-reco-input="consent"]')!.checked = true
+      click(el, 'submit')
+      await vi.waitFor(() => {
+        if (el.dataset.recoState !== 'results') throw new Error('pas results')
+      })
+      expect(reason.hidden).toBe(true)
+      expect(reason.textContent).toBe('')
+      expect(generic.hidden).toBe(false)
+
+      // A later refusal clears the rendered results again.
+      refused = true
+      click(el, 'edit')
+      for (let n = 0; n < 4; n++) click(el, 'next')
+      el.querySelector<HTMLInputElement>('[data-reco-input="consent"]')!.checked = true
+      click(el, 'submit')
+      await vi.waitFor(() => {
+        if (el.dataset.recoState !== 'empty') throw new Error('pas empty (2e)')
+      })
+      expect(el.querySelector('[data-reco-results]')!.children).toHaveLength(0)
+    })
+
+    it('ancien gabarit sans hooks empty : le refus atteint quand même empty', async () => {
+      mockFetch(() => sse('Hors sujet.', { intent: 'out_of_scope' }))
+      const { init } = await load()
+      const el = mountStepsWidget()
+      el.querySelector('[data-reco-empty-reason]')!.remove()
+      el.querySelector('[data-reco-empty-default]')!.remove()
+      await initAndWait(init, el)
+      await submitFullForm(el)
+      await vi.waitFor(() => {
+        if (el.dataset.recoState !== 'empty') throw new Error('pas empty')
+      })
+      expect(el.querySelector('[data-reco-panel="empty"]')!.classList).toContain('is-reco-active')
+    })
+  })
 })
 
 describe('lien conseiller', () => {

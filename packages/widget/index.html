@@ -12,23 +12,57 @@
       document.documentElement.lang = new URLSearchParams(location.search).get('lang') || 'fr'
     </script>
     <style>
-      /* ═══ CSS de dev « chat » (façon Intercom) : bulle de marque,
-         questions en bulles assistant, réponses en chips, résultats en
-         messages. Zéro classe : tout tient sur data-reco-* (base §10.4). ═══ */
+      /* ═══ Dev "chat" CSS (Intercom-style): 24px shell window, blue
+         gradient header, bubble conversation, option cards with visible
+         native radios/checkboxes. Zero classes: everything hangs on
+         data-reco-* (§10.4 base). ═══ */
+      /* Self-hosted Montserrat (dev/Webflow reference — the font files in
+         public/fonts must be deployed with the page, like the logo). */
+      @font-face {
+        font-family: 'Montserrat';
+        src: url('/fonts/Montserrat-Regular.otf') format('opentype');
+        font-weight: 400;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: 'Montserrat';
+        src: url('/fonts/Montserrat-SemiBold.otf') format('opentype');
+        font-weight: 600;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: 'Montserrat';
+        src: url('/fonts/Montserrat-Bold.otf') format('opentype');
+        font-weight: 700;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: 'Montserrat';
+        src: url('/fonts/Montserrat-ExtraBold.otf') format('opentype');
+        font-weight: 800;
+        font-display: swap;
+      }
       :root {
         --reco-ink: #15182b;
         --reco-ink-muted: #5c6072;
-        --reco-ink-subtle: #8a8fa3;
+        --reco-ink-subtle: #5a6075;
         --reco-paper: #ffffff;
-        --reco-surface: #f2f3f8;
-        --reco-bubble: #eef0f7;
-        --reco-rule: #e3e5ef;
-        --reco-primary: #2540be;
-        --reco-primary-soft: #e8ecfd;
-        --reco-accent: #ffb020;
+        --reco-surface: #f4f6fb;
+        --reco-bubble: #eef2f9;
+        --reco-rule: #e3e8f2;
+        /* Studely brand: exact brand blue/pink/green/amber. Deep blue is
+           derived for small white-text surfaces (AA on small text). */
+        --reco-primary: #1d7edf;
+        --reco-primary-deep: #1264b7;
+        --reco-secondary: #e74e70;
+        --reco-tertiary: #57dd88;
+        --reco-accent: #fb0;
+        --reco-primary-soft: #e2effc;
         --reco-error: #c92a2a;
-        --reco-radius: 18px;
+        --reco-radius: 24px;
+        --reco-radius-card: 12px;
         --reco-control: 44px;
+        --reco-font: 'Montserrat', sans-serif;
       }
       .sr-only {
         position: absolute;
@@ -40,16 +74,12 @@
       }
       body {
         margin: 0;
-        font-family:
-          system-ui,
-          -apple-system,
-          'Segoe UI',
-          sans-serif;
+        font-family: var(--reco-font);
         color: var(--reco-ink);
         background: linear-gradient(160deg, #e8ecf9 0%, #f4f4f8 60%);
         min-height: 100vh;
       }
-      /* ── Machine à états : masquage par attributs ── */
+      /* ── State machine: attribute-driven hiding ── */
       [data-reco-template],
       [data-reco-labels],
       [data-reco-widget] [data-reco-panel]:not([data-reco-panel='fallback']) {
@@ -64,12 +94,12 @@
       [data-reco-widget] [data-reco-step]:not(.is-reco-active) {
         display: none !important;
       }
-      /* Les display ci-dessous neutralisent sinon `hidden` (Retour étape 1,
-         Suivant/submit étape 5, disclaimer sans URL). */
+      /* These display rules would otherwise defeat `hidden` (Back on step 1,
+         Next/submit on step 5, disclaimer without URL). */
       [data-reco-widget] [hidden] {
         display: none !important;
       }
-      /* ── Lanceur flottant + fenêtre (façon Intercom) ── */
+      /* ── Floating launcher (Intercom-style) ── */
       [data-reco-launcher] {
         position: fixed;
         inset-inline-end: 20px;
@@ -77,17 +107,17 @@
         z-index: 60;
         display: grid;
         place-items: center;
-        width: 56px;
-        height: 56px;
+        width: 60px;
+        height: 60px;
         border: none;
         border-radius: 50%;
-        background: var(--reco-primary);
+        background: linear-gradient(135deg, var(--reco-primary) 0%, var(--reco-primary-deep) 100%);
         color: #fff;
         cursor: pointer;
-        box-shadow: 0 10px 28px rgb(37 64 190 / 45%);
+        box-shadow: 0 12px 32px rgb(29 126 223 / 45%);
         transition:
           transform 0.15s,
-          background 0.15s;
+          box-shadow 0.15s;
       }
       [data-reco-launcher]:hover {
         transform: scale(1.06);
@@ -100,19 +130,41 @@
         width: 26px;
         height: 26px;
       }
-      /* Fenêtre : ancrée coin bas droite, masquée sans data-reco-open.
-         visibility (pas display) → l'IntersectionObserver voit le widget
-         et l'init/prefetch a lieu dès le chargement de la page. */
+      /* Close icon shown while the window is open. */
+      [data-reco-launcher] [data-reco-icon='close'] {
+        display: none;
+      }
+      [data-reco-launcher][aria-expanded='true'] [data-reco-icon='chat'] {
+        display: none;
+      }
+      [data-reco-launcher][aria-expanded='true'] [data-reco-icon='close'] {
+        display: block;
+      }
+      /* ── Window: single rounded shell anchored bottom-right.
+         visibility (not display) so the IntersectionObserver sees the
+         widget and init/prefetch happens on page load. ── */
       [data-reco-widget] {
         position: fixed;
+        /* Reset <dialog> UA defaults; keep the fixed bottom-end anchoring. */
+        margin: 0;
+        padding: 0;
+        border: 0;
+        color: inherit;
+        inset-block-start: auto;
+        inset-inline-start: auto;
         inset-inline-end: 20px;
-        bottom: 92px;
+        bottom: 96px;
         z-index: 50;
-        display: block;
-        width: min(400px, calc(100vw - 32px));
-        max-height: min(620px, calc(100dvh - 120px));
-        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        width: min(416px, calc(100vw - 24px));
+        max-height: min(700px, calc(100dvh - 120px));
         border-radius: var(--reco-radius);
+        overflow: hidden;
+        background: var(--reco-surface);
+        box-shadow:
+          0 24px 60px rgb(21 24 43 / 22%),
+          0 4px 16px rgb(21 24 43 / 10%);
         opacity: 0;
         visibility: hidden;
         transform: translateY(12px) scale(0.98);
@@ -130,67 +182,159 @@
       [data-reco-widget][dir='rtl'] {
         transform-origin: bottom left;
       }
+      /* ── Header: blue gradient + decorative shapes, brand avatar ── */
       [data-reco-widget] > header {
+        position: relative;
         display: flex;
         align-items: center;
         gap: 12px;
-        padding: 14px 18px;
-        border-radius: var(--reco-radius) var(--reco-radius) 0 0;
-        background: var(--reco-primary);
+        padding: 16px 20px;
+        padding-inline-end: 14px;
+        background: linear-gradient(120deg, var(--reco-primary-deep) 0%, var(--reco-primary) 70%);
         color: #fff;
+        overflow: hidden;
+        flex-shrink: 0;
       }
+      /* Subtle decorative circles behind the content. */
+      [data-reco-widget] > header::before,
+      [data-reco-widget] > header::after {
+        content: '';
+        position: absolute;
+        border-radius: 50%;
+        pointer-events: none;
+      }
+      [data-reco-widget] > header::before {
+        width: 140px;
+        height: 140px;
+        inset-inline-end: -40px;
+        top: -70px;
+        background: color-mix(in srgb, var(--reco-tertiary) 18%, transparent);
+      }
+      [data-reco-widget] > header::after {
+        width: 80px;
+        height: 80px;
+        inset-inline-end: 60px;
+        bottom: -50px;
+        background: rgb(231 78 112 / 18%);
+      }
+      /* Brand tile: white rounded square holding the Studely logo. */
       [data-reco-widget] > header > span {
         display: grid;
         place-items: center;
-        width: 36px;
-        height: 36px;
-        border-radius: 50%;
-        background: var(--reco-accent);
-        color: var(--reco-ink);
-        font-weight: 800;
+        width: 44px;
+        height: 44px;
+        border-radius: 14px;
+        background: #fff;
+        flex-shrink: 0;
+        overflow: hidden;
+      }
+      [data-reco-widget] > header > span img {
+        width: 44px;
+        height: 44px;
+        object-fit: contain;
+        display: block;
+      }
+      [data-reco-widget] > header > div {
+        position: relative;
+        min-width: 0;
       }
       [data-reco-widget] > header strong {
         display: block;
-        font-size: 0.95rem;
+        font-size: 1rem;
+        line-height: 1.2;
       }
       [data-reco-widget] > header small {
-        font-size: 0.75rem;
+        display: block;
+        margin-top: 2px;
+        font-size: 0.72rem;
+        opacity: 0.85;
       }
-      [data-reco-widget] > header small::before {
-        content: '●';
-        margin-inline-end: 5px;
-        color: #6ee7a0;
+      /* Close button: >= 44px target, quiet on the gradient. */
+      [data-reco-widget] > header button[data-reco-close] {
+        position: relative;
+        margin-inline-start: auto;
+        display: grid;
+        place-items: center;
+        width: var(--reco-control);
+        height: var(--reco-control);
+        min-height: 0;
+        padding: 0;
+        border: none;
+        border-radius: 50%;
+        background: transparent;
+        color: #fff;
+        cursor: pointer;
+        flex-shrink: 0;
       }
-      [data-reco-widget] [data-reco-panel] {
-        background: var(--reco-paper);
-        border: 1px solid var(--reco-rule);
-        border-top: none;
-        border-radius: 0 0 var(--reco-radius) var(--reco-radius);
-        padding: 22px;
-        min-height: 300px;
-        box-shadow: 0 12px 32px rgb(21 24 43 / 10%);
+      [data-reco-widget] > header button[data-reco-close] svg {
+        width: 18px;
+        height: 18px;
       }
-      [data-reco-widget] [data-reco-panel='fallback'] {
+      [data-reco-widget] > header button[data-reco-close]:hover {
+        background: rgb(255 255 255 / 18%);
+      }
+      [data-reco-widget] > header button[data-reco-close]:focus-visible {
+        outline: 2px solid #fff;
+        outline-offset: 2px;
+      }
+      /* ── Scrolling body + persistent advisor footer ── */
+      [data-reco-body] {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        background: var(--reco-surface);
+      }
+      [data-reco-advisor] {
+        flex-shrink: 0;
+        padding: 8px 20px calc(8px + env(safe-area-inset-bottom));
         border-top: 1px solid var(--reco-rule);
-        border-radius: var(--reco-radius);
+        background: var(--reco-paper);
         text-align: center;
       }
-      /* ── Bulle assistant : legend de l'étape, titres des panels ── */
+      [data-reco-advisor] a {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--reco-primary-deep);
+        text-decoration: none;
+      }
+      [data-reco-advisor] a:hover {
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+      [data-reco-widget] [data-reco-panel] {
+        padding: 20px;
+        min-height: 280px;
+      }
+      [data-reco-widget] [data-reco-panel='fallback'] {
+        text-align: center;
+      }
+      /* ── Assistant bubble: step legend, panel titles ── */
       [data-reco-widget] legend {
         display: inline-block;
-        max-width: 85%;
+        max-width: 90%;
         padding: 12px 16px;
         border-radius: 16px 16px 16px 4px;
-        background: var(--reco-bubble);
+        background: var(--reco-paper);
+        border: 1px solid var(--reco-rule);
         font-size: 0.95rem;
-        font-weight: 600;
+        font-weight: 700;
         line-height: 1.35;
         margin-bottom: 14px;
+        box-shadow: 0 1px 2px rgb(21 24 43 / 5%);
+      }
+      [data-reco-widget] legend:focus {
+        outline: none;
+      }
+      [data-reco-widget] legend:focus-visible {
+        outline: 3px solid var(--reco-primary);
+        outline-offset: 2px;
       }
       [data-reco-widget] fieldset {
         border: none;
-        margin: 0 0 14px;
+        margin: 0 0 4px;
         padding: 0;
+        min-width: 0;
       }
       /* ── Progression ── */
       [data-reco-progress] {
@@ -204,33 +348,62 @@
       [data-reco-widget] form > div:has(> [data-reco-progress-bar]) {
         height: 5px;
         border-radius: 999px;
-        background: var(--reco-surface);
+        background: var(--reco-rule);
         overflow: hidden;
-        margin-bottom: 18px;
+        margin-bottom: 16px;
       }
       [data-reco-progress-bar] {
         height: 100%;
         width: 0;
         border-radius: 999px;
-        background: var(--reco-primary);
+        background: var(--reco-accent);
         transition: width 0.3s ease;
       }
-      /* ── Réponses = chips « quick reply » (input natif invisible,
-            toujours focusable) ── */
+      /* ── Conversation transcript (optional container) ── */
+      [data-reco-history] {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 18px;
+      }
+      [data-reco-history]:empty {
+        display: none;
+      }
+      [data-reco-msg] {
+        max-width: 85%;
+        padding: 10px 14px;
+        font-size: 0.85rem;
+        line-height: 1.45;
+      }
+      [data-reco-msg='assistant'] {
+        align-self: flex-start;
+        border-radius: 16px 16px 16px 4px;
+        background: var(--reco-paper);
+        border: 1px solid var(--reco-rule);
+        color: var(--reco-ink-muted);
+      }
+      [data-reco-msg='user'] {
+        align-self: flex-end;
+        border-radius: 16px 16px 4px 16px;
+        /* Deep brand blue keeps white small text AA. */
+        background: var(--reco-primary-deep);
+        color: #fff;
+      }
+      /* ── Options = full-width cards, visible native radios/checkboxes ── */
       [data-reco-widget] [data-reco-options] {
         display: flex;
-        flex-wrap: wrap;
+        flex-direction: column;
         gap: 8px;
       }
       [data-reco-widget] [data-reco-options] label:has(input) {
         position: relative;
-        display: inline-flex;
+        display: flex;
         align-items: center;
-        gap: 8px;
-        min-height: 40px;
-        padding: 8px 16px;
+        gap: 12px;
+        min-height: var(--reco-control);
+        padding: 10px 14px;
         border: 1.5px solid var(--reco-rule);
-        border-radius: 999px;
+        border-radius: var(--reco-radius-card);
         background: var(--reco-paper);
         font-size: 0.88rem;
         font-weight: 500;
@@ -238,70 +411,88 @@
         transition:
           border-color 0.15s,
           background 0.15s,
-          color 0.15s;
+          box-shadow 0.15s;
       }
       [data-reco-widget] [data-reco-options] label:has(input):hover {
         border-color: var(--reco-primary);
-        color: var(--reco-primary);
       }
-      /* Input natif : couvre la chip en transparent (clic/lecteur d'écran
-         OK) au lieu d'être retiré du flux. */
+      /* Native radios/checkboxes: visible inside the card, always accessible. */
       [data-reco-widget] [data-reco-options] input {
-        position: absolute;
-        inset: 0;
-        width: 100%;
-        height: 100%;
+        width: 20px;
+        height: 20px;
         margin: 0;
-        opacity: 0;
+        accent-color: var(--reco-primary);
+        flex-shrink: 0;
         cursor: pointer;
+      }
+      [data-reco-widget] [data-reco-options] [data-reco-field='label'] {
+        flex: 1;
+        min-width: 0;
       }
       [data-reco-widget] [data-reco-options] label:has(input:focus-visible) {
         outline: 3px solid var(--reco-primary);
         outline-offset: 2px;
       }
       [data-reco-widget] [data-reco-options] label:has(input:checked) {
-        background: var(--reco-primary);
+        background: var(--reco-primary-soft);
         border-color: var(--reco-primary);
-        color: #fff;
+        color: var(--reco-primary-deep);
+        font-weight: 600;
+        box-shadow: 0 0 0 1px var(--reco-primary) inset;
       }
-      /* ── Langues : ligne bulle + select pilule ── */
+      /* ── Languages: card row + compact select ── */
       [data-reco-widget] [data-reco-options='languages'] > div {
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: 12px;
-        flex-basis: 100%;
-        padding: 8px 8px 8px 16px;
+        min-height: var(--reco-control);
+        padding: 8px 8px 8px 14px;
         border: 1.5px solid var(--reco-rule);
-        border-radius: 999px;
+        border-radius: var(--reco-radius-card);
+        background: var(--reco-paper);
         font-size: 0.88rem;
         font-weight: 500;
       }
+      [data-reco-widget]
+        [data-reco-options='languages']
+        > div:has(select option:checked:not([value=''])) {
+        border-color: var(--reco-primary);
+      }
       [data-reco-widget] [data-reco-options='languages'] select {
         min-height: 36px;
-        padding: 0 12px;
+        padding: 0 10px;
         border: 1.5px solid var(--reco-rule);
-        border-radius: 999px;
+        border-radius: 10px;
         font: inherit;
-        font-size: 0.85rem;
+        font-size: 0.83rem;
         font-weight: 600;
-        color: var(--reco-primary);
+        color: var(--reco-primary-deep);
         background: var(--reco-paper);
         cursor: pointer;
       }
-      /* ── Champs étape 5 ── */
-      [data-reco-widget] [data-reco-step='5'] > label {
+      [data-reco-widget] [data-reco-options='languages'] select:focus-visible {
+        outline: 3px solid var(--reco-primary);
+        outline-offset: 1px;
+      }
+      /* ── Step 5: labelled groups, goal, consent ── */
+      [data-reco-widget] [data-reco-step='5'] > label[for='reco-goal'],
+      [data-reco-widget] [data-reco-step='5'] [data-reco-group] {
         display: block;
-        margin: 14px 0 6px;
-        font-size: 0.85rem;
-        font-weight: 600;
+        margin: 16px 0 8px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: var(--reco-ink-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
       }
       [data-reco-widget] textarea {
         width: 100%;
-        min-height: 64px;
+        min-height: 72px;
         padding: 12px 14px;
         border: 1.5px solid var(--reco-rule);
-        border-radius: 14px;
+        border-radius: var(--reco-radius-card);
+        background: var(--reco-paper);
         font: inherit;
         font-size: 0.88rem;
         resize: vertical;
@@ -312,25 +503,38 @@
         outline-offset: 1px;
       }
       [data-reco-hint] {
-        margin: 4px 0 12px;
+        margin: 6px 0 12px;
         font-size: 0.75rem;
         color: var(--reco-ink-muted);
       }
-      [data-reco-widget] [data-reco-step='5'] label:has(input) {
+      /* Consent card: scoped to the checkbox — never touches the
+         budget/intake cards (handled by the option-card block above). */
+      [data-reco-widget] label:has(> [data-reco-input='consent']) {
         display: flex;
         align-items: flex-start;
         gap: 10px;
+        min-height: var(--reco-control);
+        margin-top: 14px;
         padding: 12px 14px;
         border: 1.5px solid var(--reco-rule);
-        border-radius: 14px;
+        border-radius: var(--reco-radius-card);
+        background: var(--reco-paper);
         font-size: 0.8rem;
+        font-weight: 500;
+        text-transform: none;
+        letter-spacing: normal;
+        color: var(--reco-ink);
         line-height: 1.4;
         cursor: pointer;
       }
-      [data-reco-widget] [data-reco-step='5'] input[type='checkbox'] {
-        width: 18px;
-        height: 18px;
-        margin-top: 1px;
+      [data-reco-widget] label:has(> [data-reco-input='consent']):has(input:checked) {
+        border-color: var(--reco-primary);
+        background: var(--reco-primary-soft);
+      }
+      [data-reco-widget] input[data-reco-input='consent'] {
+        width: 20px;
+        height: 20px;
+        margin: 1px 0 0;
         accent-color: var(--reco-primary);
         flex-shrink: 0;
       }
@@ -345,7 +549,10 @@
       [aria-invalid='true'] {
         border-color: var(--reco-error) !important;
       }
-      /* ── Boutons ── */
+      [data-reco-widget] label:has(input[aria-invalid='true']) {
+        border-color: var(--reco-error);
+      }
+      /* ── Buttons ── */
       [data-reco-widget] :is(button, a[data-reco-action]) {
         min-height: var(--reco-control);
         padding: 0 18px;
@@ -361,22 +568,24 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
+        gap: 8px;
         transition:
           border-color 0.15s,
           background 0.15s,
-          color 0.15s;
+          color 0.15s,
+          filter 0.15s;
       }
       [data-reco-widget] :is(button, a[data-reco-action]):hover {
         border-color: var(--reco-primary);
-        color: var(--reco-primary);
+        color: var(--reco-primary-deep);
       }
       [data-reco-widget] button[data-reco-action='start'],
       [data-reco-widget] button[data-reco-action='submit'],
       [data-reco-widget] button[data-reco-action='next'],
       [data-reco-widget] [data-reco-panel='fallback'] a {
-        background: var(--reco-accent);
-        border-color: var(--reco-accent);
-        color: var(--reco-ink);
+        background: linear-gradient(120deg, var(--reco-primary) 0%, var(--reco-primary-deep) 100%);
+        border-color: transparent;
+        color: #fff;
       }
       [data-reco-widget]
         :is(
@@ -384,9 +593,11 @@
           button[data-reco-action='submit'],
           button[data-reco-action='next']
         ):hover {
-        background: #e79b00;
-        border-color: #e79b00;
-        color: var(--reco-ink);
+        /* Same gradient as the resting state; brightness() avoids a discrete
+           background-image swap that flashes on hover. */
+        filter: brightness(0.94);
+        border-color: transparent;
+        color: #fff;
       }
       [data-reco-widget] :is(button, a):focus-visible {
         outline: 3px solid var(--reco-primary);
@@ -396,56 +607,75 @@
         opacity: 0.5;
         cursor: not-allowed;
       }
-      [data-reco-widget] [data-reco-action='advisor'] {
-        border: none;
-        color: var(--reco-primary);
-        text-decoration: underline;
-        text-underline-offset: 3px;
-      }
-      /* Rangée Retour / Suivant / Submit : Retour à gauche, reste à droite. */
+      /* Back / Next / Submit row pinned to the bottom of the scrolling
+         body: actions stay visible on small screens. */
       [data-reco-widget] form > div:has(> [data-reco-action='back']) {
+        position: sticky;
+        bottom: 0;
         display: flex;
         gap: 8px;
-        margin-top: 18px;
+        margin: 18px -20px -20px;
+        padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
+        background: var(--reco-surface);
+        border-top: 1px solid var(--reco-rule);
       }
       [data-reco-widget] [data-reco-action='back'] {
-        border: none;
+        border-color: transparent;
+        background: transparent;
         color: var(--reco-ink-muted);
       }
       [data-reco-widget] form > div:has(> [data-reco-action='back']) > :last-child {
         margin-inline-start: auto;
       }
-      /* ── Intro : pitch en bulles + gros CTA ── */
+      /* ── Intro: expressive headline, meta, full-width CTA ── */
       [data-reco-widget] [data-reco-panel='intro'] {
-        text-align: center;
+        padding-top: 28px;
+      }
+      [data-reco-widget] [data-reco-panel='intro'].is-reco-active {
+        display: flex !important;
+        flex-direction: column;
       }
       [data-reco-widget] [data-reco-panel='intro'] h2 {
-        display: inline-block;
-        max-width: 90%;
-        margin: 8px 0;
-        padding: 14px 18px;
-        border-radius: 18px 18px 18px 4px;
-        background: var(--reco-bubble);
-        font-size: 1.15rem;
-        text-align: start;
+        margin: 0 0 10px;
+        font-size: 1.55rem;
+        font-weight: 700;
+        line-height: 1.2;
+        letter-spacing: -0.01em;
       }
-      [data-reco-widget] [data-reco-panel='intro'] p {
-        display: inline-block;
-        max-width: 85%;
-        margin: 4px 0 20px;
-        padding: 12px 16px;
-        border-radius: 18px 18px 18px 4px;
-        background: var(--reco-bubble);
-        font-size: 0.9rem;
-        color: var(--reco-ink);
-        text-align: start;
+      [data-reco-widget] [data-reco-panel='intro'] h2 em {
+        font-style: normal;
+        color: var(--reco-primary);
+      }
+      [data-reco-widget] [data-reco-panel='intro'] > p {
+        margin: 0 0 14px;
+        font-size: 0.92rem;
+        line-height: 1.55;
+        color: var(--reco-ink-muted);
+      }
+      [data-reco-widget] [data-reco-panel='intro'] [data-reco-intro-meta] {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin: 0 0 18px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: var(--reco-ink-subtle);
+      }
+      [data-reco-widget] [data-reco-panel='intro'] [data-reco-intro-meta] svg {
+        width: 14px;
+        height: 14px;
+        color: var(--reco-accent);
       }
       [data-reco-widget] [data-reco-panel='intro'] > button {
-        display: flex;
-        margin: 0 auto;
-        padding: 0 36px;
+        width: 100%;
+        min-height: 50px;
+        font-size: 0.95rem;
       }
-      /* ── Résultats : fil de messages, cartes arrondies ── */
+      [data-reco-widget] [data-reco-panel='intro'] > button svg {
+        width: 18px;
+        height: 18px;
+      }
+      /* ── Results: message thread, rounded cards ── */
       [data-reco-widget] [data-reco-panel='results'] > [data-reco-title],
       [data-reco-widget] [data-reco-panel='empty'] > [data-reco-title],
       [data-reco-widget] [data-reco-panel='error'] > [data-reco-title] {
@@ -454,7 +684,8 @@
         margin: 0 0 14px;
         padding: 12px 16px;
         border-radius: 16px 16px 16px 4px;
-        background: var(--reco-bubble);
+        background: var(--reco-paper);
+        border: 1px solid var(--reco-rule);
         font-size: 1.05rem;
       }
       [data-reco-widget] [data-reco-results] {
@@ -463,17 +694,20 @@
         gap: 12px;
       }
       [data-reco-widget] [data-reco-results] > div {
-        background: var(--reco-bubble);
+        background: var(--reco-paper);
+        border: 1px solid var(--reco-rule);
         border-radius: 16px 16px 16px 4px;
         padding: 14px 16px;
-        font-size: 0.95rem;
-        line-height: 1.5;
+        font-size: 0.92rem;
+        line-height: 1.55;
+        box-shadow: 0 1px 3px rgb(21 24 43 / 6%);
       }
       [dir='rtl'] [data-reco-widget] [data-reco-results] > div {
         border-radius: 16px 16px 4px 16px;
       }
       [data-reco-widget] [data-reco-results] [data-reco-field='text'] {
         margin: 0;
+        white-space: pre-line;
       }
       [data-reco-widget] [data-reco-field='links'] {
         display: flex;
@@ -486,13 +720,13 @@
       }
       [data-reco-widget] [data-reco-field='links'] a {
         display: block;
-        padding: 9px 12px;
+        padding: 10px 12px;
         border: 1.5px solid var(--reco-rule);
-        border-radius: 12px;
+        border-radius: var(--reco-radius-card);
         background: var(--reco-paper, #fff);
         font-size: 0.83rem;
         font-weight: 600;
-        color: var(--reco-primary);
+        color: var(--reco-primary-deep);
         text-decoration: none;
         transition: border-color 0.15s;
       }
@@ -515,26 +749,45 @@
         color: var(--reco-ink-muted);
         font-size: 0.9rem;
       }
-      [data-reco-widget] [data-reco-panel='loading']::after {
-        content: ' ●●●';
-        letter-spacing: 2px;
-        animation: reco-dots 1.2s infinite;
+      [data-reco-widget] [data-reco-panel='loading'].is-reco-active {
+        display: flex !important;
+        align-items: center;
+        gap: 10px;
       }
-      @keyframes reco-dots {
+      [data-reco-widget] [data-reco-panel='loading'] [data-reco-dots] {
+        display: inline-flex;
+        gap: 4px;
+      }
+      [data-reco-widget] [data-reco-panel='loading'] [data-reco-dots] i {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--reco-primary);
+        animation: reco-dot 1.2s infinite;
+      }
+      [data-reco-widget] [data-reco-panel='loading'] [data-reco-dots] i:nth-child(2) {
+        animation-delay: 0.15s;
+      }
+      [data-reco-widget] [data-reco-panel='loading'] [data-reco-dots] i:nth-child(3) {
+        animation-delay: 0.3s;
+      }
+      @keyframes reco-dot {
         0%,
         60%,
         100% {
           opacity: 0.3;
+          transform: translateY(0);
         }
         30% {
           opacity: 1;
+          transform: translateY(-3px);
         }
       }
       [data-reco-error-message] {
         color: var(--reco-error) !important;
         font-weight: 600;
       }
-      /* ── RTL : bulles et rangées inversées ── */
+      /* ── RTL: mirrored bubbles and rows ── */
       [data-reco-widget][dir='rtl'] [data-reco-progress-bar] {
         margin-inline-start: auto;
       }
@@ -542,41 +795,25 @@
       [data-reco-widget][dir='rtl'] [data-reco-panel] h2 {
         border-radius: 16px 16px 4px 16px;
       }
+      [data-reco-widget][dir='rtl'] [data-reco-msg='assistant'] {
+        border-radius: 16px 16px 4px 16px;
+      }
+      [data-reco-widget][dir='rtl'] [data-reco-msg='user'] {
+        border-radius: 16px 16px 16px 4px;
+      }
       [data-reco-widget][dir='rtl'] [data-reco-options='languages'] > div {
         flex-direction: row-reverse;
       }
-      /* Pas de transition pour prefers-reduced-motion (WCAG 2.2, §8.2). */
+      /* No transitions under prefers-reduced-motion (WCAG 2.2, §8.2). */
       @media (prefers-reduced-motion: reduce) {
-        [data-reco-widget] * {
+        [data-reco-widget],
+        [data-reco-widget] *,
+        [data-reco-launcher] {
           transition: none !important;
           animation: none !important;
         }
       }
-      /* Bouton fermer du header (data-reco-close : spécificité au-dessus
-         de la règle générique des boutons). */
-      [data-reco-widget] > header button[data-reco-close] {
-        margin-inline-start: auto;
-        display: grid;
-        place-items: center;
-        width: 32px;
-        height: 32px;
-        min-height: 0;
-        padding: 0;
-        border: none;
-        border-radius: 50%;
-        background: transparent;
-        color: #fff;
-        font-size: 0.9rem;
-        line-height: 1;
-        cursor: pointer;
-      }
-      [data-reco-widget] > header button[data-reco-close]:hover {
-        background: rgb(255 255 255 / 18%);
-      }
-      [data-reco-widget] > header button[data-reco-close]:focus-visible {
-        outline: 2px solid #fff;
-        outline-offset: 2px;
-      }
+      /* ── Mobile ≤ 420px: full-screen, safe-area, launcher hidden ── */
       @media (max-width: 420px) {
         [data-reco-widget] {
           inset: 0;
@@ -589,147 +826,216 @@
         [data-reco-widget][data-reco-open] {
           transform: none;
         }
-        [data-reco-widget] > header,
-        [data-reco-widget] [data-reco-panel] {
-          border-radius: 0;
+        [data-reco-widget] > header {
+          padding-top: calc(16px + env(safe-area-inset-top));
+        }
+        [data-reco-launcher][aria-expanded='true'] {
+          display: none;
         }
       }
     </style>
   </head>
   <body>
-    <section
+    <dialog
       id="reco-chat"
       data-reco-widget
       data-reco-origin="mexique"
       data-reco-advisor-url="/mexique#contact"
+      aria-labelledby="reco-chat-title"
     >
       <header>
-        <span aria-hidden="true">S</span>
+        <span aria-hidden="true"
+          ><img src="/studely-brand.jpg" width="44" height="44" alt=""
+        /></span>
         <div>
-          <strong>Studely</strong>
-          <small>Assistant parcours</small>
+          <strong id="reco-chat-title">Studely</strong>
+          <small>Assistant automatisé — recommandations de parcours</small>
         </div>
-        <button type="button" data-reco-close aria-label="Fermer l'assistant">✕</button>
+        <button type="button" data-reco-close aria-label="Fermer l'assistant">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.4"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
       </header>
       <div data-reco-live class="sr-only"></div>
 
-      <div data-reco-panel="fallback">
-        <a href="/mexique#contact">Parler à un conseiller</a>
-      </div>
-      <div data-reco-panel="intro">
-        <h2>Trouve ton parcours d'études en Europe</h2>
-        <p>
-          Réponds à 5 questions — moins de 2 minutes — et reçois des parcours adaptés à ton niveau,
-          ton budget et tes destinations.
-        </p>
-        <button type="button" data-reco-action="start">Commencer</button>
-      </div>
-
-      <form data-reco-panel="steps" novalidate>
-        <p data-reco-progress></p>
-        <div><div data-reco-progress-bar></div></div>
-        <fieldset data-reco-step="1">
-          <legend tabindex="-1">Quel est ton niveau d'études ?</legend>
-          <div data-reco-options="level"></div>
-          <p data-reco-error-for="level"></p>
-        </fieldset>
-        <fieldset data-reco-step="2">
-          <legend tabindex="-1">Quels domaines t'intéressent ?</legend>
-          <div data-reco-options="fields"></div>
-          <p data-reco-error-for="fields"></p>
-        </fieldset>
-        <fieldset data-reco-step="3">
-          <legend tabindex="-1">Dans quels pays veux-tu étudier ?</legend>
-          <div data-reco-options="destinations"></div>
-          <p data-reco-error-for="destinations"></p>
-        </fieldset>
-        <fieldset data-reco-step="4">
-          <legend tabindex="-1">Quelles langues parles-tu ?</legend>
-          <div data-reco-options="languages"></div>
-          <p data-reco-error-for="languages"></p>
-        </fieldset>
-        <fieldset data-reco-step="5">
-          <legend tabindex="-1">Budget et rentrée</legend>
-          <div data-reco-options="budget"></div>
-          <p data-reco-error-for="budget"></p>
-          <div data-reco-options="intake"></div>
-          <p data-reco-error-for="intake"></p>
-          <label for="reco-goal">Quel est ton objectif ?</label>
-          <textarea id="reco-goal" data-reco-input="goal" maxlength="300"></textarea>
-          <p data-reco-hint="goal">
-            Ne saisissez pas de données personnelles (nom, email, téléphone…).
-          </p>
-          <label for="reco-consent">
-            <input type="checkbox" id="reco-consent" data-reco-input="consent" />
-            J'accepte que mes réponses soient analysées automatiquement pour me proposer des
-            parcours
-          </label>
-          <p data-reco-error-for="consent"></p>
-          <div data-reco-turnstile></div>
-        </fieldset>
-        <div>
-          <button type="button" data-reco-action="back">Retour</button>
-          <button type="button" data-reco-action="next">Suivant</button>
-          <button type="submit" data-reco-action="submit">Voir mes recommandations</button>
+      <div data-reco-body>
+        <div data-reco-panel="fallback">
+          <a href="/mexique#contact">Parler à un conseiller</a>
         </div>
-      </form>
+        <div data-reco-panel="intro">
+          <h2>Trouve ton <em>parcours d'études</em> en Europe</h2>
+          <p>
+            Réponds à quelques questions et reçois des parcours adaptés à ton niveau, ton budget et
+            tes destinations — sans jargon, sans engagement.
+          </p>
+          <p data-reco-intro-meta>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 7v5l3 3" />
+            </svg>
+            5 questions · ~2 min
+          </p>
+          <button type="button" data-reco-action="start">
+            Commencer
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.4"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
+          </button>
+        </div>
 
-      <div data-reco-panel="loading">Chargement…</div>
-      <div data-reco-panel="results">
-        <h2 data-reco-title tabindex="-1">Tes recommandations</h2>
-        <div data-reco-results></div>
-        <a data-reco-disclaimer hidden>Recommandations indicatives</a>
-        <button type="button" data-reco-action="edit">Modifier mes réponses</button>
-        <button type="button" data-reco-action="restart">Recommencer</button>
-        <a data-reco-action="advisor">Parler à un conseiller</a>
-      </div>
-      <div data-reco-panel="empty">
-        <h2 data-reco-title tabindex="-1">Aucun parcours ne correspond</h2>
-        <p>Élargis tes critères ou parle à un conseiller pour explorer d'autres options.</p>
-        <a data-reco-action="advisor">Parler à un conseiller</a>
-      </div>
-      <div data-reco-panel="error">
-        <h2 data-reco-title tabindex="-1">Une erreur est survenue</h2>
-        <p data-reco-error-message></p>
-        <button type="button" data-reco-action="retry">Réessayer</button>
-        <a data-reco-action="advisor">Parler à un conseiller</a>
+        <form data-reco-panel="steps" novalidate>
+          <p data-reco-progress></p>
+          <div><div data-reco-progress-bar></div></div>
+          <div data-reco-history></div>
+          <fieldset data-reco-step="1">
+            <legend tabindex="-1">Quel est ton niveau d'études ?</legend>
+            <div data-reco-options="level"></div>
+            <p data-reco-error-for="level"></p>
+          </fieldset>
+          <fieldset data-reco-step="2">
+            <legend tabindex="-1">Quels domaines t'intéressent ?</legend>
+            <p data-reco-hint="fields">Sélectionne jusqu'à 3 domaines.</p>
+            <div data-reco-options="fields"></div>
+            <p data-reco-error-for="fields"></p>
+          </fieldset>
+          <fieldset data-reco-step="3">
+            <legend tabindex="-1">Dans quels pays veux-tu étudier ?</legend>
+            <div data-reco-options="destinations"></div>
+            <p data-reco-error-for="destinations"></p>
+          </fieldset>
+          <fieldset data-reco-step="4">
+            <legend tabindex="-1">Quelles langues parles-tu ?</legend>
+            <div data-reco-options="languages"></div>
+            <p data-reco-error-for="languages"></p>
+          </fieldset>
+          <fieldset data-reco-step="5">
+            <legend tabindex="-1">Budget et rentrée</legend>
+            <p data-reco-group>Budget annuel</p>
+            <div data-reco-options="budget"></div>
+            <p data-reco-error-for="budget"></p>
+            <p data-reco-group>Rentrée visée</p>
+            <div data-reco-options="intake"></div>
+            <p data-reco-error-for="intake"></p>
+            <label for="reco-goal">Quel est ton objectif ? (facultatif)</label>
+            <textarea
+              id="reco-goal"
+              data-reco-input="goal"
+              maxlength="300"
+              placeholder="Ex. : trouver un master en gestion de projet"
+            ></textarea>
+            <p data-reco-hint="goal">
+              Ne saisis pas de données personnelles (nom, email, téléphone…).
+            </p>
+            <label for="reco-consent">
+              <input type="checkbox" id="reco-consent" data-reco-input="consent" />
+              <span>
+                J'accepte que mes réponses soient analysées automatiquement pour me proposer des
+                parcours
+              </span>
+            </label>
+            <p data-reco-error-for="consent"></p>
+            <div data-reco-turnstile></div>
+          </fieldset>
+          <div>
+            <button type="button" data-reco-action="back">Retour</button>
+            <button type="button" data-reco-action="next">Suivant</button>
+            <button type="submit" data-reco-action="submit">Voir mes recommandations</button>
+          </div>
+        </form>
+
+        <output data-reco-panel="loading">
+          <span data-reco-dots aria-hidden="true"><i></i><i></i><i></i></span>
+          <span>Recherche de tes parcours…</span>
+        </output>
+        <div data-reco-panel="results">
+          <h2 data-reco-title tabindex="-1">Tes recommandations</h2>
+          <div data-reco-results></div>
+          <a data-reco-disclaimer hidden>Recommandations indicatives</a>
+          <button type="button" data-reco-action="edit">Modifier mes réponses</button>
+          <button type="button" data-reco-action="restart">Recommencer</button>
+          <a data-reco-action="advisor">Parler à un conseiller</a>
+        </div>
+        <div data-reco-panel="empty">
+          <h2 data-reco-title tabindex="-1">Aucune recommandation disponible</h2>
+          <p data-reco-empty-default>
+            Tu peux modifier tes réponses ou contacter un conseiller pour être accompagné.
+          </p>
+          <p data-reco-empty-reason hidden></p>
+          <button type="button" data-reco-action="edit">Modifier mes réponses</button>
+          <a data-reco-action="advisor">Parler à un conseiller</a>
+        </div>
+        <div data-reco-panel="error">
+          <h2 data-reco-title tabindex="-1">Une erreur est survenue</h2>
+          <p data-reco-error-message></p>
+          <button type="button" data-reco-action="retry">Réessayer</button>
+          <a data-reco-action="advisor">Parler à un conseiller</a>
+        </div>
+
+        <div data-reco-template="reply">
+          <p data-reco-field="text">Réponse du coach…</p>
+          <div data-reco-field="links"></div>
+        </div>
+        <label data-reco-template="option-radio">
+          <input type="radio" data-reco-field="input" /><span data-reco-field="label">Option</span>
+        </label>
+        <label data-reco-template="option-checkbox">
+          <input type="checkbox" data-reco-field="input" /><span data-reco-field="label"
+            >Option</span
+          >
+        </label>
+        <div data-reco-template="option-language">
+          <span data-reco-field="label">Langue</span
+          ><select data-reco-field="level" aria-label="Niveau de langue"></select>
+        </div>
+
+        <div data-reco-labels hidden>
+          <span data-reco-label="reco.progress">Étape {step} sur {total}</span>
+          <span data-reco-label="reco.error.required">Merci de répondre à cette question.</span>
+          <span data-reco-label="reco.error.consent">Merci de cocher la case pour continuer.</span>
+          <span data-reco-label="reco.error.fields.max">3 domaines maximum.</span>
+          <span data-reco-label="reco.error.network">Connexion impossible. Réessaie.</span>
+          <span data-reco-label="reco.error.rate">Trop de demandes. Réessaie dans un instant.</span>
+          <span data-reco-label="reco.error.server">Le service est indisponible. Réessaie.</span>
+          <span data-reco-label="reco.error.input">Ta réponse semble invalide.</span>
+          <span data-reco-label="reco.error.captcha"
+            >La vérification anti-robot a échoué. Réessaie.</span
+          >
+          <span data-reco-label="reco.disclaimer"
+            >Recommandations indicatives générées automatiquement.</span
+          >
+          <span data-reco-label="reco.loading">Recherche de tes parcours…</span>
+          <span data-reco-label="reco.results.count">{count} recommandations pour toi.</span>
+          <span data-reco-label="reco.empty">Aucune recommandation disponible.</span>
+        </div>
       </div>
 
-      <div data-reco-template="reply">
-        <p data-reco-field="text">Réponse du coach…</p>
-        <div data-reco-field="links"></div>
+      <div data-reco-advisor>
+        <a data-reco-action="advisor" href="/mexique#contact">Parler à un conseiller Studely</a>
       </div>
-      <label data-reco-template="option-radio">
-        <input type="radio" data-reco-field="input" /><span data-reco-field="label">Option</span>
-      </label>
-      <label data-reco-template="option-checkbox">
-        <input type="checkbox" data-reco-field="input" /><span data-reco-field="label">Option</span>
-      </label>
-      <div data-reco-template="option-language">
-        <span data-reco-field="label">Langue</span
-        ><select data-reco-field="level" aria-label="Niveau de langue"></select>
-      </div>
-
-      <div data-reco-labels hidden>
-        <span data-reco-label="reco.progress">Étape {step} sur {total}</span>
-        <span data-reco-label="reco.error.required">Merci de répondre à cette question.</span>
-        <span data-reco-label="reco.error.consent">Merci de cocher la case pour continuer.</span>
-        <span data-reco-label="reco.error.fields.max">3 domaines maximum.</span>
-        <span data-reco-label="reco.error.network">Connexion impossible. Réessaie.</span>
-        <span data-reco-label="reco.error.rate">Trop de demandes. Réessaie dans un instant.</span>
-        <span data-reco-label="reco.error.server">Le service est indisponible. Réessaie.</span>
-        <span data-reco-label="reco.error.input">Ta réponse semble invalide.</span>
-        <span data-reco-label="reco.error.captcha"
-          >La vérification anti-robot a échoué. Réessaie.</span
-        >
-        <span data-reco-label="reco.disclaimer"
-          >Recommandations indicatives générées automatiquement.</span
-        >
-        <span data-reco-label="reco.loading">Recherche de tes parcours…</span>
-        <span data-reco-label="reco.results.count">{count} recommandations pour toi.</span>
-        <span data-reco-label="reco.empty">Aucun parcours ne correspond…</span>
-      </div>
-    </section>
+    </dialog>
 
     <button
       type="button"
@@ -738,23 +1044,53 @@
       aria-controls="reco-chat"
       aria-label="Ouvrir l'assistant Studely"
     >
-      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <svg data-reco-icon="chat" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <path
           d="M12 3C6.48 3 2 6.94 2 11.8c0 2.7 1.47 5.1 3.76 6.66-.14 1.07-.63 2.36-1.58 3.54 1.9-.3 3.7-1.08 4.9-1.9.94.2 1.9.3 2.92.3 5.52 0 10-3.94 10-8.8S17.52 3 12 3Z"
         />
       </svg>
+      <svg
+        data-reco-icon="close"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.4"
+        stroke-linecap="round"
+        aria-hidden="true"
+      >
+        <path d="M6 6l12 12M18 6L6 18" />
+      </svg>
     </button>
 
     <script>
-      // Dev uniquement : ouverture/fermeture façon Intercom via
-      // data-reco-open. En prod Webflow, même mécanisme sur l'attribut.
+      // Dev only: Intercom-style open/close via data-reco-open plus focus
+      // management (active question or intro CTA, launcher on close).
+      // Same attribute mechanism applies on the Webflow page.
       {
         const w = document.querySelector('[data-reco-widget]')
         const l = document.querySelector('[data-reco-launcher]')
+        const LABELS = { open: "Ouvrir l'assistant Studely", close: "Fermer l'assistant Studely" }
         const setOpen = (open) => {
+          if (open && !w.open) w.show()
+          else if (!open && w.open) w.close()
           w.toggleAttribute('data-reco-open', open)
           l.setAttribute('aria-expanded', String(open))
-          if (!open) l.focus()
+          l.setAttribute('aria-label', open ? LABELS.close : LABELS.open)
+          if (open) {
+            // Focus the active step legend first — hidden earlier steps
+            // must not steal it — then panel title, then the intro CTA.
+            const target = w.querySelector(
+              '[data-reco-step].is-reco-active legend, [data-reco-panel].is-reco-active [data-reco-title], [data-reco-panel].is-reco-active [data-reco-action="start"]'
+            )
+            target?.focus({ preventScroll: true })
+            const body = w.querySelector('[data-reco-body]')
+            if (target && body) {
+              body.scrollTop +=
+                target.getBoundingClientRect().top - body.getBoundingClientRect().top - 20
+            }
+          } else {
+            l.focus()
+          }
         }
         l.addEventListener('click', () => setOpen(w.dataset.recoOpen === undefined))
         w.querySelector('[data-reco-close]').addEventListener('click', () => setOpen(false))

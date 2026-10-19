@@ -21,6 +21,7 @@ import { readLabels } from './i18n/labels'
 import { logger } from './logger'
 import { RecoMachine, stepOf, STEP_COUNT, type WidgetState } from './state/machine'
 import { emitRecoEvent, trackReco } from './tracking/events'
+import { renderConversation } from './ui/conversation'
 import { renderChatReply, renderOptions, resetInputs } from './ui/render'
 import {
   applyAnswers,
@@ -120,8 +121,18 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     if (step !== null) {
       updateStepChrome(el, step, t, fmt.number)
       announce(t('reco.progress', { step: fmt.number(step), total: fmt.number(STEP_COUNT) }))
+      // Optional transcript repainted before focusing the active question.
+      renderConversation(el, step)
       const legend = el.querySelector<HTMLElement>(`[data-reco-step="${step}"] legend`)
-      legend?.focus()
+      // preventScroll only when a scrollable body exists: templates without
+      // one keep the default focus scroll behavior.
+      const body = el.querySelector<HTMLElement>('[data-reco-body]')
+      legend?.focus({ preventScroll: Boolean(body) })
+      // Bring the question to the top of the scrollable body only — never
+      // scrollIntoView, which could move an embedded host page.
+      if (legend && body) {
+        body.scrollTop += legend.getBoundingClientRect().top - body.getBoundingClientRect().top - 20
+      }
       // Le script Turnstile n'est chargé qu'à l'arrivée sur l'étape 5 (§9.1).
       if (step === STEP_COUNT) void ensureChallenge(el, signal)
     }
@@ -167,6 +178,28 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
 
   /** Réponse /chat affichée : résultats, ou empty si tout est écarté. */
   function showReply(reply: ChatReply): void {
+    const rejected = reply.meta.out_of_scope === true || reply.meta.intent === 'out_of_scope'
+    const trimText = reply.text.trim()
+    // Optional empty-panel hooks: the backend refusal text goes into
+    // [data-reco-empty-reason], the generic guidance into
+    // [data-reco-empty-default]. Old templates without them are a no-op.
+    const reason = el.querySelector<HTMLElement>('[data-reco-empty-reason]')
+    const generic = el.querySelector<HTMLElement>('[data-reco-empty-default]')
+    if (reason) {
+      reason.textContent = rejected ? trimText : ''
+      reason.hidden = !rejected || !trimText
+    }
+    if (generic) generic.hidden = rejected && Boolean(trimText) && Boolean(reason)
+    if (rejected) {
+      // An out-of-scope refusal is never counted as a recommendation,
+      // even when its text/citations look supported.
+      renderChatReply(el, '', [])
+      lastResultCount = 0
+      machine.dispatch('empty')
+      announce(t('reco.empty'))
+      focusPanel('empty')
+      return
+    }
     const { pieces, links } = renderChatReply(el, reply.text, reply.meta.citations)
     lastResultCount = links > 0 ? links : pieces
     if (pieces === 0) {

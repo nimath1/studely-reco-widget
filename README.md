@@ -27,9 +27,11 @@ pnpm dev
 ```
 packages/
   widget/         Bundle reco.js (Vite, IIFE, sans framework) — voir son README
-reference/
-  front-assistant/ Chatbot de l'ancien front (Vue), en lecture seule
 ```
+
+Le front Vue de référence (`reference/front-assistant`) a été retiré : la
+logique est portée en TypeScript natif dans `packages/widget` (cahier des
+charges : bundle sans framework, ≤ 25 ko gzip, templates Webflow).
 
 ---
 
