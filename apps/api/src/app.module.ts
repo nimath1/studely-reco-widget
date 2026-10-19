@@ -12,12 +12,7 @@ import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis'
 import Redis, { RedisOptions } from 'ioredis'
 import { timingSafeEqual } from 'node:crypto'
 import { HealthController } from './health/health.controller'
-import { CatalogModule } from './catalog/catalog.module'
 import { CacheModule } from './common/cache/cache.module'
-import { DirectusModule } from './directus/directus.module'
-import { AssistantModule } from './assistant/assistant.module'
-import { SearchMissesModule } from './search-misses/search-misses.module'
-import { RetrievalModule } from './retrieval/retrieval.module'
 
 // Express route sans tenir compte de la casse (`/LEADS/demande` atteint le
 // contrôleur) et `originalUrl` contient la query (« /health?x=1 ») : le
@@ -37,22 +32,9 @@ function isAdminRoute(context: ExecutionContext): boolean {
   return routeStartsWith(context, '/admin')
 }
 
-// Le proxy /directus sert aussi les assets (une image par carte) : le quota
-// public de 100 req/min se viderait en quelques navigations. Il garde sa
-// propre limite, plus large, et ne consomme pas le quota catalogue.
-function isDirectusRoute(context: ExecutionContext): boolean {
-  return routeStartsWith(context, '/directus')
-}
-
 // Les checks de santé (uptime, LB) ne consomment pas le quota public.
 function isHealthRoute(context: ExecutionContext): boolean {
   return routeStartsWith(context, '/health')
-}
-
-// La recherche assistée déclenche un appel LLM par message : quota dédié,
-// plus resserré que le catalogue, et sorti du bucket public de 100 req/min.
-function isAssistantRoute(context: ExecutionContext): boolean {
-  return routeStartsWith(context, '/assistant')
 }
 
 // Comparaison à temps constant, comme AdminApiKeyGuard.
@@ -173,25 +155,7 @@ export function buildThrottlers(
       ttl: 60_000,
       limit: 100,
       skipIf: (context) =>
-        isAdminRoute(context) ||
-        isDirectusRoute(context) ||
-        isHealthRoute(context) ||
-        isAssistantRoute(context) ||
-        isInternalSsr(context, internalSsrToken),
-      getTracker: ipTracker
-    },
-    {
-      name: 'assistant',
-      ttl: 60_000,
-      limit: 20,
-      skipIf: (context) => !isAssistantRoute(context),
-      getTracker: (req) => req.ip ?? req.socket?.remoteAddress ?? 'anonymous'
-    },
-    {
-      name: 'directus',
-      ttl: 60_000,
-      limit: 600,
-      skipIf: (context) => !isDirectusRoute(context) || isInternalSsr(context, internalSsrToken),
+        isAdminRoute(context) || isHealthRoute(context) || isInternalSsr(context, internalSsrToken),
       getTracker: ipTracker
     },
     {
@@ -222,12 +186,7 @@ export function buildThrottlers(
         }
       }
     }),
-    CacheModule,
-    CatalogModule,
-    DirectusModule,
-    AssistantModule,
-    SearchMissesModule,
-    RetrievalModule
+    CacheModule
   ],
   controllers: [HealthController],
   providers: [

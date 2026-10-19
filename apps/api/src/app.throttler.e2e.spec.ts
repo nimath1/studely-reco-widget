@@ -9,14 +9,6 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter'
 // Stubs minimalistes : Express route sans tenir compte de la casse
 // (caseSensitive: false par défaut) — le test vérifie que le routage des
 // quotas fait pareil, sur la config réelle (`buildThrottlers`).
-@Controller('assistant')
-class AssistantStubController {
-  @Post('chat')
-  chat() {
-    return { ok: true }
-  }
-}
-
 @Controller('admin')
 class AdminStubController {
   @Post('sync')
@@ -79,12 +71,7 @@ describe('Throttler route matching (e2e)', () => {
           storage: new InMemoryThrottlerStorage()
         })
       ],
-      controllers: [
-        AssistantStubController,
-        AdminStubController,
-        HealthStubController,
-        CoursesStubController
-      ],
+      controllers: [AdminStubController, HealthStubController, CoursesStubController],
       providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }]
     }).compile()
 
@@ -95,13 +82,6 @@ describe('Throttler route matching (e2e)', () => {
 
   afterEach(async () => {
     await app.close()
-  })
-
-  it('soumet /ASSISTANT/* au quota assistant (20/min), pas au public (100/min)', async () => {
-    for (let i = 0; i < 20; i++) {
-      await request(app.getHttpServer()).post('/ASSISTANT/chat').expect(201)
-    }
-    await request(app.getHttpServer()).post('/ASSISTANT/chat').expect(429)
   })
 
   it('soumet /ADMIN/* au quota admin (10/min), pas au public (100/min)', async () => {

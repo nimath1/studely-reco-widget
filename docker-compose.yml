@@ -1,22 +1,4 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-    ports:
-      - '5432:5432'
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-
   redis:
     image: redis:7-alpine
     restart: unless-stopped
@@ -31,145 +13,6 @@ services:
       retries: 5
       start_period: 5s
 
-  minio:
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
-    restart: unless-stopped
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-    ports:
-      - '9000:9000'
-      - '9001:9001'
-    volumes:
-      - miniodata:/data
-    healthcheck:
-      test: ['CMD', 'mc', 'ready', 'local']
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-
-  minio-init:
-    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
-    restart: 'no'
-    depends_on:
-      minio:
-        condition: service_healthy
-    entrypoint:
-      - /bin/sh
-      - -c
-      - |
-        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" &&
-        mc mb --ignore-existing "local/$$MINIO_BUCKET"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      MINIO_BUCKET: ${MINIO_BUCKET}
-
-  directus:
-    image: directus/directus:11
-    restart: unless-stopped
-    environment:
-      KEY: ${DIRECTUS_KEY}
-      SECRET: ${DIRECTUS_SECRET}
-      ADMIN_EMAIL: ${DIRECTUS_ADMIN_EMAIL}
-      ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD}
-      DB_CLIENT: pg
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_DATABASE: ${POSTGRES_DB}
-      DB_USER: ${POSTGRES_USER}
-      DB_PASSWORD: ${POSTGRES_PASSWORD}
-      CACHE_ENABLED: 'true'
-      CACHE_AUTO_PURGE: 'true'
-      CACHE_STORE: redis
-      REDIS: redis://redis:6379
-      STORAGE_LOCATIONS: s3
-      STORAGE_S3_DRIVER: s3
-      STORAGE_S3_KEY: ${MINIO_ROOT_USER}
-      STORAGE_S3_SECRET: ${MINIO_ROOT_PASSWORD}
-      STORAGE_S3_BUCKET: ${MINIO_BUCKET}
-      STORAGE_S3_REGION: us-east-1
-      STORAGE_S3_ENDPOINT: http://minio:9000
-      STORAGE_S3_FORCE_PATH_STYLE: 'true'
-      CORS_ENABLED: 'true'
-      CORS_ORIGIN: ${CORS_ORIGIN}
-      # Garde-fou contre les requêtes non bornées (le proxy /directus de
-      # l'API borne déjà les lectures publiques à 100). MAX reste au-dessus
-      # des volumes internes — la sync lit les collections avec limit=-1.
-      QUERY_LIMIT_DEFAULT: '100'
-      QUERY_LIMIT_MAX: '1000'
-      PUBLIC_URL: ${DIRECTUS_PUBLIC_URL:-http://localhost:8055}
-      # Flows : les opérations request lisent {{ $env.* }} à l'exécution
-      # (schema/flows.mjs) — rien n'est cuit en base. Sans cette allow-list,
-      # $env est vide et les webhooks échouent.
-      FLOWS_ENV_ALLOW_LIST: 'API_INTERNAL_URL,FRONT_INTERNAL_URL,ADMIN_API_KEY,NUXT_CACHE_PURGE_SECRET'
-      # host.docker.internal atteint l'hôte en dev (`pnpm dev`) et reste
-      # valide en full-compose (ports 3000/3001 publiés sur l'hôte).
-      API_INTERNAL_URL: ${API_INTERNAL_URL:-http://host.docker.internal:3001}
-      FRONT_INTERNAL_URL: ${FRONT_INTERNAL_URL:-http://host.docker.internal:3000}
-      ADMIN_API_KEY: ${ADMIN_API_KEY}
-      NUXT_CACHE_PURGE_SECRET: ${NUXT_CACHE_PURGE_SECRET:-}
-    extra_hosts:
-      # host.docker.internal n'existe pas nativement sur les hôtes Linux.
-      - 'host.docker.internal:host-gateway'
-    ports:
-      - '8055:8055'
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio-init:
-        condition: service_completed_successfully
-    healthcheck:
-      test: ['CMD', 'wget', '--spider', '-q', 'http://127.0.0.1:8055/server/health']
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-
-  directus-init:
-    image: directus/directus:11
-    restart: 'no'
-    depends_on:
-      directus:
-        condition: service_healthy
-    environment:
-      DIRECTUS_URL: http://directus:8055
-      DIRECTUS_ADMIN_EMAIL: ${DIRECTUS_ADMIN_EMAIL}
-      DIRECTUS_ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD}
-      # Sert à résoudre l'id du compte de sync (/users/me) pour que les flows
-      # d'invalidation ignorent ses écritures de masse (voir flows.mjs).
-      # Les URLs/secrets des flows ne sont plus lus ici : les opérations
-      # référencent {{ $env.* }}, résolu à l'exécution sur le service
-      # `directus` (voir son bloc environment + FLOWS_ENV_ALLOW_LIST).
-      DIRECTUS_TOKEN: ${DIRECTUS_TOKEN}
-    volumes:
-      - ./directus:/opt/directus:ro
-    entrypoint:
-      - node
-      - /opt/directus/schema/build.mjs
-
-  directus-seed:
-    image: directus/directus:11
-    profiles:
-      - seed
-    restart: 'no'
-    depends_on:
-      directus-init:
-        condition: service_completed_successfully
-    environment:
-      DIRECTUS_URL: http://directus:8055
-      DIRECTUS_ADMIN_EMAIL: ${DIRECTUS_ADMIN_EMAIL}
-      DIRECTUS_ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD}
-    volumes:
-      - ./directus:/opt/directus:ro
-    entrypoint:
-      - node
-      - /opt/directus/seed/seed.mjs
-
   api:
     build:
       context: .
@@ -180,27 +23,13 @@ services:
       API_PORT: 3001
       CORS_ORIGIN: ${CORS_ORIGIN}
       ADMIN_API_KEY: ${ADMIN_API_KEY}
-      SEARCH_MISS_RETENTION_DAYS: ${SEARCH_MISS_RETENTION_DAYS:-180}
-      EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER:-hashing}
-      EMBEDDINGS_API_URL: ${EMBEDDINGS_API_URL:-}
-      EMBEDDINGS_API_KEY: ${EMBEDDINGS_API_KEY:-}
-      EMBEDDINGS_MODEL: ${EMBEDDINGS_MODEL:-}
-      ASSISTANT_AI_TIMEOUT_MS: ${ASSISTANT_AI_TIMEOUT_MS:-30000}
       REDIS_URL: redis://redis:6379
-      DIRECTUS_INTERNAL_URL: http://directus:8055
-      DIRECTUS_TOKEN: ${DIRECTUS_TOKEN}
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN}
     depends_on:
-      directus:
-        condition: service_healthy
-      directus-init:
-        condition: service_completed_successfully
       redis:
         condition: service_healthy
     ports:
       - '3001:3001'
 
 volumes:
-  pgdata:
   redisdata:
-  miniodata:

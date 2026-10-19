@@ -15,7 +15,6 @@
   },
   "dependencies": {
     "@ai-sdk/vue": "4.0.100",
-    "@directus/sdk": "^25.0.0",
     "@learnup/types": "workspace:*",
     "@learnup/ui": "workspace:*",
     "@lucide/vue": "^1.41.0",

@@ -5,6 +5,8 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     include: ['src/**/*.spec.ts'],
+    // Valeur fixe et non joignable : les tests ne dépendent d'aucun environnement.
+    env: { VITE_RECO_API_URL: 'https://api.reco.test' },
     coverage: {
       provider: 'v8',
       reportsDirectory: './coverage',
