@@ -68,6 +68,7 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
         <span data-reco-label="reco.error.rate">Trop de demandes</span>
         <span data-reco-label="reco.error.server">Serveur</span>
         <span data-reco-label="reco.error.input">Saisie invalide</span>
+        <span data-reco-label="reco.error.captcha">Captcha échoué</span>
         <span data-reco-label="reco.disclaimer">Recommandations indicatives.</span>
         <span data-reco-label="reco.loading">Recherche en cours…</span>
         <span data-reco-label="reco.results.count">{count} recommandations</span>
@@ -104,7 +105,8 @@ export function mountStepsWidget(attrs: string = VALID_ATTRS): HTMLElement {
     'beforeend',
     `<div data-reco-options="budget"></div><p data-reco-error-for="budget"></p>
      <div data-reco-options="intake"></div><p data-reco-error-for="intake"></p>
-     <textarea data-reco-input="goal" maxlength="300"></textarea>
+     <label>Objectif<textarea data-reco-input="goal" maxlength="300"></textarea></label>
+     <p data-reco-hint="goal">Pas de données personnelles.</p>
      <label><input type="checkbox" data-reco-input="consent" />J'accepte</label>
      <p data-reco-error-for="consent"></p><div data-reco-turnstile></div>`
   )

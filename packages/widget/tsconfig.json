@@ -7,5 +7,5 @@
     "types": ["vite/client", "vitest/globals"],
     "noEmit": true
   },
-  "include": ["src", "mock", "vite.config.ts", "vitest.config.ts"]
+  "include": ["src", "mock", "e2e", "vite.config.ts", "vitest.config.ts", "playwright.config.ts"]
 }

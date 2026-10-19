@@ -6,6 +6,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Studely Reco — dev</title>
+    <script>
+      // Locale de la page de dev : ?lang=ar pour tester la RTL et les
+      // traductions du mock. Doit tourner avant les modules du corps.
+      document.documentElement.lang =
+        new URLSearchParams(location.search).get('lang') || 'fr'
+    </script>
     <style>
       [data-reco-template],
       [data-reco-labels],
@@ -71,7 +77,11 @@
           <p data-reco-error-for="budget"></p>
           <div data-reco-options="intake"></div>
           <p data-reco-error-for="intake"></p>
-          <textarea data-reco-input="goal" maxlength="300"></textarea>
+          <label
+            >Quel est ton objectif ?
+            <textarea data-reco-input="goal" maxlength="300"></textarea>
+          </label>
+          <p data-reco-hint="goal">Ne saisissez pas de données personnelles (nom, email, téléphone…).</p>
           <label>
             <input type="checkbox" data-reco-input="consent" />
             J'accepte que mes réponses soient analysées automatiquement pour me proposer des
@@ -133,6 +143,7 @@
         <span data-reco-label="reco.error.rate">Trop de demandes. Réessaie dans un instant.</span>
         <span data-reco-label="reco.error.server">Le service est indisponible. Réessaie.</span>
         <span data-reco-label="reco.error.input">Ta réponse semble invalide.</span>
+        <span data-reco-label="reco.error.captcha">La vérification anti-robot a échoué. Réessaie.</span>
         <span data-reco-label="reco.disclaimer">Recommandations indicatives générées automatiquement.</span>
         <span data-reco-label="reco.loading">Recherche de tes parcours…</span>
         <span data-reco-label="reco.results.count">{count} recommandations pour toi.</span>
@@ -142,14 +153,15 @@
 
     <script type="module">
       // Mock MSW (dev uniquement) : ?recoMock=<scénario> ou localStorage.recoMock.
-      // Voir README — jamais inclus dans dist/reco.js.
+      // Le worker doit être actif AVANT le widget, sinon l'appel options
+      // part sur le réseau réel et bascule le bloc en erreur.
       if (
         new URLSearchParams(location.search).get('recoMock') ||
         localStorage.getItem('recoMock')
       ) {
         await import('/mock/browser.ts')
       }
+      await import('/src/index.ts')
     </script>
-    <script type="module" src="/src/index.ts"></script>
   </body>
 </html>

@@ -82,7 +82,10 @@ describe('collectAnswers / applyAnswers', () => {
 
     reset(el)
     applyAnswers(el, FULL)
-    expect(collectAnswers(el)).toEqual(FULL)
+    // Le consentement n'est jamais restauré : la case n'est pré-cochée dans
+    // aucun cas, même après rechargement (R15).
+    expect(collectAnswers(el)).toEqual({ ...FULL, consent: false })
+    expect(el.querySelector<HTMLInputElement>('[data-reco-input="consent"]')!.checked).toBe(false)
   })
 
   it('tronque goal à 300 caractères', () => {
@@ -213,5 +216,12 @@ describe('stepOfField / buildProfile', () => {
       goal: 'devenir ingénieur'
     })
     expect(buildProfile({ ...FULL, goal: '' })).not.toHaveProperty('goal')
+  })
+
+  it('nettoie les données personnelles de goal avant envoi (RGPD)', () => {
+    const goal = 'joindre jean.dupont@mail.fr ou le 06 12 34 56 78 pour devenir ingénieur'
+    expect(buildProfile({ ...FULL, goal }).goal).toBe(
+      'joindre [email] ou le [téléphone] pour devenir ingénieur'
+    )
   })
 })

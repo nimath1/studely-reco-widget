@@ -8,11 +8,12 @@ import { fetchOptions, postRecommendations, RecoApiError } from './api/client'
 import type { RecommendationsRequest } from './api/types'
 import { readConfig, type WidgetConfig } from './config'
 import { CONSENT_VERSION } from './consent/consent'
+import { ensureChallenge, resetChallenge, turnstileToken } from './consent/turnstile'
 import { makeFormatters } from './i18n/format'
 import { readLabels } from './i18n/labels'
 import { logger } from './logger'
 import { RecoMachine, stepOf, STEP_COUNT, type WidgetState } from './state/machine'
-import { emitRecoEvent } from './tracking/events'
+import { emitRecoEvent, trackReco } from './tracking/events'
 import { renderOptions, renderResults, resetInputs } from './ui/render'
 import {
   applyAnswers,
@@ -54,18 +55,13 @@ function instanceOf(el: HTMLElement): Instance {
   return instance
 }
 
-// Clés i18n des erreurs API (§5.3) ; `forbidden` relève du flux Turnstile (FRONT-17).
+// Clés i18n des erreurs API (§5.3) ; `forbidden` = échec du défi Turnstile.
 const ERROR_KEYS: Record<RecoApiError['kind'], string> = {
   network: 'reco.error.network',
   rate: 'reco.error.rate',
   server: 'reco.error.server',
   input: 'reco.error.input',
-  forbidden: 'reco.error.server'
-}
-
-/** Token Turnstile rendu dans le bloc dédié (FRONT-17), absent sinon. */
-function turnstileToken(el: HTMLElement): string | undefined {
-  return el.querySelector<HTMLInputElement>('[data-reco-turnstile] input')?.value || undefined
+  forbidden: 'reco.error.captcha'
 }
 
 /**
@@ -87,6 +83,16 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
   let lastPayload: RecommendationsRequest | null = null
   let lastFailure: 'options' | 'submit' | null = null
   let retryLockUntil = 0
+  /** Échecs captcha consécutifs : relance du défi au 1er, erreur au 2e (§9.1). */
+  let captchaFailures = 0
+  /** Horodatage du dernier envoi, pour `duration_ms` du tracking (§9.2). */
+  let submittedAt: number | null = null
+  let lastResultCount: number | undefined
+
+  trackReco(el, { locale: config.locale, origin: config.origin, version: pkgVersion }, signal, {
+    getDurationMs: () => (submittedAt === null ? undefined : Date.now() - submittedAt),
+    getResultCount: () => lastResultCount
+  })
 
   /** Annonces lecteur d'écran : changement d'étape et erreurs (§8.2). */
   const live = el.querySelector('[data-reco-live]')
@@ -108,6 +114,8 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
       announce(t('reco.progress', { step: fmt.number(step), total: fmt.number(STEP_COUNT) }))
       const legend = el.querySelector<HTMLElement>(`[data-reco-step="${step}"] legend`)
       legend?.focus()
+      // Le script Turnstile n'est chargé qu'à l'arrivée sur l'étape 5 (§9.1).
+      if (step === STEP_COUNT) void ensureChallenge(el, signal)
     }
   }
 
@@ -165,10 +173,13 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
 
   /** Envoie le dernier payload : résultats, empty ou mapping d'erreur §5.3. */
   async function sendPayload(): Promise<void> {
+    submittedAt = Date.now()
     try {
       const { items, disclaimerUrl } = await postRecommendations(lastPayload!, turnstileToken(el))
       if (signal.aborted) return
+      captchaFailures = 0
       const count = renderResults(el, items)
+      lastResultCount = count
       if (count === 0) {
         machine.dispatch('empty')
         announce(t('reco.empty'))
@@ -182,6 +193,15 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     } catch (error) {
       if (signal.aborted) return
       lastFailure = 'submit'
+      if (error instanceof RecoApiError && error.kind === 'forbidden' && captchaFailures === 0) {
+        // Premier 403 : relance du défi et retour à l'étape 5 — l'erreur
+        // reco.error.captcha n'apparaît qu'au second échec (§9.1).
+        captchaFailures += 1
+        resetChallenge(el)
+        machine.goTo('step-5')
+        syncChrome()
+        return
+      }
       if (handleFieldError(error)) return
       if (error instanceof RecoApiError && error.kind === 'rate') {
         lockRetry(error.retryAfter ?? 0)
@@ -252,6 +272,8 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
 
   function restart(): void {
     clearDraft()
+    captchaFailures = 0
+    lastResultCount = undefined
     resetInputs(el)
     el.querySelectorAll('[data-reco-error-for]').forEach((node) => {
       node.textContent = ''

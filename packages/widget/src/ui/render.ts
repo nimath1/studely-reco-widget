@@ -64,9 +64,15 @@ function mountLanguages(el: HTMLElement, options: RecoOptions): void {
     if (!item) break
     item.dataset.recoValue = language.id
     fillField(item, 'label', language.label)
+    const label = item.querySelector('[data-reco-field="label"]')
     const select = item.querySelector<HTMLSelectElement>('[data-reco-field="level"]')
     if (select) {
       select.name = `reco-language-${language.id}`
+      // Le select n'est pas dans un <label> : le libellé de la langue le nomme.
+      if (label) {
+        label.id = nextId()
+        select.setAttribute('aria-labelledby', label.id)
+      }
       select.append(new Option('', ''))
       for (const level of options.languageLevels) {
         select.append(new Option(level.label, level.id))

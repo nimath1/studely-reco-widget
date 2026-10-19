@@ -6,6 +6,7 @@ import type { LanguagePair, RecoProfile } from '../api/types'
 import { readConsent } from '../consent/consent'
 import type { Translate } from '../i18n/labels'
 import { STEP_COUNT } from '../state/machine'
+import { scrubPersonalData } from '../utils/pii.util'
 
 export const DRAFT_KEY = 'studely.reco.draft'
 export const MAX_FIELDS = 3
@@ -93,8 +94,10 @@ export function applyAnswers(el: HTMLElement, answers: Answers): void {
   )
   const goal = el.querySelector<HTMLTextAreaElement>('[data-reco-input="goal"]')
   if (goal) goal.value = answers.goal
+  // Le consentement n'est jamais restauré : la case n'est pré-cochée dans
+  // aucun cas, même après rechargement (R15, §9.1).
   const consent = el.querySelector<HTMLInputElement>('[data-reco-input="consent"]')
-  if (consent) consent.checked = answers.consent
+  if (consent) consent.checked = false
 }
 
 function storage(): Storage | null {
@@ -256,8 +259,13 @@ export function stepOfField(field: string): number | null {
   return steps[name] ?? null
 }
 
-/** Payload `profile` du §6.1 : `goal` omis s'il est vide. */
+/**
+ * Payload `profile` du §6.1 : `goal` omis s'il est vide, et nettoyé des
+ * données personnelles évidentes avant envoi (minimisation RGPD, §9.1) —
+ * le hint sous le champ déconseille déjà d'en saisir.
+ */
 export function buildProfile(answers: Answers): RecoProfile {
+  const goal = answers.goal ? scrubPersonalData(answers.goal) : ''
   return {
     level: answers.level,
     fields: answers.fields,
@@ -265,6 +273,6 @@ export function buildProfile(answers: Answers): RecoProfile {
     languages: answers.languages,
     budget: answers.budget,
     intake: answers.intake,
-    ...(answers.goal ? { goal: answers.goal } : {})
+    ...(goal ? { goal } : {})
   }
 }

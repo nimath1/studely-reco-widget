@@ -320,8 +320,10 @@ const RECOS: Record<Locale, RecoRecommendation[]> = {
 }
 
 export function recommendationsFor(locale: Locale): RecommendationsResponse {
+  // Copie profonde : les scénarios qui mutent les items (bad-url,
+  // html-reason) ne doivent pas polluer les requêtes suivantes.
   return {
-    items: RECOS[locale] ?? RECOS.fr,
+    items: structuredClone(RECOS[locale] ?? RECOS.fr),
     disclaimerUrl: 'https://www.studely.com/reco-disclaimer'
   }
 }
