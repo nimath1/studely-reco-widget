@@ -1,4 +1,7 @@
 {
+  "json.schemaDownload.trustedDomains": {
+    "https://openapi.vercel.sh/": true
+  },
   "sonarlint.connectedMode.project": {
     "connectionId": "sonarcloud-learnup",
     "projectKey": "studely-reco"
