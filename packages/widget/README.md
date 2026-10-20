@@ -11,6 +11,7 @@ cloner, remplir et basculer les états via les attributs `data-reco-*`.
 pnpm --filter @studely/widget dev               # page de dev (squelette §10.3) sur http://localhost:5173
 pnpm --filter @studely/widget build:staging     # dist/reco.js pointant l'API de staging
 pnpm --filter @studely/widget build:production  # dist/reco.js pointant l'API de production
+pnpm --filter @studely/widget build:vercel      # build + site de référence packagé dans dist-site/
 pnpm --filter @studely/widget test              # unitaires + intégration MSW (Vitest)
 pnpm --filter @studely/widget test:coverage     # seuils : 90 % lignes/fonctions/instructions
 pnpm --filter @studely/widget test:e2e:install  # navigateurs Playwright (1re fois)
@@ -134,7 +135,9 @@ Nombres et dates via `Intl` dans la locale active.
 ## Mock de l'API (dev local et CI)
 
 L'API de recommandation est mockée par MSW, uniquement hors bundle —
-`mock/` n'entre jamais dans `dist/reco.js`.
+`mock/` n'entre jamais dans `dist/reco.js`, et l'import du worker est
+gated par `import.meta.env.DEV` : ni le code MSW ni
+`public/mockServiceWorker.js` n'atteignent le build site de production.
 
 Sans `?recoMock=`, la page de dev appelle le **vrai chatbot** : en dev
 `VITE_RECO_API_URL` est vide, les appels `/chat` restent même-origine et
@@ -189,3 +192,6 @@ timeout 20 s du widget), `bad-url` (URLs hors studely.com), `html-reason`
   `hasAnalyticsConsent` si le site les utilise.
 - Les URL `.env.staging`/`.env.production` suivent le pattern de dev ;
   vérifier contre l'inventaire réel avant déploiement.
+- Le lien conseiller de la page de référence (`/mexique#contact`) est un
+  placeholder : en déploiement Vercel autonome, configurer une URL
+  absolue vers la vraie page de contact (cf. AUDIT.md).

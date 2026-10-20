@@ -195,6 +195,28 @@ describe('brouillon sessionStorage', () => {
     sessionStorage.setItem(DRAFT_KEY, '{oops')
     expect(loadDraft('mexique')).toBeNull()
   })
+
+  it.each([
+    ['answers null', { origin: 'mexique', step: 3, answers: null }],
+    ['answers non-objet', { origin: 'mexique', step: 3, answers: 'licence' }],
+    [
+      'champ scalaire du mauvais type',
+      { origin: 'mexique', step: 3, answers: { ...FULL, level: 3 } }
+    ],
+    ['tableau malformé', { origin: 'mexique', step: 3, answers: { ...FULL, fields: 'info' } }],
+    [
+      'langue sans niveau',
+      { origin: 'mexique', step: 3, answers: { ...FULL, languages: [{ language: 'fr' }] } }
+    ],
+    ['consent non booléen', { origin: 'mexique', step: 3, answers: { ...FULL, consent: 'oui' } }],
+    ['step fractionnaire', { origin: 'mexique', step: 2.5, answers: FULL }],
+    ['step hors bornes', { origin: 'mexique', step: 9, answers: FULL }],
+    ['step non numérique', { origin: 'mexique', step: '3', answers: FULL }],
+    ['step nulle', { origin: 'mexique', step: null, answers: FULL }]
+  ])('ignore un brouillon JSON valide mais de shape inattendue : %s', (_name, draft) => {
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft))
+    expect(loadDraft('mexique')).toBeNull()
+  })
 })
 
 describe('stepOfField / buildProfile', () => {

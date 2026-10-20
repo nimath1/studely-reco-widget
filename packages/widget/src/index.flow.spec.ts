@@ -71,6 +71,8 @@ afterEach(() => {
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
   sessionStorage.clear()
+  delete window.dataLayer
+  delete window.Cookiebot
   document.body.replaceChildren()
   document.documentElement.removeAttribute('lang')
 })
@@ -381,6 +383,241 @@ describe('erreurs API', () => {
       })
       expect(el.querySelector('[data-reco-panel="empty"]')!.classList).toContain('is-reco-active')
     })
+  })
+})
+
+describe('soumission native et garde-fous', () => {
+  async function reachStep5(el: HTMLElement) {
+    click(el, 'start')
+    fillAll(el)
+    for (let n = 0; n < 4; n++) click(el, 'next')
+    el.querySelector<HTMLInputElement>('[data-reco-input="consent"]')!.checked = true
+  }
+
+  it('la soumission native du form (Entrée) envoie une seule requête /chat', async () => {
+    const { init } = await load()
+    const el = mountStepsWidget()
+    const fetchSpy = globalThis.fetch as ReturnType<typeof vi.fn>
+    await initAndWait(init, el)
+    await reachStep5(el)
+
+    el.querySelector('form')!.dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    )
+    await vi.waitFor(() => {
+      if (el.dataset.recoState !== 'results') throw new Error('pas results')
+    })
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('Entrée à une étape < 5 ne soumet rien', async () => {
+    const { init } = await load()
+    const el = mountStepsWidget()
+    const fetchSpy = globalThis.fetch as ReturnType<typeof vi.fn>
+    await initAndWait(init, el)
+    click(el, 'start')
+
+    el.querySelector('form')!.dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    )
+    expect(el.dataset.recoState).toBe('step-1')
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('brouillon partiel restauré : submit retourne à la 1re étape invalide, aucun POST', async () => {
+    const { init } = await load()
+    const el = mountStepsWidget()
+    const fetchSpy = globalThis.fetch as ReturnType<typeof vi.fn>
+    // Draft at step 5 with only `level` filled: fields (step 2) is
+    // missing — submit must not send despite budget/intake/consent.
+    sessionStorage.setItem(
+      DRAFT_KEY,
+      JSON.stringify({
+        origin: 'mexique',
+        step: 5,
+        answers: {
+          level: 'licence',
+          fields: [],
+          destinations: [],
+          languages: [],
+          budget: 'lt10k',
+          intake: 'sep',
+          goal: '',
+          consent: false
+        }
+      })
+    )
+    await initAndWait(init, el)
+    expect(el.dataset.recoState).toBe('step-5')
+
+    el.querySelector<HTMLInputElement>('[data-reco-input="consent"]')!.checked = true
+    click(el, 'submit')
+    expect(el.dataset.recoState).toBe('step-2')
+    expect(el.querySelector('[data-reco-error-for="fields"]')!.textContent).toBe('Champ requis')
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('clic submit + événement submit natif : une seule requête /chat', async () => {
+    const { init } = await load()
+    const el = mountStepsWidget()
+    const fetchSpy = globalThis.fetch as ReturnType<typeof vi.fn>
+    await initAndWait(init, el)
+    await reachStep5(el)
+
+    click(el, 'submit')
+    el.querySelector('form')!.dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    )
+    await vi.waitFor(() => {
+      if (el.dataset.recoState !== 'results') throw new Error('pas results')
+    })
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('submit/retry hors état valide : aucun fetch, aucun changement d’étape', async () => {
+    const { init } = await load()
+    const el = mountStepsWidget()
+    const fetchSpy = globalThis.fetch as ReturnType<typeof vi.fn>
+    await initAndWait(init, el)
+    click(el, 'start')
+
+    // Synthetic submit click at step 1: no validation, no goTo, no fetch.
+    click(el, 'submit')
+    expect(el.dataset.recoState).toBe('step-1')
+    expect(el.querySelector('[data-reco-error-for="level"]')!.textContent).toBe('')
+    // Hidden retry button: never sends from a step state.
+    click(el, 'retry')
+    expect(el.dataset.recoState).toBe('step-1')
+    expect(fetchSpy).not.toHaveBeenCalled()
+
+    // While loading, a synthetic retry must not duplicate the request.
+    await reachStep5(el)
+    click(el, 'submit')
+    expect(el.dataset.recoState).toBe('loading')
+    click(el, 'retry')
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('envoi 2 après restart : la réponse tardive de l’envoi 1 ne pollue ni résultats ni session', async () => {
+    const resolvers: ((res: Response) => void)[] = []
+    const fetchSpy = mockFetch(() => {
+      const deferred = new Promise<Response>((resolve) => resolvers.push(resolve))
+      return deferred as unknown as Response
+    })
+    const { init } = await load()
+    const el = mountStepsWidget()
+    await initAndWait(init, el)
+    await reachStep5(el)
+
+    click(el, 'submit')
+    expect(el.dataset.recoState).toBe('loading')
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+
+    // Restart while request 1 is in flight, then send request 2 BEFORE
+    // request 1 settles.
+    click(el, 'restart')
+    expect(el.dataset.recoState).toBe('intro')
+    await reachStep5(el)
+    click(el, 'submit')
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+
+    resolvers[1]!(sse('Pistes v2 pour toi.', { session_id: 's2' }))
+    await vi.waitFor(() => {
+      if (el.dataset.recoState !== 'results') throw new Error('pas results')
+    })
+    expect(el.querySelector('[data-reco-field="text"]')!.textContent).toContain('Pistes v2')
+    expect(sessionStorage.getItem('studely.reco.session.mexique')).toBe('s2')
+
+    // Late reply of request 1 is stale: results and session stay on v2.
+    resolvers[0]!(sse('Pistes v1 obsolètes.', { session_id: 's1' }))
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(el.dataset.recoState).toBe('results')
+    expect(el.querySelector('[data-reco-field="text"]')!.textContent).toContain('Pistes v2')
+    expect(sessionStorage.getItem('studely.reco.session.mexique')).toBe('s2')
+  })
+
+  it('envoi 2 après restart : le rejet tardif de l’envoi 1 est ignoré aussi', async () => {
+    const rejectors: ((err: unknown) => void)[] = []
+    const resolvers: ((res: Response) => void)[] = []
+    mockFetch(() => {
+      const deferred = new Promise<Response>((resolve, reject) => {
+        resolvers.push(resolve)
+        rejectors.push(reject)
+      })
+      return deferred as unknown as Response
+    })
+    const { init } = await load()
+    const el = mountStepsWidget()
+    await initAndWait(init, el)
+    await reachStep5(el)
+    click(el, 'submit')
+    click(el, 'restart')
+    await reachStep5(el)
+    click(el, 'submit')
+    resolvers[1]!(sse('Pistes v2.', { session_id: 's2' }))
+    await vi.waitFor(() => {
+      if (el.dataset.recoState !== 'results') throw new Error('pas results')
+    })
+
+    rejectors[0]!(new TypeError('fetch failed'))
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(el.dataset.recoState).toBe('results')
+    expect(sessionStorage.getItem('studely.reco.session.mexique')).toBe('s2')
+  })
+
+  it('restart pendant une requête en vol : la réponse tardive est ignorée', async () => {
+    let resolveFetch!: (res: Response) => void
+    const deferred = new Promise<Response>((resolve) => (resolveFetch = resolve))
+    mockFetch(() => deferred as unknown as Response)
+    const { init } = await load()
+    const el = mountStepsWidget()
+    await initAndWait(init, el)
+    await reachStep5(el)
+
+    click(el, 'submit')
+    expect(el.dataset.recoState).toBe('loading')
+    click(el, 'restart')
+    expect(el.dataset.recoState).toBe('intro')
+
+    resolveFetch(chatOk())
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(el.dataset.recoState).toBe('intro')
+    expect(sessionStorage.getItem('studely.reco.session.mexique')).toBeNull()
+  })
+
+  it('restart pendant une requête en vol : le rejet tardif est ignoré', async () => {
+    let rejectFetch!: (err: unknown) => void
+    const deferred = new Promise<Response>((_r, reject) => (rejectFetch = reject))
+    mockFetch(() => deferred as unknown as Response)
+    const { init } = await load()
+    const el = mountStepsWidget()
+    await initAndWait(init, el)
+    await reachStep5(el)
+
+    click(el, 'submit')
+    expect(el.dataset.recoState).toBe('loading')
+    click(el, 'restart')
+    expect(el.dataset.recoState).toBe('intro')
+
+    rejectFetch(new TypeError('fetch failed'))
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(el.dataset.recoState).toBe('intro')
+    expect(el.querySelector('[data-reco-error-message]')!.textContent).toBe('')
+  })
+
+  it('restart efface les erreurs de champ (aria-invalid / describedby)', async () => {
+    const { init } = await load()
+    const el = mountStepsWidget()
+    await initAndWait(init, el)
+    click(el, 'start')
+    click(el, 'next') // empty step 1 → level error
+    const input = el.querySelector<HTMLElement>('[data-reco-options="level"] input')!
+    expect(input.getAttribute('aria-invalid')).toBe('true')
+
+    click(el, 'restart')
+    expect(input.hasAttribute('aria-invalid')).toBe(false)
+    expect(input.hasAttribute('aria-describedby')).toBe(false)
+    expect(el.querySelector('[data-reco-error-for="level"]')!.textContent).toBe('')
   })
 })
 

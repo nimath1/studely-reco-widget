@@ -5,7 +5,7 @@ const API_URL_VAR = 'VITE_RECO_API_URL'
 // L'URL de l'API est fixée au build par environnement, jamais lue depuis la
 // page (§7.4) : un build sans URL HTTPS valide échoue plutôt que de livrer
 // un widget qui ne peut appeler personne.
-function assertApiUrl(mode: string): void {
+export function assertApiUrl(mode: string): void {
   const raw = process.env[API_URL_VAR] ?? loadEnv(mode, process.cwd(), 'VITE_')[API_URL_VAR]
   let url: URL
   try {
@@ -41,6 +41,9 @@ export default defineConfig(({ command, mode }) => {
     },
     build: {
       outDir: 'dist',
+      // Bundle IIFE pur : public/ (worker MSW de dev, fonts, logo) n'a rien
+      // à faire dans dist — les assets sont servis par le site (dist-site).
+      copyPublicDir: false,
       // Safari iOS 15+ est la cible la plus ancienne du cahier (§7.6).
       target: ['es2020', 'safari15'],
       lib: {

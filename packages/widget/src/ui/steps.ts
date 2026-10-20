@@ -108,13 +108,54 @@ function storage(): Storage | null {
   }
 }
 
-/** Brouillon de la page courante uniquement : un autre `origin` est ignoré. */
+const isString = (value: unknown): value is string => typeof value === 'string'
+const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every(isString)
+
+/** Full runtime shape of `Answers`: a tampered draft must neither crash
+    nor restore values of an unexpected type. */
+function isAnswers(value: unknown): value is Answers {
+  if (typeof value !== 'object' || value === null) return false
+  const answers = value as Record<string, unknown>
+  return (
+    isString(answers.level) &&
+    isString(answers.budget) &&
+    isString(answers.intake) &&
+    isString(answers.goal) &&
+    isStringArray(answers.fields) &&
+    isStringArray(answers.destinations) &&
+    Array.isArray(answers.languages) &&
+    answers.languages.every(
+      (pair) =>
+        typeof pair === 'object' &&
+        pair !== null &&
+        isString((pair as Record<string, unknown>).language) &&
+        isString((pair as Record<string, unknown>).level)
+    ) &&
+    typeof answers.consent === 'boolean'
+  )
+}
+
+/**
+ * Draft of the current page only: another `origin`, valid JSON with an
+ * unexpected shape, or a step outside 1..5 is ignored — option ids are
+ * NOT validated (the catalogue may evolve).
+ */
 export function loadDraft(origin: string): Draft | null {
   try {
     const raw = storage()?.getItem(DRAFT_KEY)
     if (!raw) return null
-    const draft = JSON.parse(raw) as Draft
-    return draft.origin === origin && typeof draft.step === 'number' ? draft : null
+    const draft = JSON.parse(raw) as Partial<Draft>
+    if (draft.origin !== origin) return null
+    if (
+      !Number.isInteger(draft.step) ||
+      (draft.step as number) < 1 ||
+      (draft.step as number) > STEP_COUNT
+    ) {
+      return null
+    }
+    if (!isAnswers(draft.answers)) return null
+    return draft as Draft
   } catch {
     return null
   }

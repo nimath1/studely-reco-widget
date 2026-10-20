@@ -10,7 +10,7 @@
     "@studely/widget#build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**"],
-      "env": ["VITE_RECO_API_URL"]
+      "env": ["VITE_RECO_API_URL", "VITE_TURNSTILE_SITE_KEY"]
     },
     "dev": {
       "dependsOn": ["^build"],

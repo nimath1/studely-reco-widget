@@ -10,8 +10,8 @@ import type { ChatDelta, ChatFinal, ChatReply } from './types'
 /** Injectée au build par environnement (`VITE_RECO_API_URL`), jamais lue depuis la page. */
 export const API_BASE_URL: string = import.meta.env.VITE_RECO_API_URL
 
-// Une réponse LLM streamée peut prendre bien plus que les 20 s du REST.
-const TIMEOUT_MS = 45_000
+// Global /chat call timeout (spec §7.4: 20 s), headers and body included.
+const TIMEOUT_MS = 20_000
 const SESSION_KEY_PREFIX = 'studely.reco.session.'
 
 /** Familles d'erreurs du §5.3 : chacune a sa clé i18n et son comportement. */
@@ -68,11 +68,12 @@ async function toApiError(res: Response): Promise<RecoApiError> {
   return new RecoApiError('input', String(res.status))
 }
 
-/** Parse un flux SSE lu d'un coup : concatène les `delta`, garde `final`. */
+/** Parses an SSE stream read in one shot: concatenates `delta`, keeps
+    `final`. CRLF normalized to LF: some proxies/servers emit `\r\n`. */
 export function parseSse(stream: string): ChatReply {
   let text = ''
   let meta: ChatFinal = {}
-  for (const block of stream.split('\n\n')) {
+  for (const block of stream.replaceAll('\r\n', '\n').split('\n\n')) {
     let event = ''
     let data = ''
     for (const line of block.split('\n')) {
@@ -101,7 +102,12 @@ function storage(): Storage | null {
 
 /** `session_id` /chat persisté par origine : les envois suivants continuent la conversation. */
 export function loadChatSession(origin: string): string | null {
-  return storage()?.getItem(`${SESSION_KEY_PREFIX}${origin}`) ?? null
+  try {
+    // getItem itself can throw (SecurityError, strict private mode).
+    return storage()?.getItem(`${SESSION_KEY_PREFIX}${origin}`) ?? null
+  } catch {
+    return null
+  }
 }
 
 export function saveChatSession(origin: string, sessionId: string | undefined): void {

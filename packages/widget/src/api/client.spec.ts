@@ -49,6 +49,16 @@ describe('parseSse', () => {
     expect(reply.meta.citations).toHaveLength(1)
   })
 
+  it('normalise les fins de ligne CRLF', () => {
+    const stream =
+      'event: delta\r\ndata: {"text":"Bon"}\r\n\r\n' +
+      'event: delta\r\ndata: {"text":"jour"}\r\n\r\n' +
+      'event: final\r\ndata: {"session_id":"s1"}\r\n\r\n'
+    const reply = parseSse(stream)
+    expect(reply.text).toBe('Bonjour')
+    expect(reply.meta.session_id).toBe('s1')
+  })
+
   it('ignore les chunks non-JSON et les événements inconnus', () => {
     const stream =
       'event: delta\ndata: {oops}\n\n' +
@@ -79,6 +89,14 @@ describe('session /chat', () => {
   it('ignore un session_id absent', () => {
     saveChatSession('mexique', undefined)
     expect(loadChatSession('mexique')).toBeNull()
+  })
+
+  it('renvoie null si storage.getItem lève (SecurityError, mode privé)', () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new DOMException('Accès refusé', 'SecurityError')
+    })
+    expect(loadChatSession('mexique')).toBeNull()
+    vi.restoreAllMocks()
   })
 })
 
@@ -121,19 +139,47 @@ describe('postChat', () => {
     await expect(postChat('m', null)).rejects.toMatchObject({ kind: 'network' })
   })
 
-  it('coupe la requête à 45 s (réponse SSE potentiellement longue)', async () => {
+  it('coupe la requête à 20 s (réponse SSE potentiellement longue)', async () => {
     vi.useFakeTimers()
+    let signal: AbortSignal | undefined
     mockFetch((...args: unknown[]) => {
-      const init = args[1] as { signal: AbortSignal }
+      signal = (args[1] as { signal: AbortSignal }).signal
       return new Promise((_resolve, reject) => {
-        init.signal.addEventListener('abort', () =>
-          reject(new DOMException('Aborted', 'AbortError'))
-        )
+        signal!.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
       })
     })
     const pending = postChat('m', null)
     const assertion = expect(pending).rejects.toMatchObject({ kind: 'network' })
-    await vi.advanceTimersByTimeAsync(45_000)
+    await vi.advanceTimersByTimeAsync(19_999)
+    expect(signal!.aborted).toBe(false)
+    await vi.advanceTimersByTimeAsync(1)
+    await assertion
+    expect(signal!.aborted).toBe(true)
+    vi.useRealTimers()
+  })
+
+  it('le même délai s’applique à un corps qui piétine (res.text)', async () => {
+    vi.useFakeTimers()
+    // Headers arrive fast, then the SSE body stalls: the same abort signal
+    // must also cover the body read.
+    const text = vi.fn()
+    mockFetch(async (...args: unknown[]) => {
+      const init = args[1] as { signal: AbortSignal }
+      text.mockImplementation(
+        () =>
+          new Promise<string>((_resolve, reject) => {
+            init.signal.addEventListener('abort', () =>
+              reject(new DOMException('Aborted', 'AbortError'))
+            )
+          })
+      )
+      return { ok: true, text }
+    })
+    const pending = postChat('m', null)
+    await vi.advanceTimersByTimeAsync(0) // flush fetch resolution + res.text()
+    expect(text).toHaveBeenCalledOnce()
+    const assertion = expect(pending).rejects.toMatchObject({ kind: 'network' })
+    await vi.advanceTimersByTimeAsync(20_000)
     await assertion
     vi.useRealTimers()
   })

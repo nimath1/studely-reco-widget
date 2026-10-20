@@ -11,6 +11,7 @@
     "prepare": "husky",
     "dev": "turbo run dev",
     "build": "turbo run build",
+    "build:vercel": "pnpm --filter @studely/widget build:vercel",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,js,json,md,yml,yaml}\"",
     "test": "turbo run test -- --passWithNoTests",

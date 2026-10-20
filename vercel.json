@@ -1,0 +1,22 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "framework": null,
+  "buildCommand": "pnpm --filter @studely/widget build:vercel",
+  "outputDirectory": "packages/widget/dist-site",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "headers": [
+    {
+      "source": "/reco/v1/reco.js",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
+    },
+    {
+      "source": "/reco/:version(\\d+\\.\\d+\\.\\d+)/reco.js",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [{ "key": "X-Content-Type-Options", "value": "nosniff" }]
+    }
+  ]
+}

@@ -1,11 +1,12 @@
 <!doctype html>
-<!-- Page de dev local uniquement (hors build) : reprend le squelette DOM de
-     référence du cahier des charges (§10.3) et le CSS minimal (§10.4). -->
+<!-- Local dev page and Vercel reference site page: mirrors the reference
+     DOM skeleton of the spec (§10.3) and minimal CSS (§10.4). The MSW
+     mock is only imported in dev. -->
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Studely Reco — dev</title>
+    <title>Studely — Recommandations de parcours</title>
     <script>
       // Locale de la page de dev : ?lang=ar pour tester la RTL et les
       // traductions du mock. Doit tourner avant les modules du corps.
@@ -973,7 +974,7 @@
         <div data-reco-panel="results">
           <h2 data-reco-title tabindex="-1">Tes recommandations</h2>
           <div data-reco-results></div>
-          <a data-reco-disclaimer hidden>Recommandations indicatives</a>
+          <p data-reco-disclaimer>Recommandations indicatives générées automatiquement.</p>
           <button type="button" data-reco-action="edit">Modifier mes réponses</button>
           <button type="button" data-reco-action="restart">Recommencer</button>
           <a data-reco-action="advisor">Parler à un conseiller</a>
@@ -1036,6 +1037,30 @@
         <a data-reco-action="advisor" href="/mexique#contact">Parler à un conseiller Studely</a>
       </div>
     </dialog>
+
+    <noscript>
+      <!-- Without JavaScript the dialog stays hidden (visibility: hidden):
+           a visible advisor fallback must exist outside it. The URL must
+           be absolute on standalone deployments (Vercel). -->
+      <p
+        style="
+          position: fixed;
+          inset-inline: 20px;
+          bottom: 20px;
+          margin: 0;
+          padding: 16px 20px;
+          border-radius: 12px;
+          background: #fff;
+          box-shadow: 0 8px 24px rgb(21 24 43 / 18%);
+          font-family: sans-serif;
+          font-size: 0.9rem;
+          text-align: center;
+        "
+      >
+        Le questionnaire nécessite JavaScript.
+        <a href="/mexique#contact">Parler à un conseiller Studely</a>
+      </p>
+    </noscript>
 
     <button
       type="button"
@@ -1101,16 +1126,25 @@
     </script>
 
     <script type="module">
-      // Mock MSW (dev uniquement) : ?recoMock=<scénario> ou localStorage.recoMock.
-      // Le worker doit être actif AVANT le widget, sinon l'appel options
-      // part sur le réseau réel et bascule le bloc en erreur.
-      if (
-        new URLSearchParams(location.search).get('recoMock') ||
-        localStorage.getItem('recoMock')
-      ) {
-        await import('./mock/browser.ts')
+      // MSW mock — dev only: import.meta.env.DEV tree-shakes this whole
+      // block from the production site build, and localStorage can throw
+      // (private mode, disabled storage) without breaking bootstrap.
+      let mockWanted = false
+      if (import.meta.env.DEV) {
+        try {
+          mockWanted = Boolean(
+            new URLSearchParams(location.search).get('recoMock') || localStorage.getItem('recoMock')
+          )
+        } catch {
+          mockWanted = Boolean(new URLSearchParams(location.search).get('recoMock'))
+        }
       }
-      await import('./src/index.ts')
+      // The worker must be active BEFORE the widget; async IIFE (the
+      // Safari 15 target does not support top-level await).
+      void (async () => {
+        if (mockWanted) await import('./mock/browser.ts')
+        await import('./src/index.ts')
+      })()
     </script>
   </body>
 </html>

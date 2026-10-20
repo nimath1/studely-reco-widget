@@ -94,9 +94,12 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
   let retryLockUntil = 0
   /** Échecs captcha consécutifs : relance du défi au 1er, erreur au 2e (§9.1). */
   let captchaFailures = 0
-  /** Horodatage du dernier envoi, pour `duration_ms` du tracking (§9.2). */
+  /** Timestamp of the last send, for the tracking `duration_ms` (§9.2). */
   let submittedAt: number | null = null
   let lastResultCount: number | undefined
+  /** Generation of the in-flight request: restart or a new send makes a
+      pending reply stale — it must write neither UI nor session. */
+  let generation = 0
 
   trackReco(el, { locale: config.locale, origin: config.origin, version: pkgVersion }, signal, {
     getDurationMs: () => (submittedAt === null ? undefined : Date.now() - submittedAt),
@@ -234,13 +237,14 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
   /** Envoie le profil à /chat : réponse texte + citations, empty ou erreur. */
   async function sendPayload(): Promise<void> {
     submittedAt = Date.now()
+    const gen = ++generation
     try {
       const reply = await postChat(
         buildChatMessage(lastProfile!, config.locale),
         sessionId,
         turnstileToken(el)
       )
-      if (signal.aborted) return
+      if (signal.aborted || gen !== generation) return
       captchaFailures = 0
       if (reply.meta.session_id) {
         sessionId = reply.meta.session_id
@@ -248,7 +252,7 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
       }
       showReply(reply)
     } catch (error) {
-      if (signal.aborted) return
+      if (signal.aborted || gen !== generation) return
       handleSendError(error)
     }
   }
@@ -288,6 +292,9 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
   }
 
   function retry(): void {
+    // Retry only exists on terminal error/empty panels — a synthetic click
+    // elsewhere (loading, results, steps) must never send a duplicate POST.
+    if (machine.state !== 'error' && machine.state !== 'empty') return
     if (Date.now() < retryLockUntil || !lastProfile) return
     machine.dispatch('retry')
     announce(t('reco.loading'))
@@ -301,13 +308,36 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     syncChrome()
   }
 
+  /**
+   * Submission (click or Enter): validates all 5 steps AND consent — a
+   * restored partial draft must never reach /chat. On a missing answer,
+   * goes back to the first invalid step. The synchronous dispatch to
+   * `loading` inside submitProfile is the double-submit lock.
+   */
   function submit(): void {
-    if (!validateStep(el, STEP_COUNT, collectAnswers(el), t, true)) return
+    if (machine.state !== `step-${STEP_COUNT}`) return
+    const answers = collectAnswers(el)
+    let firstInvalid: number | null = null
+    for (let step = 1; step <= STEP_COUNT; step += 1) {
+      if (!validateStep(el, step, answers, t, step === STEP_COUNT) && firstInvalid === null) {
+        firstInvalid = step
+      }
+    }
+    if (firstInvalid !== null) {
+      if (stepOf(machine.state) !== firstInvalid) {
+        machine.goTo(`step-${firstInvalid}` as WidgetState)
+      }
+      syncChrome()
+      return
+    }
     persist()
     void submitProfile()
   }
 
   function restart(): void {
+    // Invalidate any in-flight /chat request: its late reply must neither
+    // repaint the intro nor rewrite a session.
+    generation += 1
     clearDraft()
     captchaFailures = 0
     lastResultCount = undefined
@@ -317,9 +347,19 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     sessionId = null
     clearChatSession(config.origin)
     resetInputs(el)
-    el.querySelectorAll('[data-reco-error-for]').forEach((node) => {
-      node.textContent = ''
-    })
+    // Clear error messages AND aria state (aria-invalid / describedby).
+    for (const field of [
+      'level',
+      'fields',
+      'destinations',
+      'languages',
+      'budget',
+      'intake',
+      'goal',
+      'consent'
+    ]) {
+      clearFieldError(el, field)
+    }
     machine.dispatch('restart')
     syncChrome()
   }
@@ -355,7 +395,11 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     (event) => {
       const trigger = (event.target as Element | null)?.closest?.('[data-reco-action]')
       if (!(trigger instanceof HTMLElement) || !el.contains(trigger)) return
-      handleAction(trigger.dataset.recoAction ?? '', stepOf(machine.state))
+      const action = trigger.dataset.recoAction ?? ''
+      // The submit button is a real submit: block native submission here
+      // (the form `submit` handler covers the Enter path).
+      if (action === 'submit') event.preventDefault()
+      handleAction(action, stepOf(machine.state))
     },
     { signal }
   )
@@ -384,10 +428,16 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
   )
   el.addEventListener('input', persist, { signal })
 
-  // Le bouton submit est un vrai submit : la navigation native est bloquée.
-  el.querySelector('form')?.addEventListener('submit', (event) => event.preventDefault(), {
-    signal
-  })
+  // Native submission (Enter in a field): validated like a click, but only
+  // from step 5 — elsewhere Enter must not change the state.
+  el.querySelector('form')?.addEventListener(
+    'submit',
+    (event) => {
+      event.preventDefault()
+      if (machine.state === `step-${STEP_COUNT}`) submit()
+    },
+    { signal }
+  )
 
   loadOptions()
 }

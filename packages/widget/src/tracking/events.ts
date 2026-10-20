@@ -1,19 +1,19 @@
 /**
- * Plan de tracking (§9.2) : événements reco_* poussés dans dataLayer avec
- * le consentement « mesure d'audience », et CustomEvent studely:reco (§7.6).
+ * Tracking plan (§9.2): `reco_*` events pushed to the dataLayer with the
+ * "audience measurement" consent, plus the `studely:reco` CustomEvent (§7.6).
  */
 
 export const RECO_EVENT = 'studely:reco'
 
 export interface RecoEventDetail {
-  /** Nom du jalon : action utilisateur (start, next…) ou état atteint. */
+  /** Milestone name: user action (start, next…) or reached state. */
   name: string
   [key: string]: unknown
 }
 
 /**
- * Événement DOM unique du widget, émis sur le conteneur en bouillonnement :
- * la page (ou le dataLayer, §9.2) s'y abonne sans connaître l'interne.
+ * The widget's single DOM event, emitted bubbling from the container: the
+ * host page (or the dataLayer, §9.2) subscribes without knowing internals.
  */
 export function emitRecoEvent(
   el: HTMLElement,
@@ -36,9 +36,9 @@ declare global {
 }
 
 /**
- * Consentement « mesure d'audience » de la CMP (§9.2). CMP reconnue :
- * Cookiebot (`statistics`). Aucune CMP détectée → non bloquant : la CMP du
- * site tranchera en production, et le mock/dev restent testables.
+ * CMP "audience measurement" consent (§9.2). Recognized CMP: Cookiebot
+ * (`statistics`). No CMP detected -> non-blocking: the site's CMP will
+ * decide in production, and mock/dev stay testable.
  */
 export function hasAnalyticsConsent(): boolean {
   const cookiebot = window.Cookiebot
@@ -53,18 +53,18 @@ export interface TrackContext {
 }
 
 export interface TrackHooks {
-  /** Durée mesurée entre l'envoi du profil et l'état terminal affiché. */
+  /** Duration measured between profile send and rendered terminal state. */
   getDurationMs?: () => number | undefined
-  /** Nombre de cartes affichées, pour le jalon reco_results. */
+  /** Number of cards displayed, for the reco_results milestone. */
   getResultCount?: () => number | undefined
 }
 
 const TIMED_STATES = new Set(['results', 'empty', 'error'])
 
 /**
- * Relaie les transitions `studely:reco` vers window.dataLayer avec les
- * paramètres communs (§9.2). Jamais de valeur saisie : ni domaines, ni
- * budget, ni texte libre — uniquement états et mesures.
+ * Relays `studely:reco` transitions to window.dataLayer with the common
+ * parameters (§9.2). Never an entered value: no domains, budget, or free
+ * text — states and measurements only.
  */
 export function trackReco(
   el: HTMLElement,

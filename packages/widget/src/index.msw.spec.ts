@@ -58,6 +58,9 @@ describe('parcours complet contre le mock MSW', () => {
   afterEach(() => {
     server.resetHandlers()
     localStorage.clear()
+    sessionStorage.clear()
+    delete window.dataLayer
+    delete window.Cookiebot
     document.body.innerHTML = ''
   })
   afterAll(() => server.close())
@@ -82,7 +85,7 @@ describe('parcours complet contre le mock MSW', () => {
     for (const link of links) {
       expect(link.href).toMatch(/^https:\/\/(www\.)?studely\.com/)
     }
-    // dataLayer alimenté avec les paramètres communs (§9.2).
+    // dataLayer fed with the common parameters (§9.2).
     const events = (window.dataLayer ?? []).map((p) => p.event)
     expect(events).toContain('reco_results')
     const resultsEvent = (window.dataLayer ?? []).find((p) => p.event === 'reco_results')
@@ -90,7 +93,6 @@ describe('parcours complet contre le mock MSW', () => {
     expect(resultsEvent?.reco_origin).toBe('mexique')
     expect(resultsEvent?.duration_ms).toBeTypeOf('number')
     expect(resultsEvent?.result_count).toBeTypeOf('number')
-    delete window.dataLayer
   })
 
   it('empty : panel empty quand aucune recommandation', async () => {
