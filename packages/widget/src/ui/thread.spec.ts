@@ -53,6 +53,35 @@ describe('appendUser / appendAssistant', () => {
     expect(entry.querySelector('[data-reco-field="links"] a')!.textContent).toBe('Lyon')
   })
 
+  it('sources + citations : union dédupliquée, sources d’abord', () => {
+    const { links } = appendAssistant(
+      el,
+      {
+        text: 'Réponse détaillée [S2]',
+        meta: {
+          sources: [
+            { label: 'S1', title: 'A', source_url: 'https://support.studely.com/hc/fr/a' },
+            { label: 'S2', title: 'B', source_url: 'https://support.studely.com/hc/fr/b' },
+            { label: 'S3', title: 'C', source_url: 'https://support.studely.com/hc/fr/c' }
+          ],
+          citations: [
+            { label: 'S2', title: 'B', source_url: 'https://support.studely.com/hc/fr/b' }
+          ]
+        }
+      },
+      t
+    )
+    expect(links).toBe(3)
+    const entry = entries().at(-1)!
+    const anchors = [...entry.querySelectorAll<HTMLAnchorElement>('[data-reco-field="links"] a')]
+    expect(anchors.map((a) => a.href)).toEqual([
+      'https://support.studely.com/hc/fr/a',
+      'https://support.studely.com/hc/fr/b',
+      'https://support.studely.com/hc/fr/c'
+    ])
+    expect(anchors[0]!.textContent).toBe('[S1] A')
+  })
+
   it('out_of_scope : CTA conseiller sous la bulle', () => {
     appendAssistant(el, { text: 'Hors périmètre', meta: { out_of_scope: true } }, t)
     const entry = entries().at(-1)!

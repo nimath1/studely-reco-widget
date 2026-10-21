@@ -5,7 +5,7 @@
  * l'UI n'affiche que l'état loading pendant la réponse, pas de rendu
  * progressif.
  */
-import type { ChatDelta, ChatFinal, ChatReply } from './types'
+import type { ChatCitation, ChatDelta, ChatFinal, ChatReply } from './types'
 
 /** Injectée au build par environnement (`VITE_RECO_API_URL`), jamais lue depuis la page. */
 export const API_BASE_URL: string = import.meta.env.VITE_RECO_API_URL
@@ -68,28 +68,50 @@ async function toApiError(res: Response): Promise<RecoApiError> {
   return new RecoApiError('input', String(res.status))
 }
 
+/** Reads one SSE block: last `event:` line wins, `data:` lines concatenate. */
+function parseSseBlock(block: string): { event: string; data: string } {
+  let event = ''
+  let data = ''
+  for (const line of block.split('\n')) {
+    if (line.startsWith('event:')) event = line.slice(6).trim()
+    else if (line.startsWith('data:')) data += line.slice(5).trim()
+  }
+  return { event, data }
+}
+
+/** Reply state accumulated while walking the stream's blocks. */
+interface SseState {
+  text: string
+  meta: ChatFinal
+  sources: ChatCitation[] | undefined
+}
+
+/** Dispatches one parsed SSE block onto the reply state: `delta` concatenates
+    text, `final` replaces meta, `sources` is kept aside. Non-JSON skipped. */
+function applySseBlock(state: SseState, event: string, data: string): void {
+  try {
+    const parsed = JSON.parse(data) as ChatDelta & ChatFinal
+    if (event === 'delta') state.text += parsed.text ?? ''
+    else if (event === 'final') state.meta = parsed
+    else if (event === 'sources' && Array.isArray(parsed.sources)) state.sources = parsed.sources
+  } catch {
+    // Chunk non-JSON ignoré : le flux reste utilisable.
+  }
+}
+
 /** Parses an SSE stream read in one shot: concatenates `delta`, keeps
     `final`. CRLF normalized to LF: some proxies/servers emit `\r\n`. */
 export function parseSse(stream: string): ChatReply {
-  let text = ''
-  let meta: ChatFinal = {}
+  // `event: sources` precedes the deltas; kept aside so a later `final`
+  // (which replaces `meta`) cannot drop it.
+  const state: SseState = { text: '', meta: {}, sources: undefined }
   for (const block of stream.replaceAll('\r\n', '\n').split('\n\n')) {
-    let event = ''
-    let data = ''
-    for (const line of block.split('\n')) {
-      if (line.startsWith('event:')) event = line.slice(6).trim()
-      else if (line.startsWith('data:')) data += line.slice(5).trim()
-    }
+    const { event, data } = parseSseBlock(block)
     if (!data) continue
-    try {
-      const parsed = JSON.parse(data) as ChatDelta & ChatFinal
-      if (event === 'delta') text += parsed.text ?? ''
-      else if (event === 'final') meta = parsed
-    } catch {
-      // Chunk non-JSON ignoré : le flux reste utilisable.
-    }
+    applySseBlock(state, event, data)
   }
-  return { text, meta }
+  if (state.sources) state.meta.sources = state.sources
+  return { text: state.text, meta: state.meta }
 }
 
 function storage(): Storage | null {

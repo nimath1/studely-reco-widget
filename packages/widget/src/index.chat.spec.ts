@@ -250,6 +250,47 @@ describe('envoi et réponse', () => {
     expect(scope.querySelectorAll('a')).toHaveLength(0)
   })
 
+  it('event: sources + citations subset → 3 liens union, marqueur [S3] littéral', async () => {
+    const sources = [
+      {
+        label: 'S1',
+        title: 'Piste Lyon',
+        source_url: 'https://support.studely.com/hc/fr/articles/1-lyon'
+      },
+      {
+        label: 'S2',
+        title: 'Piste Louvain',
+        source_url: 'https://support.studely.com/hc/fr/articles/2-louvain'
+      },
+      {
+        label: 'S3',
+        title: 'Piste Hambourg',
+        source_url: 'https://support.studely.com/hc/fr/articles/3-hambourg'
+      }
+    ]
+    mockFetch(async () =>
+      ok(
+        `event: sources\ndata: ${JSON.stringify({ sources })}\n\n` +
+          SSE('Une piste détaillée ici [S3]', { session_id: 's1', citations: [sources[2]] })
+      )
+    )
+    await type('x')
+    await waitFor(() => expect(assistantEntries().length).toBeGreaterThanOrEqual(2))
+    const reply = assistantEntries().at(-1)!
+    // The [S3] marker stays literal text: no anchor inside the text scope.
+    const scope = reply.querySelector('[data-reco-field="text"]')!
+    expect(scope.textContent).toContain('[S3]')
+    expect(scope.querySelectorAll('a')).toHaveLength(0)
+    const links = [...reply.querySelectorAll<HTMLAnchorElement>('[data-reco-field="links"] a')]
+    expect(links).toHaveLength(3)
+    expect(links.map((l) => l.href)).toEqual(sources.map((s) => s.source_url))
+    for (const link of links) {
+      expect(link.target).toBe('_blank')
+      expect(link.rel).toBe('noopener')
+    }
+    expect(links[2]!.textContent).toBe('[S3] Piste Hambourg')
+  })
+
   it('out_of_scope → CTA conseiller + jalon empty', async () => {
     mockFetch(async () => ok(SSE('Hors périmètre', { out_of_scope: true })))
     await type('météo ?')
@@ -331,7 +372,7 @@ describe('erreurs, retry, stop, reset', () => {
   })
 
   it('double envoi verrouillé tant que pending', async () => {
-    let resolveFetch: (r: Partial<Response>) => void = () => undefined
+    let resolveFetch = (_r: Partial<Response>): void => {}
     mockFetch(
       () =>
         new Promise<Partial<Response>>((resolve) => {

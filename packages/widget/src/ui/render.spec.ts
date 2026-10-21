@@ -31,13 +31,20 @@ describe('fillField', () => {
 })
 
 describe('isAllowedUrl', () => {
-  it('n’accepte que https sur studely.com', () => {
+  it('n’accepte que https sur studely.com et ses sous-domaines', () => {
     expect(isAllowedUrl('https://www.studely.com/p')).toBe(true)
     expect(isAllowedUrl('https://studely.com/p')).toBe(true)
+    expect(isAllowedUrl('https://support.studely.com/hc/fr/articles/1')).toBe(true)
+    expect(isAllowedUrl('https://api.studely.com')).toBe(true)
+    // eslint-disable-next-line sonarjs/no-clear-text-protocols -- negative fixture
     expect(isAllowedUrl('http://studely.com/p')).toBe(false)
+    // eslint-disable-next-line sonarjs/no-clear-text-protocols -- negative fixture
+    expect(isAllowedUrl('http://support.studely.com/p')).toBe(false)
     expect(isAllowedUrl('https://evil-studely.com/')).toBe(false)
+    expect(isAllowedUrl('https://studely.com.evil.com/')).toBe(false)
     expect(isAllowedUrl('https://example.com/')).toBe(false)
     expect(isAllowedUrl('javascript:alert(1)')).toBe(false)
+    expect(isAllowedUrl('data:text/html,x')).toBe(false)
     expect(isAllowedUrl(undefined)).toBe(false)
   })
 })
@@ -63,6 +70,38 @@ describe('fillAssistantEntry', () => {
     expect(links.map((l) => l.href)).toEqual(['https://www.studely.com/a', 'https://studely.com/d'])
     expect(links[0]!.target).toBe('_blank')
     expect(links[0]!.rel).toBe('noopener')
+  })
+
+  it('source_url + label → lien support.studely.com « [S3] Titre »', () => {
+    const entry = card()
+    const result = fillAssistantEntry(entry, 'Texte [S3]', [
+      {
+        label: 'S3',
+        title: 'Ouvrir un compte bloqué',
+        source_url: 'https://support.studely.com/hc/fr/articles/3-compte'
+      }
+    ])
+    expect(result).toEqual({ pieces: 2, links: 1 })
+    const link = entry.querySelector<HTMLAnchorElement>('[data-reco-field="links"] a')!
+    expect(link.href).toBe('https://support.studely.com/hc/fr/articles/3-compte')
+    expect(link.textContent).toBe('[S3] Ouvrir un compte bloqué')
+    expect(link.target).toBe('_blank')
+    expect(link.rel).toBe('noopener')
+  })
+
+  it('dédoublonne sur l’URL résolue (url vs source_url) avant le cap', () => {
+    const entry = card()
+    const result = fillAssistantEntry(entry, 'Texte', [
+      { title: 'A', url: 'https://www.studely.com/a' },
+      { label: 'S1', title: 'A bis', source_url: 'https://www.studely.com/a' },
+      { label: 'S2', title: 'B', source_url: 'https://support.studely.com/hc/fr/articles/2-b' }
+    ])
+    expect(result).toEqual({ pieces: 3, links: 2 })
+    const links = [...entry.querySelectorAll<HTMLAnchorElement>('[data-reco-field="links"] a')]
+    expect(links.map((l) => l.href)).toEqual([
+      'https://www.studely.com/a',
+      'https://support.studely.com/hc/fr/articles/2-b'
+    ])
   })
 
   it('titre absent → url comme libellé', () => {

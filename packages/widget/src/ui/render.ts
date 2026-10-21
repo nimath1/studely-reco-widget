@@ -24,18 +24,67 @@ export function fillField(root: HTMLElement, name: string, value: string): void 
   else if (node) node.textContent = value
 }
 
-/** Une citation ne mène que vers une page du site : https sur studely.com (R10). */
+/**
+ * Une citation ne mène que vers une page du site : https sur studely.com
+ * ou l'un de ses sous-domaines — ex. support.studely.com (R10).
+ * `endsWith('.studely.com')` rejects look-alikes such as `evil-studely.com`.
+ */
 export function isAllowedUrl(url: string | undefined): boolean {
   if (!url) return false
   try {
     const parsed = new URL(url)
     return (
       parsed.protocol === 'https:' &&
-      (parsed.hostname === 'studely.com' || parsed.hostname === 'www.studely.com')
+      (parsed.hostname === 'studely.com' || parsed.hostname.endsWith('.studely.com'))
     )
   } catch {
     return false
   }
+}
+
+/**
+ * Citations kept for display: real payloads expose `source_url`, `url`
+ * stays as the legacy field. Deduped on the resolved URL (sources ∪
+ * citations can repeat) before the 5-link display cap.
+ */
+function allowedCitations(
+  citations: ChatCitation[] | undefined
+): { citation: ChatCitation; href: string }[] {
+  const links: { citation: ChatCitation; href: string }[] = []
+  const seen = new Set<string>()
+  for (const citation of citations ?? []) {
+    const href = citation.url ?? citation.source_url
+    if (!isAllowedUrl(href) || seen.has(href!)) continue
+    seen.add(href!)
+    links.push({ citation, href: href! })
+    if (links.length === 5) break
+  }
+  return links
+}
+
+/**
+ * Legacy embeds: a <p> cannot hold block nodes — swap it for a <div>
+ * while keeping its attributes (§10.2).
+ */
+function swapParagraphForDiv(body: Element): HTMLElement {
+  const div = document.createElement('div')
+  for (const attr of Array.from(body.attributes)) div.setAttribute(attr.name, attr.value)
+  body.replaceWith(div)
+  return div
+}
+
+/** Builds one citation <a>. Labeled citations render as `[S3] Title`;
+    otherwise title, else URL. */
+function citationAnchor(c: { citation: ChatCitation; href: string }): HTMLAnchorElement {
+  const link = document.createElement('a')
+  link.href = c.href
+  const label = c.citation.label?.trim()
+  link.textContent = label
+    ? `[${label}] ${c.citation.title?.trim() || c.href}`
+    : c.citation.title?.trim() || c.href
+  link.target = '_blank'
+  link.rel = 'noopener'
+  return link
 }
 
 /**
@@ -49,31 +98,19 @@ export function fillAssistantEntry(
   text: string,
   citations: ChatCitation[] | undefined
 ): { pieces: number; links: number } {
-  const links = (citations ?? []).filter((citation) => isAllowedUrl(citation.url)).slice(0, 5)
+  const links = allowedCitations(citations)
   if (!text.trim() && links.length === 0) return { pieces: 0, links: 0 }
   let body = card.querySelector('[data-reco-field="text"]') ?? card
   const fragment = renderMarkdown(text.trim(), isAllowedUrl)
-  // Legacy embeds: a <p> cannot hold block nodes — swap it for a <div>
-  // while keeping its attributes (§10.2).
   if (body instanceof HTMLParagraphElement && fragment.childElementCount > 0) {
-    const div = document.createElement('div')
-    for (const attr of Array.from(body.attributes)) div.setAttribute(attr.name, attr.value)
-    body.replaceWith(div)
-    body = div
+    body = swapParagraphForDiv(body)
   }
   if (body instanceof HTMLElement) body.dataset.recoMarkdown = ''
   body.replaceChildren(fragment)
   const list = card.querySelector('[data-reco-field="links"]')
   if (list) {
     list.replaceChildren()
-    for (const citation of links) {
-      const link = document.createElement('a')
-      link.href = citation.url!
-      link.textContent = citation.title?.trim() || citation.url!
-      link.target = '_blank'
-      link.rel = 'noopener'
-      list.append(link)
-    }
+    for (const link of links) list.append(citationAnchor(link))
   }
   return { pieces: links.length + (text.trim() ? 1 : 0), links: links.length }
 }

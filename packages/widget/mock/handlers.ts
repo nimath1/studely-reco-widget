@@ -44,12 +44,18 @@ function localeOf(): Locale {
     : 'fr'
 }
 
-/** Flux SSE du contrat : chunks `delta` puis un `final` de métadonnées. */
+/**
+ * Flux SSE du contrat : `event: sources` (retrieval list) en premier,
+ * puis les chunks `delta` et un `final` de métadonnées — `sources` n'y
+ * est pas répété (événement dédié côté API réelle).
+ */
 function sse(reply: ChatReply): HttpResponse<string> {
   const chunks = reply.text.match(/.{1,80}/gs) ?? []
+  const { sources, ...meta } = reply.meta
   const body =
+    (sources?.length ? `event: sources\ndata: ${JSON.stringify({ sources })}\n\n` : '') +
     chunks.map((text) => `event: delta\ndata: ${JSON.stringify({ text })}\n\n`).join('') +
-    `event: final\ndata: ${JSON.stringify(reply.meta)}\n\n`
+    `event: final\ndata: ${JSON.stringify(meta)}\n\n`
   return new HttpResponse(body, { headers: { 'Content-Type': 'text/event-stream' } })
 }
 

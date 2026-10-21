@@ -19,7 +19,12 @@ export interface ChatDelta {
 /** Source citée par l'agent dans l'événement `final`. */
 export interface ChatCitation {
   title?: string
+  /** Legacy field kept for backward compatibility — prefer `source_url`. */
   url?: string
+  /** Marker correlating with the literal `[S3]` tags in the reply text. */
+  label?: string
+  source_url?: string
+  updated_at?: string
 }
 
 /** Événement `final` du flux SSE : métadonnées de la réponse. */
@@ -31,6 +36,8 @@ export interface ChatFinal {
   lang?: string
   topic?: string
   citations?: ChatCitation[]
+  /** Full retrieval list, carried by the `event: sources` block. */
+  sources?: ChatCitation[]
 }
 
 /** Réponse complète d'un appel /chat : texte reconstitué + métadonnées. */

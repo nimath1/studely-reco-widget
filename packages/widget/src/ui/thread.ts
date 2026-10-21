@@ -59,7 +59,9 @@ export function appendAssistant(
   const { pieces, links } = fillAssistantEntry(
     card,
     rejected ? text : reply.text,
-    reply.meta.citations
+    // `event: sources` lists every retrieved source; `final.citations`
+    // only those actually cited — union (URL dedupe happens downstream).
+    [...(reply.meta.sources ?? []), ...(reply.meta.citations ?? [])]
   )
   if (pieces === 0) {
     // Réponse vide : la bulle garde au moins le message « aucun parcours ».

@@ -7,7 +7,7 @@ const VALID = 'data-reco-origin="mexique" data-reco-advisor-url="/mexique#contac
 
 /** IntersectionObserver factice : comme le vrai, il se tait une fois déconnecté. */
 class FakeIntersectionObserver {
-  static instances: FakeIntersectionObserver[] = []
+  static readonly instances: FakeIntersectionObserver[] = []
   readonly targets: Element[] = []
   connected = true
 
@@ -48,7 +48,7 @@ function mount(html: string): HTMLElement[] {
 }
 
 beforeEach(() => {
-  FakeIntersectionObserver.instances = []
+  FakeIntersectionObserver.instances.length = 0
   vi.stubGlobal('IntersectionObserver', FakeIntersectionObserver)
 })
 

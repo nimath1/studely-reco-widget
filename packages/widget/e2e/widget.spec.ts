@@ -48,7 +48,7 @@ test.describe('parcours widget (mock MSW)', () => {
     const links = widget(page).locator('[data-reco-results] [data-reco-field="links"] a')
     await expect(links).toHaveCount(3)
     for (const link of await links.all()) {
-      await expect(link).toHaveAttribute('href', /https:\/\/(www\.)?studely\.com/)
+      await expect(link).toHaveAttribute('href', /https:\/\/([\w-]+\.)*studely\.com/)
     }
   })
 

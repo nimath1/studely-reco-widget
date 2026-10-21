@@ -49,6 +49,33 @@ describe('parseSse', () => {
     expect(reply.meta.citations).toHaveLength(1)
   })
 
+  it('event: sources avant les delta → meta.sources ; citations final intactes', () => {
+    const source = {
+      label: 'S1',
+      title: 'Guide visa',
+      source_url: 'https://support.studely.com/hc/fr/articles/1-guide',
+      updated_at: '2025-11-04'
+    }
+    const stream =
+      `event: sources\ndata: ${JSON.stringify({ sources: [source] })}\n\n` +
+      'event: delta\ndata: {"text":"Voir [S1]"}\n\n' +
+      `event: final\ndata: ${JSON.stringify({ session_id: 's1', citations: [source] })}\n\n`
+    const reply = parseSse(stream)
+    expect(reply.text).toBe('Voir [S1]')
+    expect(reply.meta.sources).toEqual([source])
+    expect(reply.meta.citations).toEqual([source])
+  })
+
+  it('ignore un payload sources non-tableau', () => {
+    const stream =
+      'event: sources\ndata: {"sources":"nope"}\n\n' +
+      'event: sources\ndata: {"sources":{"label":"S1"}}\n\n' +
+      'event: final\ndata: {"session_id":"s1"}\n\n'
+    const reply = parseSse(stream)
+    expect(reply.meta.session_id).toBe('s1')
+    expect(reply.meta.sources).toBeUndefined()
+  })
+
   it('normalise les fins de ligne CRLF', () => {
     const stream =
       'event: delta\r\ndata: {"text":"Bon"}\r\n\r\n' +

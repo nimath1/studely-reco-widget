@@ -73,8 +73,12 @@ describe('parcours complet contre le mock MSW', () => {
     const links = [...reply.querySelectorAll<HTMLAnchorElement>('[data-reco-field="links"] a')]
     expect(links).toHaveLength(3)
     for (const link of links) {
-      expect(link.href).toMatch(/^https:\/\/(www\.)?studely\.com/)
+      expect(link.href).toMatch(/^https:\/\/([\w-]+\.)*studely\.com/)
+      expect(link.target).toBe('_blank')
+      expect(link.rel).toBe('noopener')
     }
+    // Labeled citations render their `[Sn]` marker before the title.
+    expect(links[0]!.textContent).toContain('[S1]')
     // dataLayer fed with the common parameters (§9.2).
     const events = (window.dataLayer ?? []).map((p) => p.event)
     expect(events).toContain('reco_reply')

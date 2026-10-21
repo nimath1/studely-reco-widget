@@ -74,6 +74,55 @@ const ERROR_KEYS: Record<RecoApiError['kind'], string> = {
 const STATIC_LABELS: [field: string, key: string][] = [['input-label', 'reco.input.label']]
 
 /**
+ * Consent labels of both templates: the legacy checkbox keeps the
+ * `reco.consent` key, the "continuation" notice has its own — one must
+ * never overwrite the other.
+ */
+function applyConsentLabels(el: HTMLElement, t: Translate): void {
+  const legacyConsent = t('reco.consent')
+  if (legacyConsent !== 'reco.consent') {
+    el.querySelectorAll<HTMLElement>('[data-reco-field="consent-label"]').forEach((node) => {
+      if (node.closest('[data-reco-consent="continuation"]')) return
+      node.textContent = legacyConsent
+    })
+  }
+  const continuationNotice = el.querySelector<HTMLElement>(
+    '[data-reco-consent="continuation"] [data-reco-field="consent-label"], [data-reco-consent="continuation"][data-reco-field="consent-label"]'
+  )
+  if (continuationNotice) {
+    const notice = t('reco.consent.continuation')
+    if (notice !== 'reco.consent.continuation') continuationNotice.textContent = notice
+  }
+}
+
+/**
+ * Applies the block's translations to the static template labels — a
+ * missing key keeps the template's FR text (the key is never displayed).
+ * Returns the composer textarea, still needed by mount for focus,
+ * listeners and value access.
+ */
+function applyStaticLabels(el: HTMLElement, t: Translate): HTMLTextAreaElement | null {
+  for (const [field, key] of STATIC_LABELS) {
+    const label = t(key)
+    if (label !== key) fillField(el, field, label)
+  }
+  applyConsentLabels(el, t)
+  const composer = el.querySelector<HTMLTextAreaElement>('[data-reco-input="message"]')
+  if (composer) {
+    const placeholder = t('reco.input.placeholder')
+    if (placeholder !== 'reco.input.placeholder') composer.placeholder = placeholder
+  }
+  const sendButton = el.querySelector<HTMLElement>('[data-reco-action="send"]')
+  if (sendButton) {
+    const label = t('reco.send')
+    if (label !== 'reco.send') sendButton.setAttribute('aria-label', label)
+  }
+  const disclaimer = el.querySelector<HTMLElement>('[data-reco-disclaimer]')
+  if (disclaimer) disclaimer.textContent = t('reco.disclaimer')
+  return composer
+}
+
+/**
  * Câblage d'un bloc : conversation pilotée par les templates
  * `data-reco-*`, envoi libre vers POST /chat (SSE), session continuée,
  * consentement et défi Turnstile avant le premier envoi. Tout repose sur
@@ -119,41 +168,9 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     view.state.live = text
   }
 
-  // Libellés du gabarit remplacés par la traduction du bloc — les clés
-  // absentes gardent le texte FR du gabarit (jamais la clé affichée).
-  for (const [field, key] of STATIC_LABELS) {
-    const label = t(key)
-    if (label !== key) fillField(el, field, label)
-  }
-  // Deux gabarits de consentement coexistent : la case héritée garde la
-  // clé `reco.consent`, la notice « continuation » a la sienne — l'une ne
-  // doit jamais écraser l'autre.
-  const legacyConsent = t('reco.consent')
-  if (legacyConsent !== 'reco.consent') {
-    el.querySelectorAll<HTMLElement>('[data-reco-field="consent-label"]').forEach((node) => {
-      if (node.closest('[data-reco-consent="continuation"]')) return
-      node.textContent = legacyConsent
-    })
-  }
-  const continuationNotice = el.querySelector<HTMLElement>(
-    '[data-reco-consent="continuation"] [data-reco-field="consent-label"], [data-reco-consent="continuation"][data-reco-field="consent-label"]'
-  )
-  if (continuationNotice) {
-    const notice = t('reco.consent.continuation')
-    if (notice !== 'reco.consent.continuation') continuationNotice.textContent = notice
-  }
-  const composer = el.querySelector<HTMLTextAreaElement>('[data-reco-input="message"]')
-  if (composer) {
-    const placeholder = t('reco.input.placeholder')
-    if (placeholder !== 'reco.input.placeholder') composer.placeholder = placeholder
-  }
-  const sendButton = el.querySelector<HTMLElement>('[data-reco-action="send"]')
-  if (sendButton) {
-    const label = t('reco.send')
-    if (label !== 'reco.send') sendButton.setAttribute('aria-label', label)
-  }
-  const disclaimer = el.querySelector<HTMLElement>('[data-reco-disclaimer]')
-  if (disclaimer) disclaimer.textContent = t('reco.disclaimer')
+  // Libellés statiques du gabarit traduits ; le composer trouvé sert
+  // encore ici (focus, écouteurs, valeur).
+  const composer = applyStaticLabels(el, t)
 
   function consentGranted(granted: boolean): void {
     view.state.consent = granted
