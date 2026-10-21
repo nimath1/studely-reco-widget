@@ -7,12 +7,12 @@ afterEach(() => {
 
 it('lit les libellés du bloc data-reco-labels', () => {
   const t = readLabels(mountWidget())
-  expect(t('reco.error.required')).toBe('Champ requis')
+  expect(t('reco.error.consent')).toBe('Consentement requis')
 })
 
 it('interpole les {variables}', () => {
   const t = readLabels(mountWidget())
-  expect(t('reco.progress', { step: 2, total: 5 })).toBe('Étape 2 sur 5')
+  expect(t('reco.results.count', { count: 3 })).toBe('3 recommandations')
 })
 
 it('clé absente : console.warn nommant la clé, repli FR si disponible', () => {

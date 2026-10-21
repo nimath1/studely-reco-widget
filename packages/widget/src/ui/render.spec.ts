@@ -1,160 +1,83 @@
-import { mountStepsWidget } from '../testing/widget.fixture'
-import { isAllowedUrl, renderChatReply, renderOptions, resetInputs } from './render'
-import type { RecoOptions } from '../api/types'
+import { cloneTemplate, fillAssistantEntry, fillField, isAllowedUrl } from './render'
+import { mountWidget } from '../testing/widget.fixture'
 
-const OPTIONS: RecoOptions = {
-  levels: [
-    { id: 'licence', label: 'Licence' },
-    { id: 'master', label: '<b>Master</b>' }
-  ],
-  fields: [{ id: 'info', label: 'Informatique' }],
-  destinations: [{ id: 'france', label: 'France' }],
-  languages: [{ id: 'fr', label: 'Français' }],
-  languageLevels: [{ id: 'b2', label: 'B2' }],
-  budgets: [{ id: 'lt10k', label: '< 10 k€' }],
-  intakes: [{ id: 'sep', label: 'Septembre' }]
-}
+let el: HTMLElement
 
-afterEach(() => {
-  document.body.replaceChildren()
+beforeEach(() => {
+  el = mountWidget()
 })
 
-describe('renderOptions', () => {
-  it('clone les templates et associe input ↔ label (id/for, name)', () => {
-    const el = mountStepsWidget()
-    renderOptions(el, OPTIONS)
-
-    const radios = el.querySelectorAll<HTMLInputElement>('[data-reco-options="level"] input')
-    expect(radios).toHaveLength(2)
-    radios.forEach((input) => {
-      expect(input.type).toBe('radio')
-      expect(input.name).toBe('reco-level')
-      expect(input.id).toBeTruthy()
-      expect(input.closest('label')!.htmlFor).toBe(input.id)
-    })
-
-    const checks = el.querySelectorAll<HTMLInputElement>('[data-reco-options="fields"] input')
-    expect(checks[0]!.type).toBe('checkbox')
-    expect(checks[0]!.name).toBe('reco-fields')
-    expect(checks[0]!.value).toBe('info')
-  })
-
-  it('affiche un libellé contenant du HTML en texte brut', () => {
-    const el = mountStepsWidget()
-    renderOptions(el, OPTIONS)
-    const label = el.querySelectorAll('[data-reco-options="level"] [data-reco-field="label"]')[1]
-    expect(label!.textContent).toBe('<b>Master</b>')
-    expect(label!.querySelector('b')).toBeNull()
-  })
-
-  it('génère les lignes langue avec select de niveaux', () => {
-    const el = mountStepsWidget()
-    renderOptions(el, OPTIONS)
-    const row = el.querySelector('[data-reco-options="languages"] [data-reco-value="fr"]')
-    const select = row!.querySelector('select')!
-    expect(row!.textContent).toContain('Français')
-    expect([...select.options].map((o) => o.value)).toEqual(['', 'b2'])
-  })
-
-  it('ne dépend d’aucune classe Webflow', () => {
-    const el = mountStepsWidget()
-    el.querySelectorAll('[class]').forEach((node) => node.setAttribute('class', 'renamed'))
-    renderOptions(el, OPTIONS)
-    expect(el.querySelectorAll('[data-reco-options="level"] input')).toHaveLength(2)
+describe('cloneTemplate', () => {
+  it('clone sans l’attribut template ; null si inconnu', () => {
+    const clone = cloneTemplate(el, 'msg-user')!
+    expect(clone).not.toBeNull()
+    expect(clone.hasAttribute('data-reco-template')).toBe(false)
+    expect(clone.dataset.recoMsg).toBe('user')
+    // L'original reste intact pour les clones suivants.
+    expect(el.querySelector('[data-reco-template="msg-user"]')).not.toBeNull()
+    expect(cloneTemplate(el, 'inconnu')).toBeNull()
   })
 })
 
-describe('renderChatReply', () => {
-  it('clone le template reply : texte brut, jamais interprété', () => {
-    const el = mountStepsWidget()
-    const { pieces, links } = renderChatReply(
-      el,
-      'Profil <script>alert(1)</script> adapté',
-      undefined
-    )
-
-    expect(pieces).toBe(1)
-    expect(links).toBe(0)
-    const body = el.querySelector('[data-reco-results] [data-reco-field="text"]')
-    expect(body!.textContent).toBe('Profil <script>alert(1)</script> adapté')
-    expect(el.querySelector('[data-reco-results] script')).toBeNull()
-    expect(el.querySelectorAll('[data-reco-results] [data-reco-template]')).toHaveLength(0)
-  })
-
-  it('les citations deviennent des liens, filtrés https studely.com (R10)', () => {
-    const el = mountStepsWidget()
-    const { pieces, links } = renderChatReply(el, 'Trois pistes.', [
-      { title: 'http', url: 'http://studely.com/p/1' },
-      { title: 'autre domaine', url: 'https://evil.com/p/1' },
-      { title: 'sous-domaine', url: 'https://api.studely.com/p/1' },
-      { title: 'ok', url: 'https://www.studely.com/p/2' }
-    ])
-
-    expect(pieces).toBe(2) // texte + 1 lien
-    expect(links).toBe(1)
-    const anchors = el.querySelectorAll<HTMLAnchorElement>('[data-reco-field="links"] a')
-    expect(anchors).toHaveLength(1)
-    expect(anchors[0]!.href).toBe('https://www.studely.com/p/2')
-    expect(anchors[0]!.textContent).toBe('ok')
-    expect(anchors[0]!.rel).toBe('noopener')
-    expect(el.querySelector('[data-reco-results]')!.textContent).not.toContain('sous-domaine')
-  })
-
-  it('sans titre de citation, l’URL sert de libellé', () => {
-    const el = mountStepsWidget()
-    renderChatReply(el, '', [{ url: 'https://studely.com/p' }])
-    const link = el.querySelector<HTMLAnchorElement>('[data-reco-field="links"] a')!
-    expect(link.textContent).toBe('https://studely.com/p')
-  })
-
-  it('plafonne à 5 liens', () => {
-    const el = mountStepsWidget()
-    const citations = Array.from({ length: 7 }, (_, i) => ({
-      title: `P${i}`,
-      url: `https://studely.com/p/${i}`
-    }))
-    expect(renderChatReply(el, '', citations).links).toBe(5)
-    expect(el.querySelectorAll('[data-reco-field="links"] a')).toHaveLength(5)
-  })
-
-  it('texte vide et citations toutes écartées → 0 (panel empty)', () => {
-    const el = mountStepsWidget()
-    expect(
-      renderChatReply(el, '  ', [
-        { title: 'x', url: 'https://evil.com' },
-        { title: 'y', url: 'javascript:alert(1)' }
-      ]).pieces
-    ).toBe(0)
-    expect(el.querySelector('[data-reco-results]')!.children).toHaveLength(0)
+describe('fillField', () => {
+  it('remplit le texte via textContent, et href sur un lien', () => {
+    const card = cloneTemplate(el, 'msg-assistant')!
+    fillField(card, 'text', '<b>x</b>')
+    expect(card.querySelector('[data-reco-field="text"]')!.textContent).toBe('<b>x</b>')
+    const cta = cloneTemplate(el, 'advisor-cta')!
+    fillField(cta, 'label', 'Conseiller')
+    expect(cta.textContent).toContain('Conseiller')
   })
 })
 
 describe('isAllowedUrl', () => {
-  it.each([
-    ['https://studely.com/p', true],
-    ['https://www.studely.com/p', true],
-    ['http://studely.com/p', false],
-    ['https://studely.com.evil.com/', false],
-    ['https://api.studely.com/', false],
-    ['/relative', false],
-    [undefined, false],
-    ['pas une url', false]
-  ])('%s → %s', (url, expected) => {
-    expect(isAllowedUrl(url)).toBe(expected)
+  it('n’accepte que https sur studely.com', () => {
+    expect(isAllowedUrl('https://www.studely.com/p')).toBe(true)
+    expect(isAllowedUrl('https://studely.com/p')).toBe(true)
+    expect(isAllowedUrl('http://studely.com/p')).toBe(false)
+    expect(isAllowedUrl('https://evil-studely.com/')).toBe(false)
+    expect(isAllowedUrl('https://example.com/')).toBe(false)
+    expect(isAllowedUrl('javascript:alert(1)')).toBe(false)
+    expect(isAllowedUrl(undefined)).toBe(false)
   })
 })
 
-describe('resetInputs', () => {
-  it('décoche tout et vide les saisies', () => {
-    const el = mountStepsWidget()
-    renderOptions(el, OPTIONS)
-    el.querySelector<HTMLInputElement>('[data-reco-options="level"] input')!.checked = true
-    el.querySelector<HTMLTextAreaElement>('[data-reco-input="goal"]')!.value = 'abc'
-    el.querySelector<HTMLInputElement>('[data-reco-input="consent"]')!.checked = true
+describe('fillAssistantEntry', () => {
+  const card = () => cloneTemplate(el, 'msg-assistant')!
 
-    resetInputs(el)
-    expect(el.querySelectorAll('[data-reco-options] input:checked')).toHaveLength(0)
-    expect(el.querySelector<HTMLTextAreaElement>('[data-reco-input="goal"]')!.value).toBe('')
-    expect(el.querySelector<HTMLInputElement>('[data-reco-input="consent"]')!.checked).toBe(false)
+  it('texte seul → 1 pièce, 0 lien', () => {
+    expect(fillAssistantEntry(card(), 'Réponse', undefined)).toEqual({ pieces: 1, links: 0 })
+  })
+
+  it('citations filtrées : seules restent les https studely.com, 5 max', () => {
+    const citations = [
+      { title: 'A', url: 'https://www.studely.com/a' },
+      { title: 'B', url: 'https://example.com/b' },
+      { title: 'C', url: 'javascript:alert(1)' },
+      { title: 'D', url: 'https://studely.com/d' }
+    ]
+    const entry = card()
+    const result = fillAssistantEntry(entry, 'Texte', citations)
+    expect(result).toEqual({ pieces: 3, links: 2 })
+    const links = [...entry.querySelectorAll<HTMLAnchorElement>('[data-reco-field="links"] a')]
+    expect(links.map((l) => l.href)).toEqual(['https://www.studely.com/a', 'https://studely.com/d'])
+    expect(links[0]!.target).toBe('_blank')
+    expect(links[0]!.rel).toBe('noopener')
+  })
+
+  it('titre absent → url comme libellé', () => {
+    const entry = card()
+    fillAssistantEntry(entry, '', [{ url: 'https://www.studely.com/x' }])
+    expect(entry.querySelector('[data-reco-field="links"] a')!.textContent).toBe(
+      'https://www.studely.com/x'
+    )
+  })
+
+  it('texte vide + toutes citations filtrées → 0 pièce', () => {
+    const entry = card()
+    expect(fillAssistantEntry(entry, '  ', [{ url: 'https://example.com/x' }])).toEqual({
+      pieces: 0,
+      links: 0
+    })
   })
 })

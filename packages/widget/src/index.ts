@@ -11,38 +11,35 @@ import {
   RecoApiError,
   saveChatSession
 } from './api/client'
-import { buildChatMessage } from './api/message'
-import { optionsFor } from './api/options'
-import type { ChatReply, RecoProfile } from './api/types'
+import type { ChatReply } from './api/types'
 import { readConfig, type WidgetConfig } from './config'
 import { ensureChallenge, resetChallenge, turnstileToken } from './consent/turnstile'
-import { makeFormatters } from './i18n/format'
-import { readLabels } from './i18n/labels'
+import { readLabels, type Translate } from './i18n/labels'
 import { logger } from './logger'
-import { RecoMachine, stepOf, STEP_COUNT, type WidgetState } from './state/machine'
 import { emitRecoEvent, trackReco } from './tracking/events'
-import { renderConversation } from './ui/conversation'
-import { renderChatReply, renderOptions, resetInputs } from './ui/render'
+import { injectTemplate } from './ui/template'
 import {
-  applyAnswers,
-  buildProfile,
-  clearDraft,
-  clearFieldError,
-  collectAnswers,
-  loadDraft,
-  MAX_FIELDS,
-  saveDraft,
-  showFieldError,
-  stepOfField,
-  validateStep
-} from './ui/steps'
-import { mountView, nextTick } from './ui/view'
+  appendAssistant,
+  appendUser,
+  clearThread,
+  greet,
+  hideError,
+  hidePending,
+  setChipsEnabled,
+  showError,
+  showPending
+} from './ui/thread'
+import { fillField } from './ui/render'
+import { mountView } from './ui/view'
 
 export const version: string = pkgVersion
 
 const WIDGET_SELECTOR = '[data-reco-widget]'
 // Aucun appel réseau tant que le bloc n'est pas à moins de 200 px de l'écran.
 const LAZY_ROOT_MARGIN = '200px'
+
+/** `data-reco-state` : seul le consentement distingue deux phases (§5.1). */
+type WidgetPhase = 'consent' | 'chat'
 
 interface Instance {
   /** Observer en attente de l'approche de l'écran, s'il y en a un. */
@@ -72,34 +69,33 @@ const ERROR_KEYS: Record<RecoApiError['kind'], string> = {
   forbidden: 'reco.error.captcha'
 }
 
+/** Textes statiques du gabarit passés par le bloc de libellés traduit. */
+const STATIC_LABELS: [field: string, key: string][] = [
+  ['consent-label', 'reco.consent'],
+  ['input-label', 'reco.input.label'],
+  ['reset-label', 'reco.reset']
+]
+
 /**
- * Câblage d'un bloc : vue réactive, machine à états, actions
- * `data-reco-action`, options et soumission à l'API, brouillon
- * sessionStorage. Tout repose sur le `signal` : un `init` suivant retire
- * proprement écouteurs, minuteurs et effets réactifs.
+ * Câblage d'un bloc : conversation pilotée par les templates
+ * `data-reco-*`, envoi libre vers POST /chat (SSE), session continuée,
+ * consentement et défi Turnstile avant le premier envoi. Tout repose sur
+ * le `signal` : un `init` suivant retire proprement écouteurs, minuteurs
+ * et effets réactifs.
  */
 function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void {
-  const t = readLabels(el)
-  const fmt = makeFormatters(config.locale)
-  const view = mountView(el, t, fmt.number)
+  const t: Translate = readLabels(el)
+  const view = mountView(el)
   signal.addEventListener('abort', view.unmount, { once: true })
-  const machine = new RecoMachine(el, view.state, 'intro')
-  const draft = loadDraft(config.origin)
 
-  /** Exécute `fn` une fois le DOM à jour, sauf si le bloc a changé d'état entre-temps. */
-  const afterRender = (fn: () => void) => {
-    const state = machine.state
-    void nextTick(() => {
-      if (!signal.aborted && machine.state === state) fn()
-    })
+  let phase: WidgetPhase = 'consent'
+  const setPhase = (to: WidgetPhase, name: string) => {
+    if (phase === to) return
+    emitRecoEvent(el, name, { from: phase, to })
+    phase = to
+    el.dataset.recoState = to
   }
 
-  // Le lien conseiller est disponible dans tous les états (§4).
-  el.querySelectorAll<HTMLAnchorElement>('[data-reco-action="advisor"]').forEach((link) => {
-    link.href = config.advisorUrl
-  })
-
-  let lastProfile: RecoProfile | null = null
   /** La session /chat continue d'un envoi à l'autre (retry compris). */
   let sessionId = loadChatSession(config.origin)
   let retryLockUntil = 0
@@ -108,180 +104,139 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
   /** Timestamp of the last send, for the tracking `duration_ms` (§9.2). */
   let submittedAt: number | null = null
   let lastResultCount: number | undefined
+  /** Dernier message utilisateur envoyé — « Réessayer » le reposte tel quel. */
+  let lastMessage = ''
   /** Generation of the in-flight request: restart or a new send makes a
       pending reply stale — it must write neither UI nor session. */
   let generation = 0
+  /** Annulation « Arrêter la réponse » de l'envoi courant. */
+  let sendAbort: AbortController | null = null
 
   trackReco(el, { locale: config.locale, origin: config.origin, version: pkgVersion }, signal, {
     getDurationMs: () => (submittedAt === null ? undefined : Date.now() - submittedAt),
     getResultCount: () => lastResultCount
   })
 
-  /** Annonces lecteur d'écran : changement d'étape et erreurs (§8.2). */
+  /** Annonces lecteur d'écran : erreurs et consentement (§8.2). */
   const announce = (text: string) => {
     view.state.live = text
   }
 
-  const persist = () =>
-    saveDraft({
-      origin: config.origin,
-      step: stepOf(machine.state) ?? 1,
-      answers: collectAnswers(el)
-    })
+  // Le lien conseiller est disponible dans tous les états (§4).
+  el.querySelectorAll<HTMLAnchorElement>('[data-reco-action="advisor"]').forEach((link) => {
+    link.href = config.advisorUrl
+  })
+  // Libellés du gabarit remplacés par la traduction du bloc — les clés
+  // absentes gardent le texte FR du gabarit (jamais la clé affichée).
+  for (const [field, key] of STATIC_LABELS) {
+    const label = t(key)
+    if (label !== key) fillField(el, field, label)
+  }
+  const composer = el.querySelector<HTMLTextAreaElement>('[data-reco-input="message"]')
+  if (composer) {
+    const placeholder = t('reco.input.placeholder')
+    if (placeholder !== 'reco.input.placeholder') composer.placeholder = placeholder
+  }
+  const sendButton = el.querySelector<HTMLElement>('[data-reco-action="send"]')
+  if (sendButton) {
+    const label = t('reco.send')
+    if (label !== 'reco.send') sendButton.setAttribute('aria-label', label)
+  }
+  const disclaimer = el.querySelector<HTMLElement>('[data-reco-disclaimer]')
+  if (disclaimer) disclaimer.textContent = t('reco.disclaimer')
 
-  function syncChrome(): void {
-    const step = stepOf(machine.state)
-    if (step !== null) {
-      announce(t('reco.progress', { step: fmt.number(step), total: fmt.number(STEP_COUNT) }))
-      // Optional transcript repainted before focusing the active question.
-      renderConversation(el, step)
-      // The fieldset only becomes visible once the view has rendered.
-      afterRender(() => {
-        const legend = el.querySelector<HTMLElement>(`[data-reco-step="${step}"] legend`)
-        // preventScroll only when a scrollable body exists: templates without
-        // one keep the default focus scroll behavior.
-        const body = el.querySelector<HTMLElement>('[data-reco-body]')
-        legend?.focus({ preventScroll: Boolean(body) })
-        // Bring the question to the top of the scrollable body only — never
-        // scrollIntoView, which could move an embedded host page.
-        if (legend && body) {
-          body.scrollTop +=
-            legend.getBoundingClientRect().top - body.getBoundingClientRect().top - 20
-        }
-      })
-      // Le script Turnstile n'est chargé qu'à l'arrivée sur l'étape 5 (§9.1).
-      if (step === STEP_COUNT) void ensureChallenge(el, signal)
+  function consentGranted(granted: boolean): void {
+    view.state.consent = granted
+    if (granted) {
+      setPhase('chat', 'consent')
+      // Le script Turnstile n'est chargé qu'au déblocage (§9.1) : le jeton
+      // a le temps d'être prêt avant le premier envoi.
+      void ensureChallenge(el, signal)
+      composer?.focus()
+    } else {
+      setPhase('consent', 'consent_revoked')
     }
   }
 
-  /** Focus sur le titre du panel (results, empty, error) : le focus ne se perd pas. */
-  function focusPanel(state: WidgetState): void {
-    const title = el.querySelector<HTMLElement>(
-      `[data-reco-panel="${state}"] :is(h1, h2, h3, h4, h5, h6, [data-reco-title])`
-    )
-    if (!title) return
-    title.tabIndex = -1
-    afterRender(() => title.focus())
-  }
-
-  function showError(error: unknown): void {
+  function showErrorCard(error: unknown): void {
     const kind = error instanceof RecoApiError ? error.kind : 'network'
-    if (el.querySelector('[data-reco-error-message]')) {
-      view.state.errorMessage = t(ERROR_KEYS[kind])
-      announce(t(ERROR_KEYS[kind]))
+    const message = t(ERROR_KEYS[kind])
+    showError(el, t, message)
+    emitRecoEvent(el, 'error', { kind })
+    announce(message)
+  }
+
+  /** Termine un envoi : squelette retiré, saisie et chips réactivées. */
+  function settleSend(): void {
+    sendAbort = null
+    view.state.pending = false
+    hidePending(el)
+    setChipsEnabled(el, true)
+  }
+
+  /** Réponse /chat affichée : bulle assistant, ou refus out-of-scope. */
+  function showReply(reply: ChatReply): void {
+    const rejected = reply.meta.out_of_scope === true || reply.meta.intent === 'out_of_scope'
+    const { pieces, links } = appendAssistant(el, reply, t, config.advisorUrl)
+    lastResultCount = links > 0 ? links : pieces
+    if (rejected) {
+      emitRecoEvent(el, 'empty')
+      announce(t('reco.empty'))
+    } else {
+      emitRecoEvent(el, 'reply', { count: lastResultCount })
+      announce(t('reco.results.count', { count: lastResultCount }))
     }
-    machine.dispatch('error')
-    focusPanel('error')
   }
 
   /**
-   * Options statiques (src/api/options.ts) : l'API chatbot ne sert pas
-   * d'endpoint options — le rendu est synchrone, sans appel réseau, donc
-   * sans chemin d'échec à gérer.
+   * POST /chat pour `message` (déjà affiché dans le fil). Appelé par
+   * l'envoi utilisateur, « Réessayer » et la relance captcha — n'ajoute
+   * jamais de bulle utilisateur lui-même.
    */
-  function loadOptions(): void {
-    renderOptions(el, optionsFor(config.locale))
-    if (draft) {
-      applyAnswers(el, draft.answers)
-      if (draft.step >= 1 && draft.step <= STEP_COUNT) {
-        machine.goTo(`step-${draft.step}` as WidgetState, 'resume')
-      }
-    }
-    if (machine.state === 'loading') machine.goTo('intro', 'retry')
-    syncChrome()
-  }
-
-  /** Réponse /chat affichée : résultats, ou empty si tout est écarté. */
-  function showReply(reply: ChatReply): void {
-    const rejected = reply.meta.out_of_scope === true || reply.meta.intent === 'out_of_scope'
-    const trimText = reply.text.trim()
-    // Optional empty-panel hooks: the backend refusal text goes into
-    // [data-reco-empty-reason], the generic guidance into
-    // [data-reco-empty-default]. Old templates without them are a no-op.
-    const reason = el.querySelector<HTMLElement>('[data-reco-empty-reason]')
-    const generic = el.querySelector<HTMLElement>('[data-reco-empty-default]')
-    if (reason) {
-      reason.textContent = rejected ? trimText : ''
-      reason.hidden = !rejected || !trimText
-    }
-    if (generic) generic.hidden = rejected && Boolean(trimText) && Boolean(reason)
-    if (rejected) {
-      // An out-of-scope refusal is never counted as a recommendation,
-      // even when its text/citations look supported.
-      renderChatReply(el, '', [])
-      lastResultCount = 0
-      machine.dispatch('empty')
-      announce(t('reco.empty'))
-      focusPanel('empty')
-      return
-    }
-    const { pieces, links } = renderChatReply(el, reply.text, reply.meta.citations)
-    lastResultCount = links > 0 ? links : pieces
-    if (pieces === 0) {
-      machine.dispatch('empty')
-      announce(t('reco.empty'))
-      focusPanel('empty')
-    } else {
-      machine.dispatch('results')
-      announce(t('reco.results.count', { count: fmt.number(lastResultCount) }))
-      focusPanel('results')
-    }
-  }
-
-  /** Erreur d'envoi : captcha relancé une fois, champ fautif, 429, sinon panel. */
-  function handleSendError(error: unknown): void {
-    if (error instanceof RecoApiError && error.kind === 'forbidden' && captchaFailures === 0) {
-      // Premier 403 : relance du défi et retour à l'étape 5 — l'erreur
-      // reco.error.captcha n'apparaît qu'au second échec (§9.1).
-      captchaFailures += 1
-      resetChallenge(el)
-      machine.goTo('step-5')
-      syncChrome()
-      return
-    }
-    if (handleFieldError(error)) return
-    if (error instanceof RecoApiError && error.kind === 'rate') {
-      lockRetry(error.retryAfter ?? 0)
-    }
-    showError(error)
-  }
-
-  /** Envoie le profil à /chat : réponse texte + citations, empty ou erreur. */
-  async function sendPayload(): Promise<void> {
+  async function sendPayload(message: string): Promise<void> {
     submittedAt = Date.now()
     const gen = ++generation
+    hideError(el)
+    view.state.pending = true
+    setChipsEnabled(el, false)
+    showPending(el, t)
+    sendAbort = new AbortController()
     try {
-      const reply = await postChat(
-        buildChatMessage(lastProfile!, config.locale),
-        sessionId,
-        turnstileToken(el)
-      )
+      const reply = await postChat(message, sessionId, turnstileToken(el), sendAbort.signal)
       if (signal.aborted || gen !== generation) return
       captchaFailures = 0
       if (reply.meta.session_id) {
         sessionId = reply.meta.session_id
         saveChatSession(config.origin, sessionId)
       }
+      settleSend()
       showReply(reply)
     } catch (error) {
       if (signal.aborted || gen !== generation) return
-      handleSendError(error)
+      settleSend()
+      handleSendError(error, message)
     }
   }
 
-  /** 400 avec champ : retour à l'étape du champ fautif, message dessous. */
-  function handleFieldError(error: unknown): boolean {
-    if (!(error instanceof RecoApiError) || error.kind !== 'input' || !error.field) return false
-    const step = stepOfField(error.field)
-    if (step === null) {
-      logger.error('Champ 400 inconnu :', error.field)
-      return false
+  /**
+   * Erreur d'envoi : AbortError (Arrêter) silencieux ; 1er 403 → défi
+   * relancé et message reposté une fois ; 429 → verrou Retry-After ;
+   * sinon carte erreur en pied de fil.
+   */
+  function handleSendError(error: unknown, message: string): void {
+    if (error instanceof DOMException && error.name === 'AbortError') return
+    if (error instanceof RecoApiError && error.kind === 'forbidden' && captchaFailures === 0) {
+      // Premier 403 : le défi est relancé puis le même message repart —
+      // l'erreur reco.error.captcha n'apparaît qu'au second échec (§9.1).
+      captchaFailures += 1
+      resetChallenge(el)
+      void sendPayload(message)
+      return
     }
-    machine.goTo(`step-${step}` as WidgetState)
-    const name = error.field.replace(/^profile\./, '').split('.')[0] ?? ''
-    showFieldError(el, name, t('reco.error.input'))
-    syncChrome()
-    return true
+    if (error instanceof RecoApiError && error.kind === 'rate') {
+      lockRetry(error.retryAfter ?? 0)
+    }
+    showErrorCard(error)
   }
 
   /** « Réessayer » désactivé pendant Retry-After (R9). */
@@ -294,162 +249,141 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     signal.addEventListener('abort', () => clearTimeout(timer), { once: true })
   }
 
-  async function submitProfile(): Promise<void> {
-    lastProfile = buildProfile(collectAnswers(el))
-    machine.dispatch('submit')
-    announce(t('reco.loading'))
-    await sendPayload()
+  /** Envoi utilisateur : bulle dans le fil puis requête — la double porte. */
+  function send(message: string, via: 'text' | 'suggestion' = 'text'): void {
+    const text = message.trim()
+    if (!text || view.state.pending) return
+    if (!view.state.consent) {
+      announce(t('reco.error.consent'))
+      return
+    }
+    lastMessage = text
+    appendUser(el, text)
+    emitRecoEvent(el, 'send', { via })
+    void sendPayload(text)
   }
 
   function retry(): void {
-    // Retry only exists on terminal error/empty panels — a synthetic click
-    // elsewhere (loading, results, steps) must never send a duplicate POST.
-    if (machine.state !== 'error' && machine.state !== 'empty') return
-    if (Date.now() < retryLockUntil || !lastProfile) return
-    machine.dispatch('retry')
-    announce(t('reco.loading'))
-    void sendPayload()
+    // Retry n'existe que depuis la carte erreur — un envoi en cours ou un
+    // délai Retry-After ne doit jamais produire de POST doublon.
+    if (view.state.pending || Date.now() < retryLockUntil || !lastMessage) return
+    emitRecoEvent(el, 'retry')
+    void sendPayload(lastMessage)
   }
 
-  function next(step: number | null): void {
-    if (step === null || !validateStep(el, step, collectAnswers(el), t)) return
-    machine.dispatch('next')
-    persist()
-    syncChrome()
+  function stop(): void {
+    if (!sendAbort) return
+    emitRecoEvent(el, 'stop')
+    sendAbort.abort()
   }
 
   /**
-   * Submission (click or Enter): validates all 5 steps AND consent — a
-   * restored partial draft must never reach /chat. On a missing answer,
-   * goes back to the first invalid step. The synchronous dispatch to
-   * `loading` inside submitProfile is the double-submit lock.
+   * « Nouvelle recherche » : fil vidé, session /chat oubliée (le contexte
+   * du bot ne doit pas mélanger deux demandes), accueil reposé. Le
+   * consentement reste acquis — il a été donné pour la session.
    */
-  function submit(): void {
-    if (machine.state !== `step-${STEP_COUNT}`) return
-    const answers = collectAnswers(el)
-    let firstInvalid: number | null = null
-    for (let step = 1; step <= STEP_COUNT; step += 1) {
-      if (!validateStep(el, step, answers, t, step === STEP_COUNT) && firstInvalid === null) {
-        firstInvalid = step
-      }
-    }
-    if (firstInvalid !== null) {
-      if (stepOf(machine.state) !== firstInvalid) {
-        machine.goTo(`step-${firstInvalid}` as WidgetState)
-      }
-      syncChrome()
-      return
-    }
-    persist()
-    void submitProfile()
-  }
-
   function restart(): void {
-    // Invalidate any in-flight /chat request: its late reply must neither
-    // repaint the intro nor rewrite a session.
     generation += 1
-    clearDraft()
+    sendAbort?.abort()
+    sendAbort = null
+    clearThread(el)
     captchaFailures = 0
     lastResultCount = undefined
-    lastProfile = null
-    // Nouvelle recommandation = nouvelle conversation : le contexte du bot
-    // ne doit pas mélanger deux profils.
+    lastMessage = ''
     sessionId = null
     clearChatSession(config.origin)
-    resetInputs(el)
-    // Clear error messages AND aria state (aria-invalid / describedby).
-    for (const field of [
-      'level',
-      'fields',
-      'destinations',
-      'languages',
-      'budget',
-      'intake',
-      'goal',
-      'consent'
-    ]) {
-      clearFieldError(el, field)
-    }
-    machine.dispatch('restart')
-    syncChrome()
+    view.state.pending = false
+    emitRecoEvent(el, 'reset')
+    greet(el, t)
   }
 
-  function handleAction(action: string, step: number | null): void {
+  function handleAction(action: string, trigger: HTMLElement): void {
     switch (action) {
-      case 'start':
-      case 'back':
-      case 'edit':
-        machine.dispatch(action)
-        syncChrome()
-        break
-      case 'next':
-        next(step)
-        break
-      case 'submit':
-        submit()
-        break
-      case 'restart':
-        restart()
+      case 'send':
+        send(composer?.value ?? '')
+        if (composer) composer.value = ''
         break
       case 'retry':
         retry()
         break
-      case 'advisor':
-        emitRecoEvent(el, 'advisor', { from: machine.state })
+      case 'stop':
+        stop()
         break
+      case 'reset':
+        restart()
+        break
+      case 'advisor':
+        emitRecoEvent(el, 'advisor', { from: phase })
+        break
+      default:
+        // Chip d'amorce : son libellé part comme message utilisateur.
+        if (trigger.dataset.recoSend) send(trigger.dataset.recoSend, 'suggestion')
     }
   }
 
   el.addEventListener(
     'click',
     (event) => {
-      const trigger = (event.target as Element | null)?.closest?.('[data-reco-action]')
+      const trigger = (event.target as Element | null)?.closest?.(
+        '[data-reco-action], [data-reco-send]'
+      )
       if (!(trigger instanceof HTMLElement) || !el.contains(trigger)) return
       const action = trigger.dataset.recoAction ?? ''
-      // The submit button is a real submit: block native submission here
-      // (the form `submit` handler covers the Enter path).
-      if (action === 'submit') event.preventDefault()
-      handleAction(action, stepOf(machine.state))
+      if (action === 'send') event.preventDefault()
+      handleAction(action, trigger)
     },
     { signal }
   )
 
-  // Brouillon sauvegardé à chaque modification ; 4e domaine refusé (§5.1).
+  // Consentement : coche → saisie déverrouillée ; décoche → retour consent.
   el.addEventListener(
     'change',
     (event) => {
       const input = event.target
-      const container = (input as Element | null)?.closest?.('[data-reco-options]')
-      const field = container instanceof HTMLElement ? container.dataset.recoOptions : undefined
-      if (field) clearFieldError(el, field)
-      if (input instanceof HTMLInputElement && input.closest('[data-reco-input="consent"]')) {
-        clearFieldError(el, 'consent')
+      if (input instanceof HTMLInputElement && input.matches('[data-reco-input="consent"]')) {
+        consentGranted(input.checked)
       }
-      if (field === 'fields' && input instanceof HTMLInputElement && input.checked) {
-        const checked = el.querySelectorAll('[data-reco-options="fields"] input:checked')
-        if (checked.length > MAX_FIELDS) {
-          input.checked = false
-          showFieldError(el, 'fields', t('reco.error.fields.max'))
-        }
-      }
-      persist()
     },
     { signal }
   )
-  el.addEventListener('input', persist, { signal })
 
-  // Native submission (Enter in a field): validated like a click, but only
-  // from step 5 — elsewhere Enter must not change the state.
+  // Saisie : hauteur auto (3 lignes max via CSS), Entrée envoie, Maj+Entrée
+  // garde le saut de ligne. La soumission native couvre le bouton clavier.
+  composer?.addEventListener(
+    'input',
+    () => {
+      composer.style.height = 'auto'
+      composer.style.height = `${composer.scrollHeight}px`
+    },
+    { signal }
+  )
+  composer?.addEventListener(
+    'keydown',
+    (event) => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault()
+        composer.closest('form')?.requestSubmit()
+      }
+    },
+    { signal }
+  )
   el.querySelector('form')?.addEventListener(
     'submit',
     (event) => {
       event.preventDefault()
-      if (machine.state === `step-${STEP_COUNT}`) submit()
+      send(composer?.value ?? '')
+      if (composer) composer.value = ''
     },
     { signal }
   )
 
-  loadOptions()
+  // Phase initiale : un consentement pré-coché ouvre directement le chat.
+  el.dataset.recoState = view.state.consent ? 'chat' : 'consent'
+  phase = el.dataset.recoState === 'chat' ? 'chat' : 'consent'
+  if (phase === 'chat') void ensureChallenge(el, signal)
+  // Accueil seulement si le fil est vide — un gabarit hôte pré-rempli ou
+  // une ré-init gardent leurs entrées.
+  if (!el.querySelector('[data-reco-thread]')?.hasChildNodes()) greet(el, t)
 }
 
 /**
@@ -490,7 +424,11 @@ function resolveAssets(el: HTMLElement, doc: Document): void {
     img.setAttribute('src', base + (img.getAttribute('src') ?? ''))
   }
   for (const styleEl of scope.querySelectorAll('style')) {
-    styleEl.textContent = styleEl.textContent.replace(/url\((['"]?)\//g, `url($1${base}/`)
+    let css = styleEl.textContent ?? ''
+    for (const quote of ['', "'", '"']) {
+      css = css.split(`url(${quote}/`).join(`url(${quote}${base}/`)
+    }
+    styleEl.textContent = css
   }
 }
 
@@ -501,6 +439,9 @@ function resolveAssets(el: HTMLElement, doc: Document): void {
  * Config invalide : le bloc reste sur son panel `fallback` (CTA conseiller).
  */
 export function init(el: HTMLElement): WidgetConfig | null {
+  // Le gabarit compilé remplit le bloc s'il est vide (embed squelette) ;
+  // un markup complet déjà posé (ancien embed, fixture) n'est pas touché.
+  injectTemplate(el)
   const instance = instanceOf(el)
   instance.observer?.disconnect()
   instance.observer = undefined
@@ -546,7 +487,15 @@ function initWhenNear(el: HTMLElement): void {
 }
 
 function bootstrap(doc: Document): void {
-  doc.querySelectorAll<HTMLElement>(WIDGET_SELECTOR).forEach(initWhenNear)
+  doc.querySelectorAll<HTMLElement>(WIDGET_SELECTOR).forEach((el) => {
+    // Injection immédiate (pas différée à l'approche viewport) : le
+    // launcher doit être visible dès le chargement, comme le markup
+    // statique qu'il remplace. Les URLs d'assets sont résolues tout de
+    // suite — le logo est visible avant le mount.
+    injectTemplate(el)
+    resolveAssets(el, doc)
+    initWhenNear(el)
+  })
 }
 
 if (typeof document !== 'undefined') {

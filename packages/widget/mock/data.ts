@@ -1,7 +1,5 @@
 /**
- * Données du mock : réponses du chatbot dans les 5 locales. Les options du
- * questionnaire ne vivent plus ici — le dictionnaire statique est dans
- * `src/api/options.ts` (l'API réelle n'a pas d'endpoint options).
+ * Données du mock : réponses du chatbot dans les 5 locales.
  */
 import type { ChatCitation, ChatReply } from '../src/api/types'
 import type { Locale } from '../src/config'

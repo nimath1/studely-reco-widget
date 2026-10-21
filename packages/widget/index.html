@@ -13,10 +13,9 @@
       document.documentElement.lang = new URLSearchParams(location.search).get('lang') || 'fr'
     </script>
     <style>
-      /* ═══ Dev "chat" CSS (Intercom-style): 24px shell window, blue
-         gradient header, bubble conversation, option cards with visible
-         native radios/checkboxes. Zero classes: everything hangs on
-         data-reco-* (§10.4 base). ═══ */
+      /* ═══ Dev "chat" CSS (Learn Up-style): full-screen dialog, bubble
+         conversation thread, centered composer. Zero classes: everything
+         hangs on data-reco-* (§10.4 base). ═══ */
       /* Self-hosted Montserrat (dev/Webflow reference — the font files in
          public/fonts must be deployed with the page, like the logo). */
       @font-face {
@@ -63,6 +62,7 @@
         --reco-radius: 24px;
         --reco-radius-card: 12px;
         --reco-control: 44px;
+        --reco-column: 720px;
         --reco-font: 'Montserrat', sans-serif;
       }
       .sr-only {
@@ -80,24 +80,20 @@
         background: linear-gradient(160deg, #e8ecf9 0%, #f4f4f8 60%);
         min-height: 100vh;
       }
-      /* ── State machine: attribute-driven hiding ── */
+      /* ── Gabarits et libellés jamais affichés ── */
       [data-reco-template],
-      [data-reco-labels],
-      [data-reco-widget] [data-reco-panel]:not([data-reco-panel='fallback']) {
+      [data-reco-templates],
+      [data-reco-labels] {
         display: none !important;
       }
-      [data-reco-widget][data-reco-state] [data-reco-panel].is-reco-active {
-        display: block !important;
+      [data-reco-widget] [hidden] {
+        display: none !important;
       }
+      /* Config invalide : le fallback seul reste visible. */
       [data-reco-widget][data-reco-state] [data-reco-panel='fallback'] {
         display: none !important;
       }
-      [data-reco-widget] [data-reco-step]:not(.is-reco-active) {
-        display: none !important;
-      }
-      /* These display rules would otherwise defeat `hidden` (Back on step 1,
-         Next/submit on step 5, disclaimer without URL). */
-      [data-reco-widget] [hidden] {
+      [data-reco-widget]:not([data-reco-state]) :is([data-reco-thread], [data-reco-composer]) {
         display: none !important;
       }
       /* ── Floating launcher (Intercom-style) ── */
@@ -141,47 +137,27 @@
       [data-reco-launcher][aria-expanded='true'] [data-reco-icon='close'] {
         display: block;
       }
-      /* ── Window: single rounded shell anchored bottom-right.
-         visibility (not display) so the IntersectionObserver sees the
-         widget and init/prefetch happens on page load. ── */
+      /* ── Window: full-screen dialog, Learn Up-style ── */
       [data-reco-widget] {
         position: fixed;
-        /* Reset <dialog> UA defaults; keep the fixed bottom-end anchoring. */
+        inset: 0;
         margin: 0;
         padding: 0;
         border: 0;
         color: inherit;
-        inset-block-start: auto;
-        inset-inline-start: auto;
-        inset-inline-end: 20px;
-        bottom: 96px;
+        width: 100%;
+        max-width: none;
+        height: 100%;
+        height: 100dvh;
+        max-height: none;
         z-index: 50;
         display: flex;
         flex-direction: column;
-        width: min(416px, calc(100vw - 24px));
-        max-height: min(700px, calc(100dvh - 120px));
-        border-radius: var(--reco-radius);
         overflow: hidden;
         background: var(--reco-surface);
-        box-shadow:
-          0 24px 60px rgb(21 24 43 / 22%),
-          0 4px 16px rgb(21 24 43 / 10%);
-        opacity: 0;
-        visibility: hidden;
-        transform: translateY(12px) scale(0.98);
-        transform-origin: bottom right;
-        transition:
-          opacity 0.2s,
-          transform 0.2s,
-          visibility 0.2s;
       }
-      [data-reco-widget][data-reco-open] {
-        opacity: 1;
-        visibility: visible;
-        transform: none;
-      }
-      [data-reco-widget][dir='rtl'] {
-        transform-origin: bottom left;
+      [data-reco-widget]::backdrop {
+        background: rgb(21 24 43 / 45%);
       }
       /* ── Header: blue gradient + decorative shapes, brand avatar ── */
       [data-reco-widget] > header {
@@ -189,14 +165,12 @@
         display: flex;
         align-items: center;
         gap: 12px;
-        padding: 16px 20px;
-        padding-inline-end: 14px;
+        padding: 14px 20px;
         background: linear-gradient(120deg, var(--reco-primary-deep) 0%, var(--reco-primary) 70%);
         color: #fff;
         overflow: hidden;
         flex-shrink: 0;
       }
-      /* Subtle decorative circles behind the content. */
       [data-reco-widget] > header::before,
       [data-reco-widget] > header::after {
         content: '';
@@ -250,35 +224,55 @@
         font-size: 0.72rem;
         opacity: 0.85;
       }
-      /* Close button: >= 44px target, quiet on the gradient. */
-      [data-reco-widget] > header button[data-reco-close] {
+      [data-reco-widget] > header button {
         position: relative;
-        margin-inline-start: auto;
-        display: grid;
-        place-items: center;
-        width: var(--reco-control);
-        height: var(--reco-control);
-        min-height: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        min-height: var(--reco-control);
         padding: 0;
         border: none;
-        border-radius: 50%;
         background: transparent;
         color: #fff;
+        font: inherit;
+        font-weight: 600;
+        font-size: 0.82rem;
         cursor: pointer;
         flex-shrink: 0;
       }
-      [data-reco-widget] > header button[data-reco-close] svg {
-        width: 18px;
-        height: 18px;
+      [data-reco-widget] > header button svg {
+        width: 16px;
+        height: 16px;
+      }
+      [data-reco-widget] > header button:hover {
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+      [data-reco-widget] > header button:focus-visible {
+        outline: 2px solid #fff;
+        outline-offset: 2px;
+        border-radius: 8px;
+      }
+      /* « Nouvelle recherche » pill, then the close icon. */
+      [data-reco-widget] > header [data-reco-reset] {
+        margin-inline-start: auto;
+        padding: 0 14px;
+        border: 1.5px solid rgb(255 255 255 / 55%);
+        border-radius: 999px;
+      }
+      [data-reco-widget] > header [data-reco-reset]:hover {
+        background: rgb(255 255 255 / 14%);
+        text-decoration: none;
+      }
+      [data-reco-widget] > header button[data-reco-close] {
+        width: var(--reco-control);
+        border-radius: 50%;
       }
       [data-reco-widget] > header button[data-reco-close]:hover {
         background: rgb(255 255 255 / 18%);
       }
-      [data-reco-widget] > header button[data-reco-close]:focus-visible {
-        outline: 2px solid #fff;
-        outline-offset: 2px;
-      }
-      /* ── Scrolling body + persistent advisor footer ── */
+      /* ── Scrolling body: thread + pending + error, centered column ── */
       [data-reco-body] {
         flex: 1;
         min-height: 0;
@@ -286,490 +280,180 @@
         overscroll-behavior: contain;
         background: var(--reco-surface);
       }
-      [data-reco-advisor] {
-        flex-shrink: 0;
-        padding: 8px 20px calc(8px + env(safe-area-inset-bottom));
-        border-top: 1px solid var(--reco-rule);
-        background: var(--reco-paper);
-        text-align: center;
-      }
-      [data-reco-advisor] a {
-        font-size: 0.8rem;
-        font-weight: 600;
-        color: var(--reco-primary-deep);
-        text-decoration: none;
-      }
-      [data-reco-advisor] a:hover {
-        text-decoration: underline;
-        text-underline-offset: 3px;
-      }
-      [data-reco-widget] [data-reco-panel] {
+      [data-reco-thread],
+      [data-reco-pending],
+      [data-reco-error],
+      [data-reco-panel='fallback'] {
+        width: 100%;
+        max-width: var(--reco-column);
+        margin-inline: auto;
         padding: 20px;
-        min-height: 280px;
+        box-sizing: border-box;
       }
-      [data-reco-widget] [data-reco-panel='fallback'] {
-        text-align: center;
-      }
-      /* ── Assistant bubble: step legend, panel titles ── */
-      [data-reco-widget] legend {
-        display: inline-block;
-        max-width: 90%;
-        padding: 12px 16px;
-        border-radius: 16px 16px 16px 4px;
-        background: var(--reco-paper);
-        border: 1px solid var(--reco-rule);
-        font-size: 0.95rem;
-        font-weight: 700;
-        line-height: 1.35;
-        margin-bottom: 14px;
-        box-shadow: 0 1px 2px rgb(21 24 43 / 5%);
-      }
-      [data-reco-widget] legend:focus {
-        outline: none;
-      }
-      [data-reco-widget] legend:focus-visible {
-        outline: 3px solid var(--reco-primary);
-        outline-offset: 2px;
-      }
-      [data-reco-widget] fieldset {
-        border: none;
-        margin: 0 0 4px;
-        padding: 0;
-        min-width: 0;
-      }
-      /* ── Progression ── */
-      [data-reco-progress] {
-        margin: 0 0 6px;
-        font-size: 0.72rem;
-        font-weight: 700;
-        color: var(--reco-ink-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-      }
-      [data-reco-widget] form > div:has(> [data-reco-progress-bar]) {
-        height: 5px;
-        border-radius: 999px;
-        background: var(--reco-rule);
-        overflow: hidden;
-        margin-bottom: 16px;
-      }
-      [data-reco-progress-bar] {
-        height: 100%;
-        width: 0;
-        border-radius: 999px;
-        background: var(--reco-accent);
-        transition: width 0.3s ease;
-      }
-      /* ── Conversation transcript (optional container) ── */
-      [data-reco-history] {
+      [data-reco-thread] {
         display: flex;
         flex-direction: column;
-        gap: 8px;
-        margin-bottom: 18px;
+        gap: 16px;
+        padding-top: 28px;
       }
-      [data-reco-history]:empty {
-        display: none;
-      }
+      /* ── Entries: avatar + bubble rows ── */
       [data-reco-msg] {
-        max-width: 85%;
-        padding: 10px 14px;
-        font-size: 0.85rem;
-        line-height: 1.45;
-      }
-      [data-reco-msg='assistant'] {
-        align-self: flex-start;
-        border-radius: 16px 16px 16px 4px;
-        background: var(--reco-paper);
-        border: 1px solid var(--reco-rule);
-        color: var(--reco-ink-muted);
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
       }
       [data-reco-msg='user'] {
-        align-self: flex-end;
+        justify-content: flex-end;
+      }
+      [data-reco-avatar] {
+        display: grid;
+        place-items: center;
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        background: var(--reco-primary);
+        color: var(--reco-accent);
+        flex-shrink: 0;
+      }
+      [data-reco-avatar] svg {
+        width: 16px;
+        height: 16px;
+      }
+      [data-reco-bubble] {
+        min-width: 0;
+        max-width: 85%;
+      }
+      [data-reco-msg='user'] > [data-reco-field='text'],
+      [data-reco-msg='user'] > p {
+        margin: 0;
+        padding: 12px 16px;
         border-radius: 16px 16px 4px 16px;
         /* Deep brand blue keeps white small text AA. */
         background: var(--reco-primary-deep);
         color: #fff;
+        font-size: 0.92rem;
+        line-height: 1.5;
+        white-space: pre-line;
       }
-      /* ── Options = full-width cards, visible native radios/checkboxes ── */
-      [data-reco-widget] [data-reco-options] {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-      }
-      [data-reco-widget] [data-reco-options] label:has(input) {
-        position: relative;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        min-height: var(--reco-control);
-        padding: 10px 14px;
-        border: 1.5px solid var(--reco-rule);
-        border-radius: var(--reco-radius-card);
-        background: var(--reco-paper);
-        font-size: 0.88rem;
-        font-weight: 500;
-        cursor: pointer;
-        transition:
-          border-color 0.15s,
-          background 0.15s,
-          box-shadow 0.15s;
-      }
-      [data-reco-widget] [data-reco-options] label:has(input):hover {
-        border-color: var(--reco-primary);
-      }
-      /* Native radios/checkboxes: visible inside the card, always accessible. */
-      [data-reco-widget] [data-reco-options] input {
-        width: 20px;
-        height: 20px;
+      [data-reco-msg='assistant'] [data-reco-field='text'],
+      [data-reco-msg='assistant'] > [data-reco-bubble] > p {
         margin: 0;
-        accent-color: var(--reco-primary);
-        flex-shrink: 0;
-        cursor: pointer;
-      }
-      [data-reco-widget] [data-reco-options] [data-reco-field='label'] {
-        flex: 1;
-        min-width: 0;
-      }
-      [data-reco-widget] [data-reco-options] label:has(input:focus-visible) {
-        outline: 3px solid var(--reco-primary);
-        outline-offset: 2px;
-      }
-      [data-reco-widget] [data-reco-options] label:has(input:checked) {
-        background: var(--reco-primary-soft);
-        border-color: var(--reco-primary);
-        color: var(--reco-primary-deep);
-        font-weight: 600;
-        box-shadow: 0 0 0 1px var(--reco-primary) inset;
-      }
-      /* ── Languages: card row + compact select ── */
-      [data-reco-widget] [data-reco-options='languages'] > div {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        min-height: var(--reco-control);
-        padding: 8px 8px 8px 14px;
-        border: 1.5px solid var(--reco-rule);
-        border-radius: var(--reco-radius-card);
-        background: var(--reco-paper);
-        font-size: 0.88rem;
-        font-weight: 500;
-      }
-      [data-reco-widget]
-        [data-reco-options='languages']
-        > div:has(select option:checked:not([value=''])) {
-        border-color: var(--reco-primary);
-      }
-      [data-reco-widget] [data-reco-options='languages'] select {
-        min-height: 36px;
-        padding: 0 10px;
-        border: 1.5px solid var(--reco-rule);
-        border-radius: 10px;
-        font: inherit;
-        font-size: 0.83rem;
-        font-weight: 600;
-        color: var(--reco-primary-deep);
-        background: var(--reco-paper);
-        cursor: pointer;
-      }
-      [data-reco-widget] [data-reco-options='languages'] select:focus-visible {
-        outline: 3px solid var(--reco-primary);
-        outline-offset: 1px;
-      }
-      /* ── Step 5: labelled groups, goal, consent ── */
-      [data-reco-widget] [data-reco-step='5'] > label[for='reco-goal'],
-      [data-reco-widget] [data-reco-step='5'] [data-reco-group] {
-        display: block;
-        margin: 16px 0 8px;
-        font-size: 0.78rem;
-        font-weight: 700;
-        color: var(--reco-ink-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-      }
-      [data-reco-widget] textarea {
-        width: 100%;
-        min-height: 72px;
-        padding: 12px 14px;
-        border: 1.5px solid var(--reco-rule);
-        border-radius: var(--reco-radius-card);
-        background: var(--reco-paper);
-        font: inherit;
-        font-size: 0.88rem;
-        resize: vertical;
-        box-sizing: border-box;
-      }
-      [data-reco-widget] textarea:focus-visible {
-        outline: 3px solid var(--reco-primary);
-        outline-offset: 1px;
-      }
-      [data-reco-hint] {
-        margin: 6px 0 12px;
-        font-size: 0.75rem;
-        color: var(--reco-ink-muted);
-      }
-      /* Consent card: scoped to the checkbox — never touches the
-         budget/intake cards (handled by the option-card block above). */
-      [data-reco-widget] label:has(> [data-reco-input='consent']) {
-        display: flex;
-        align-items: flex-start;
-        gap: 10px;
-        min-height: var(--reco-control);
-        margin-top: 14px;
-        padding: 12px 14px;
-        border: 1.5px solid var(--reco-rule);
-        border-radius: var(--reco-radius-card);
-        background: var(--reco-paper);
-        font-size: 0.8rem;
-        font-weight: 500;
-        text-transform: none;
-        letter-spacing: normal;
+        font-size: 0.92rem;
+        line-height: 1.6;
         color: var(--reco-ink);
-        line-height: 1.4;
-        cursor: pointer;
+        white-space: pre-line;
       }
-      [data-reco-widget] label:has(> [data-reco-input='consent']):has(input:checked) {
-        border-color: var(--reco-primary);
-        background: var(--reco-primary-soft);
-      }
-      [data-reco-widget] input[data-reco-input='consent'] {
-        width: 20px;
-        height: 20px;
-        margin: 1px 0 0;
-        accent-color: var(--reco-primary);
-        flex-shrink: 0;
-      }
-      [data-reco-error-for] {
-        margin: 6px 0 0;
-        font-size: 0.78rem;
-        color: var(--reco-error);
-      }
-      [data-reco-error-for]:empty {
-        display: none;
-      }
-      [aria-invalid='true'] {
-        border-color: var(--reco-error) !important;
-      }
-      [data-reco-widget] label:has(input[aria-invalid='true']) {
-        border-color: var(--reco-error);
-      }
-      /* ── Buttons ── */
-      [data-reco-widget] :is(button, a[data-reco-action]) {
-        min-height: var(--reco-control);
-        padding: 0 18px;
-        border-radius: 999px;
-        border: 1.5px solid var(--reco-rule);
-        background: var(--reco-paper);
-        color: var(--reco-ink);
-        font: inherit;
-        font-weight: 600;
-        font-size: 0.88rem;
-        cursor: pointer;
-        text-decoration: none;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
+      /* Suggestion chips under the greeting bubble. */
+      [data-reco-field='suggestions'] {
+        display: flex;
+        flex-wrap: wrap;
         gap: 8px;
+        margin-top: 12px;
+      }
+      [data-reco-field='suggestions']:empty {
+        margin-top: 0;
+      }
+      [data-reco-send] {
+        min-height: 40px;
+        padding: 6px 16px;
+        border: 1.5px solid var(--reco-rule);
+        border-radius: 999px;
+        background: var(--reco-paper);
+        color: var(--reco-ink-muted);
+        font: inherit;
+        font-size: 0.82rem;
+        font-weight: 500;
+        cursor: pointer;
         transition:
           border-color 0.15s,
-          background 0.15s,
-          color 0.15s,
-          filter 0.15s;
+          color 0.15s;
       }
-      [data-reco-widget] :is(button, a[data-reco-action]):hover {
+      [data-reco-send]:hover {
         border-color: var(--reco-primary);
         color: var(--reco-primary-deep);
       }
-      [data-reco-widget] button[data-reco-action='start'],
-      [data-reco-widget] button[data-reco-action='submit'],
-      [data-reco-widget] button[data-reco-action='next'],
-      [data-reco-widget] [data-reco-panel='fallback'] a {
-        background: linear-gradient(120deg, var(--reco-primary) 0%, var(--reco-primary-deep) 100%);
-        border-color: transparent;
-        color: #fff;
-      }
-      [data-reco-widget]
-        :is(
-          button[data-reco-action='start'],
-          button[data-reco-action='submit'],
-          button[data-reco-action='next']
-        ):hover {
-        /* Same gradient as the resting state; brightness() avoids a discrete
-           background-image swap that flashes on hover. */
-        filter: brightness(0.94);
-        border-color: transparent;
-        color: #fff;
-      }
-      [data-reco-widget] :is(button, a):focus-visible {
+      [data-reco-send]:focus-visible {
         outline: 3px solid var(--reco-primary);
         outline-offset: 2px;
       }
-      [data-reco-widget] button:disabled {
+      [data-reco-send]:disabled {
         opacity: 0.5;
         cursor: not-allowed;
       }
-      /* Back / Next / Submit row pinned to the bottom of the scrolling
-         body: actions stay visible on small screens. */
-      [data-reco-widget] form > div:has(> [data-reco-action='back']) {
-        position: sticky;
-        bottom: 0;
-        display: flex;
-        gap: 8px;
-        margin: 18px -20px -20px;
-        padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
-        background: var(--reco-surface);
-        border-top: 1px solid var(--reco-rule);
-      }
-      [data-reco-widget] [data-reco-action='back'] {
-        border-color: transparent;
-        background: transparent;
-        color: var(--reco-ink-muted);
-      }
-      [data-reco-widget] form > div:has(> [data-reco-action='back']) > :last-child {
-        margin-inline-start: auto;
-      }
-      /* ── Intro: expressive headline, meta, full-width CTA ── */
-      [data-reco-widget] [data-reco-panel='intro'] {
-        padding-top: 28px;
-      }
-      [data-reco-widget] [data-reco-panel='intro'].is-reco-active {
-        display: flex !important;
-        flex-direction: column;
-      }
-      [data-reco-widget] [data-reco-panel='intro'] h2 {
-        margin: 0 0 10px;
-        font-size: 1.55rem;
-        font-weight: 700;
-        line-height: 1.2;
-        letter-spacing: -0.01em;
-      }
-      [data-reco-widget] [data-reco-panel='intro'] h2 em {
-        font-style: normal;
-        color: var(--reco-primary);
-      }
-      [data-reco-widget] [data-reco-panel='intro'] > p {
-        margin: 0 0 14px;
-        font-size: 0.92rem;
-        line-height: 1.55;
-        color: var(--reco-ink-muted);
-      }
-      [data-reco-widget] [data-reco-panel='intro'] [data-reco-intro-meta] {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        margin: 0 0 18px;
-        font-size: 0.78rem;
-        font-weight: 600;
-        color: var(--reco-ink-subtle);
-      }
-      [data-reco-widget] [data-reco-panel='intro'] [data-reco-intro-meta] svg {
-        width: 14px;
-        height: 14px;
-        color: var(--reco-accent);
-      }
-      [data-reco-widget] [data-reco-panel='intro'] > button {
-        width: 100%;
-        min-height: 50px;
-        font-size: 0.95rem;
-      }
-      [data-reco-widget] [data-reco-panel='intro'] > button svg {
-        width: 18px;
-        height: 18px;
-      }
-      /* ── Results: message thread, rounded cards ── */
-      [data-reco-widget] [data-reco-panel='results'] > [data-reco-title],
-      [data-reco-widget] [data-reco-panel='empty'] > [data-reco-title],
-      [data-reco-widget] [data-reco-panel='error'] > [data-reco-title] {
-        display: inline-block;
-        max-width: 90%;
-        margin: 0 0 14px;
-        padding: 12px 16px;
-        border-radius: 16px 16px 16px 4px;
-        background: var(--reco-paper);
-        border: 1px solid var(--reco-rule);
-        font-size: 1.05rem;
-      }
-      [data-reco-widget] [data-reco-results] {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-      }
-      [data-reco-widget] [data-reco-results] > div {
-        background: var(--reco-paper);
-        border: 1px solid var(--reco-rule);
-        border-radius: 16px 16px 16px 4px;
-        padding: 14px 16px;
-        font-size: 0.92rem;
-        line-height: 1.55;
-        box-shadow: 0 1px 3px rgb(21 24 43 / 6%);
-      }
-      [dir='rtl'] [data-reco-widget] [data-reco-results] > div {
-        border-radius: 16px 16px 4px 16px;
-      }
-      [data-reco-widget] [data-reco-results] [data-reco-field='text'] {
-        margin: 0;
-        white-space: pre-line;
-      }
-      [data-reco-widget] [data-reco-field='links'] {
+      /* Citation links (R10 filtered) as small cards. */
+      [data-reco-field='links'] {
         display: flex;
         flex-direction: column;
         gap: 6px;
         margin-top: 10px;
+        max-width: 420px;
       }
-      [data-reco-widget] [data-reco-field='links']:empty {
+      [data-reco-field='links']:empty {
         margin-top: 0;
       }
-      [data-reco-widget] [data-reco-field='links'] a {
+      [data-reco-field='links'] a {
         display: block;
         padding: 10px 12px;
         border: 1.5px solid var(--reco-rule);
         border-radius: var(--reco-radius-card);
-        background: var(--reco-paper, #fff);
+        background: var(--reco-paper);
         font-size: 0.83rem;
         font-weight: 600;
         color: var(--reco-primary-deep);
         text-decoration: none;
         transition: border-color 0.15s;
       }
-      [data-reco-widget] [data-reco-field='links'] a:hover {
+      [data-reco-field='links'] a:hover {
         border-color: var(--reco-primary);
       }
-      [data-reco-widget] [data-reco-panel='results'] > :is(button, a[data-reco-action]),
-      [data-reco-widget] [data-reco-panel='empty'] > :is(button, a[data-reco-action]),
-      [data-reco-widget] [data-reco-panel='error'] > :is(button, a[data-reco-action]) {
-        margin-top: 14px;
-        margin-inline-end: 8px;
+      /* Advisor CTA under refused/handoff replies. */
+      [data-reco-field='actions']:empty {
+        display: none;
       }
-      /* ── Empty / error / loading ── */
-      [data-reco-widget] :is([data-reco-panel='empty'] p, [data-reco-panel='error'] p) {
-        margin: 0 0 6px;
-        font-size: 0.88rem;
-        color: var(--reco-ink-muted);
-      }
-      [data-reco-widget] [data-reco-panel='loading'] {
-        color: var(--reco-ink-muted);
-        font-size: 0.9rem;
-      }
-      [data-reco-widget] [data-reco-panel='loading'].is-reco-active {
-        display: flex !important;
+      [data-reco-field='actions'] [data-reco-action='advisor'] {
+        display: inline-flex;
         align-items: center;
-        gap: 10px;
+        gap: 8px;
+        margin-top: 12px;
+        min-height: 40px;
+        padding: 6px 16px;
+        border: 1.5px solid var(--reco-rule);
+        border-radius: 999px;
+        background: var(--reco-paper);
+        color: var(--reco-primary-deep);
+        font-size: 0.82rem;
+        font-weight: 600;
+        text-decoration: none;
       }
-      [data-reco-widget] [data-reco-panel='loading'] [data-reco-dots] {
+      [data-reco-field='actions'] [data-reco-action='advisor']:hover {
+        border-color: var(--reco-primary);
+      }
+      /* ── Pending skeleton + error card ── */
+      [data-reco-pending] {
+        padding-top: 0;
+      }
+      [data-reco-pending] [data-reco-field='pending-text'] {
+        margin: 0;
+        font-size: 0.88rem;
+        font-weight: 500;
+        color: var(--reco-ink-muted);
+      }
+      [data-reco-dots] {
         display: inline-flex;
         gap: 4px;
+        margin-top: 10px;
       }
-      [data-reco-widget] [data-reco-panel='loading'] [data-reco-dots] i {
+      [data-reco-dots] i {
         width: 7px;
         height: 7px;
         border-radius: 50%;
         background: var(--reco-primary);
         animation: reco-dot 1.2s infinite;
       }
-      [data-reco-widget] [data-reco-panel='loading'] [data-reco-dots] i:nth-child(2) {
+      [data-reco-dots] i:nth-child(2) {
         animation-delay: 0.15s;
       }
-      [data-reco-widget] [data-reco-panel='loading'] [data-reco-dots] i:nth-child(3) {
+      [data-reco-dots] i:nth-child(3) {
         animation-delay: 0.3s;
       }
       @keyframes reco-dot {
@@ -784,26 +468,182 @@
           transform: translateY(-3px);
         }
       }
-      [data-reco-error-message] {
-        color: var(--reco-error) !important;
+      [data-reco-pending] [data-reco-action='stop'] {
+        margin-top: 12px;
+        min-height: 36px;
+        padding: 4px 14px;
+        border: 1.5px solid var(--reco-rule);
+        border-radius: 999px;
+        background: var(--reco-paper);
+        color: var(--reco-ink);
+        font: inherit;
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      [data-reco-pending] [data-reco-action='stop']:hover {
+        border-color: var(--reco-primary);
+        color: var(--reco-primary-deep);
+      }
+      [data-reco-error-card] {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        padding: 28px 20px;
+        border: 1px solid var(--reco-rule);
+        border-radius: var(--reco-radius-card);
+        background: var(--reco-paper);
+        text-align: center;
+      }
+      [data-reco-error-card] h3 {
+        margin: 0;
+        font-size: 0.95rem;
+      }
+      [data-reco-error-card] p {
+        margin: 0;
+        font-size: 0.85rem;
+        color: var(--reco-ink-muted);
+      }
+      [data-reco-error-card] [data-reco-error-message] {
+        color: var(--reco-error);
         font-weight: 600;
       }
-      /* ── RTL: mirrored bubbles and rows ── */
-      [data-reco-widget][dir='rtl'] [data-reco-progress-bar] {
-        margin-inline-start: auto;
+      [data-reco-error-card] > div {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 6px;
       }
-      [data-reco-widget][dir='rtl'] legend,
-      [data-reco-widget][dir='rtl'] [data-reco-panel] h2 {
-        border-radius: 16px 16px 4px 16px;
+      /* ── Buttons (generic pill) ── */
+      [data-reco-widget] :is(button, a[data-reco-action]) {
+        min-height: var(--reco-control);
+        border-radius: 999px;
+        font: inherit;
+        cursor: pointer;
+        text-decoration: none;
       }
-      [data-reco-widget][dir='rtl'] [data-reco-msg='assistant'] {
-        border-radius: 16px 16px 4px 16px;
+      [data-reco-widget] :is(button, a):focus-visible {
+        outline: 3px solid var(--reco-primary);
+        outline-offset: 2px;
       }
-      [data-reco-widget][dir='rtl'] [data-reco-msg='user'] {
+      [data-reco-widget] button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      [data-reco-error-card] :is(button, a[data-reco-action]),
+      [data-reco-panel='fallback'] a {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 18px;
+        border: 1.5px solid var(--reco-rule);
+        background: var(--reco-paper);
+        color: var(--reco-ink);
+        font-weight: 600;
+        font-size: 0.86rem;
+      }
+      [data-reco-error-card] [data-reco-action='retry'] {
+        background: linear-gradient(120deg, var(--reco-primary) 0%, var(--reco-primary-deep) 100%);
+        border-color: transparent;
+        color: #fff;
+      }
+      /* ── Composer: consent, turnstile, input row, disclaimer ── */
+      [data-reco-composer] {
+        flex-shrink: 0;
+        width: 100%;
+        max-width: var(--reco-column);
+        margin-inline: auto;
+        padding: 10px 20px calc(10px + env(safe-area-inset-bottom));
+        box-sizing: border-box;
+        border-top: 1px solid var(--reco-rule);
+        background: var(--reco-paper);
+      }
+      [data-reco-consent] {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        margin-bottom: 10px;
+        font-size: 0.78rem;
+        line-height: 1.45;
+        color: var(--reco-ink);
+        cursor: pointer;
+      }
+      [data-reco-consent] input {
+        width: 18px;
+        height: 18px;
+        margin: 1px 0 0;
+        accent-color: var(--reco-primary);
+        flex-shrink: 0;
+        cursor: pointer;
+      }
+      [data-reco-input-row] {
+        display: flex;
+        align-items: flex-end;
+        gap: 10px;
+      }
+      [data-reco-input='message'] {
+        flex: 1;
+        min-width: 0;
+        min-height: var(--reco-control);
+        max-height: calc(var(--reco-control) * 3);
+        padding: calc((var(--reco-control) - 1.5em) / 2) 16px;
+        border: 1.5px solid var(--reco-rule);
+        border-radius: var(--reco-radius-card);
+        background: var(--reco-paper);
+        font: inherit;
+        font-size: 0.92rem;
+        line-height: 1.5;
+        resize: none;
+        overflow-y: auto;
+        box-sizing: border-box;
+      }
+      [data-reco-input='message']:focus-visible {
+        outline: 3px solid var(--reco-primary);
+        outline-offset: 1px;
+        border-color: var(--reco-primary);
+      }
+      [data-reco-input='message']:disabled {
+        cursor: not-allowed;
+        opacity: 0.7;
+      }
+      [data-reco-action='send'] {
+        display: grid;
+        place-items: center;
+        width: var(--reco-control);
+        height: var(--reco-control);
+        min-height: 0;
+        padding: 0;
+        border: none;
+        border-radius: 50%;
+        background: var(--reco-primary);
+        color: #fff;
+        flex-shrink: 0;
+      }
+      [data-reco-action='send'] svg {
+        width: 18px;
+        height: 18px;
+      }
+      [data-reco-action='send']:hover {
+        background: var(--reco-primary-deep);
+      }
+      [data-reco-disclaimer] {
+        margin: 8px 0 0;
+        font-size: 0.72rem;
+        color: var(--reco-ink-subtle);
+        text-align: center;
+      }
+      /* ── Fallback panel (config invalide) ── */
+      [data-reco-panel='fallback'] {
+        text-align: center;
+      }
+      [data-reco-panel='fallback'] a {
+        color: var(--reco-primary-deep);
+        font-weight: 600;
+      }
+      /* ── RTL: mirrored bubbles ── */
+      [data-reco-widget][dir='rtl'] [data-reco-msg='user'] > p {
         border-radius: 16px 16px 16px 4px;
-      }
-      [data-reco-widget][dir='rtl'] [data-reco-options='languages'] > div {
-        flex-direction: row-reverse;
       }
       /* No transitions under prefers-reduced-motion (WCAG 2.2, §8.2). */
       @media (prefers-reduced-motion: reduce) {
@@ -814,27 +654,21 @@
           animation: none !important;
         }
       }
-      /* ── Mobile ≤ 420px: full-screen, safe-area, launcher hidden ── */
+      /* ── Mobile: safe-area, launcher hidden while open ── */
       @media (max-width: 420px) {
-        [data-reco-widget] {
-          inset: 0;
-          width: auto;
-          max-width: none;
-          max-height: none;
-          border-radius: 0;
-          transform: translateY(16px);
-        }
-        [data-reco-widget][data-reco-open] {
-          transform: none;
-        }
         [data-reco-widget] > header {
-          padding-top: calc(16px + env(safe-area-inset-top));
+          padding-top: calc(14px + env(safe-area-inset-top));
         }
         [data-reco-launcher][aria-expanded='true'] {
           display: none;
         }
       }
     </style>
+    <!-- Tailwind v4 (theme + utilities, sans preflight) : utilitaires pour
+         le gabarit migré de reference/front-assistant. Compilé par Vite en
+         dev comme au build site ; dans l'embed Webflow, coller le CSS
+         généré dans le <style> du bloc (aucun preflight sur la page hôte). -->
+    <link rel="stylesheet" href="/src/widget.css" />
   </head>
   <body>
     <dialog
@@ -844,204 +678,51 @@
       data-reco-advisor-url="/mexique#contact"
       aria-labelledby="reco-chat-title"
     >
-      <header>
-        <span aria-hidden="true"
-          ><img src="/studely-brand.jpg" width="44" height="44" alt=""
-        /></span>
-        <div>
-          <strong id="reco-chat-title">Studely</strong>
-          <small>Assistant automatisé — recommandations de parcours</small>
-        </div>
-        <button type="button" data-reco-close aria-label="Fermer l'assistant">
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.4"
-            stroke-linecap="round"
-            aria-hidden="true"
-          >
-            <path d="M6 6l12 12M18 6L6 18" />
-          </svg>
-        </button>
-      </header>
-      <div data-reco-live class="sr-only"></div>
-
-      <div data-reco-body>
-        <div data-reco-panel="fallback">
-          <a href="/mexique#contact">Parler à un conseiller</a>
-        </div>
-        <div data-reco-panel="intro">
-          <h2>Trouve ton <em>parcours d'études</em> en Europe</h2>
-          <p>
-            Réponds à quelques questions et reçois des parcours adaptés à ton niveau, ton budget et
-            tes destinations — sans jargon, sans engagement.
-          </p>
-          <p data-reco-intro-meta>
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              aria-hidden="true"
-            >
-              <circle cx="12" cy="12" r="9" />
-              <path d="M12 7v5l3 3" />
-            </svg>
-            5 questions · ~2 min
-          </p>
-          <button type="button" data-reco-action="start">
-            Commencer
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2.4"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M5 12h14M13 6l6 6-6 6" />
-            </svg>
-          </button>
-        </div>
-
-        <form data-reco-panel="steps" novalidate>
-          <p data-reco-progress></p>
-          <div><div data-reco-progress-bar></div></div>
-          <div data-reco-history></div>
-          <fieldset data-reco-step="1">
-            <legend tabindex="-1">Quel est ton niveau d'études ?</legend>
-            <div data-reco-options="level"></div>
-            <p data-reco-error-for="level"></p>
-          </fieldset>
-          <fieldset data-reco-step="2">
-            <legend tabindex="-1">Quels domaines t'intéressent ?</legend>
-            <p data-reco-hint="fields">Sélectionne jusqu'à 3 domaines.</p>
-            <div data-reco-options="fields"></div>
-            <p data-reco-error-for="fields"></p>
-          </fieldset>
-          <fieldset data-reco-step="3">
-            <legend tabindex="-1">Dans quels pays veux-tu étudier ?</legend>
-            <div data-reco-options="destinations"></div>
-            <p data-reco-error-for="destinations"></p>
-          </fieldset>
-          <fieldset data-reco-step="4">
-            <legend tabindex="-1">Quelles langues parles-tu ?</legend>
-            <div data-reco-options="languages"></div>
-            <p data-reco-error-for="languages"></p>
-          </fieldset>
-          <fieldset data-reco-step="5">
-            <legend tabindex="-1">Budget et rentrée</legend>
-            <p data-reco-group>Budget annuel</p>
-            <div data-reco-options="budget"></div>
-            <p data-reco-error-for="budget"></p>
-            <p data-reco-group>Rentrée visée</p>
-            <div data-reco-options="intake"></div>
-            <p data-reco-error-for="intake"></p>
-            <label for="reco-goal">Quel est ton objectif ? (facultatif)</label>
-            <textarea
-              id="reco-goal"
-              data-reco-input="goal"
-              maxlength="300"
-              placeholder="Ex. : trouver un master en gestion de projet"
-            ></textarea>
-            <p data-reco-hint="goal">
-              Ne saisis pas de données personnelles (nom, email, téléphone…).
-            </p>
-            <label for="reco-consent">
-              <input type="checkbox" id="reco-consent" data-reco-input="consent" />
-              <span>
-                J'accepte que mes réponses soient analysées automatiquement pour me proposer des
-                parcours
-              </span>
-            </label>
-            <p data-reco-error-for="consent"></p>
-            <div data-reco-turnstile></div>
-          </fieldset>
-          <div>
-            <button type="button" data-reco-action="back">Retour</button>
-            <button type="button" data-reco-action="next">Suivant</button>
-            <button type="submit" data-reco-action="submit">Voir mes recommandations</button>
-          </div>
-        </form>
-
-        <output data-reco-panel="loading">
-          <span data-reco-dots aria-hidden="true"><i></i><i></i><i></i></span>
-          <span>Recherche de tes parcours…</span>
-        </output>
-        <div data-reco-panel="results">
-          <h2 data-reco-title tabindex="-1">Tes recommandations</h2>
-          <div data-reco-results></div>
-          <p data-reco-disclaimer>Recommandations indicatives générées automatiquement.</p>
-          <button type="button" data-reco-action="edit">Modifier mes réponses</button>
-          <button type="button" data-reco-action="restart">Recommencer</button>
-          <a data-reco-action="advisor">Parler à un conseiller</a>
-        </div>
-        <div data-reco-panel="empty">
-          <h2 data-reco-title tabindex="-1">Aucune recommandation disponible</h2>
-          <p data-reco-empty-default>
-            Tu peux modifier tes réponses ou contacter un conseiller pour être accompagné.
-          </p>
-          <p data-reco-empty-reason hidden></p>
-          <button type="button" data-reco-action="edit">Modifier mes réponses</button>
-          <a data-reco-action="advisor">Parler à un conseiller</a>
-        </div>
-        <div data-reco-panel="error">
-          <h2 data-reco-title tabindex="-1">Une erreur est survenue</h2>
-          <p data-reco-error-message></p>
-          <button type="button" data-reco-action="retry">Réessayer</button>
-          <a data-reco-action="advisor">Parler à un conseiller</a>
-        </div>
-
-        <div data-reco-template="reply">
-          <p data-reco-field="text">Réponse du coach…</p>
-          <div data-reco-field="links"></div>
-        </div>
-        <label data-reco-template="option-radio">
-          <input type="radio" data-reco-field="input" /><span data-reco-field="label">Option</span>
-        </label>
-        <label data-reco-template="option-checkbox">
-          <input type="checkbox" data-reco-field="input" /><span data-reco-field="label"
-            >Option</span
-          >
-        </label>
-        <div data-reco-template="option-language">
-          <span data-reco-field="label">Langue</span
-          ><select data-reco-field="level" aria-label="Niveau de langue"></select>
-        </div>
-
-        <div data-reco-labels hidden>
-          <span data-reco-label="reco.progress">Étape {step} sur {total}</span>
-          <span data-reco-label="reco.error.required">Merci de répondre à cette question.</span>
-          <span data-reco-label="reco.error.consent">Merci de cocher la case pour continuer.</span>
-          <span data-reco-label="reco.error.fields.max">3 domaines maximum.</span>
-          <span data-reco-label="reco.error.network">Connexion impossible. Réessaie.</span>
-          <span data-reco-label="reco.error.rate">Trop de demandes. Réessaie dans un instant.</span>
-          <span data-reco-label="reco.error.server">Le service est indisponible. Réessaie.</span>
-          <span data-reco-label="reco.error.input">Ta réponse semble invalide.</span>
-          <span data-reco-label="reco.error.captcha"
-            >La vérification anti-robot a échoué. Réessaie.</span
-          >
-          <span data-reco-label="reco.disclaimer"
-            >Recommandations indicatives générées automatiquement.</span
-          >
-          <span data-reco-label="reco.loading">Recherche de tes parcours…</span>
-          <span data-reco-label="reco.results.count">{count} recommandations pour toi.</span>
-          <span data-reco-label="reco.empty">Aucune recommandation disponible.</span>
-        </div>
-      </div>
-
-      <div data-reco-advisor>
-        <a data-reco-action="advisor" href="/mexique#contact">Parler à un conseiller Studely</a>
+      <!-- Le markup (header, fil, composer, templates, launcher) est
+           injecté par reco.js — sources : src/template/*.vue, rendues en
+           HTML statique au build. Ne restent dans l'embed que la config
+           data-* du conteneur, ce bloc de libellés traduit par Webflow
+           Localization (§8.1), les styles et les scripts. -->
+      <div data-reco-labels hidden>
+        <span data-reco-label="reco.greeting"
+          >Bonjour ! Décris-moi ton projet d'études, je t'aide à trouver ton parcours.</span
+        >
+        <span data-reco-label="reco.suggestion.1">Je veux faire un bachelor en Europe</span>
+        <span data-reco-label="reco.suggestion.2">Je cherche un master à l'étranger</span>
+        <span data-reco-label="reco.suggestion.3">Je veux étudier en anglais</span>
+        <span data-reco-label="reco.consent"
+          >J'accepte que mes messages soient analysés automatiquement pour me proposer des
+          parcours</span
+        >
+        <span data-reco-label="reco.input.label">Décris ton projet d'études</span>
+        <span data-reco-label="reco.input.placeholder">Décris ton projet d'études…</span>
+        <span data-reco-label="reco.send">Envoyer</span>
+        <span data-reco-label="reco.reset">Nouvelle recherche</span>
+        <span data-reco-label="reco.pending">Analyse de ta demande…</span>
+        <span data-reco-label="reco.stop">Arrêter la réponse</span>
+        <span data-reco-label="reco.retry">Réessayer</span>
+        <span data-reco-label="reco.advisor">Parler à un conseiller</span>
+        <span data-reco-label="reco.error.title">L'assistant est momentanément indisponible.</span>
+        <span data-reco-label="reco.error.consent">Merci de cocher la case pour continuer.</span>
+        <span data-reco-label="reco.error.network">Connexion impossible. Réessaie.</span>
+        <span data-reco-label="reco.error.rate">Trop de demandes. Réessaie dans un instant.</span>
+        <span data-reco-label="reco.error.server">Le service est indisponible. Réessaie.</span>
+        <span data-reco-label="reco.error.input">Ta réponse semble invalide.</span>
+        <span data-reco-label="reco.error.captcha"
+          >La vérification anti-robot a échoué. Réessaie.</span
+        >
+        <span data-reco-label="reco.disclaimer"
+          >Recommandations indicatives générées automatiquement.</span
+        >
+        <span data-reco-label="reco.results.count">{count} recommandations pour toi.</span>
+        <span data-reco-label="reco.empty">Aucun parcours ne correspond à ta demande.</span>
       </div>
     </dialog>
 
     <noscript>
-      <!-- Without JavaScript the dialog stays hidden (visibility: hidden):
-           a visible advisor fallback must exist outside it. The URL must
-           be absolute on standalone deployments (Vercel). -->
+      <!-- Without JavaScript the dialog stays hidden: a visible advisor
+           fallback must exist outside it. The URL must be absolute on
+           standalone deployments (Vercel). -->
       <p
         style="
           position: fixed;
@@ -1057,80 +738,65 @@
           text-align: center;
         "
       >
-        Le questionnaire nécessite JavaScript.
+        L'assistant nécessite JavaScript.
         <a href="/mexique#contact">Parler à un conseiller Studely</a>
       </p>
     </noscript>
 
-    <button
-      type="button"
-      data-reco-launcher
-      aria-expanded="false"
-      aria-controls="reco-chat"
-      aria-label="Ouvrir l'assistant Studely"
-    >
-      <svg data-reco-icon="chat" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-        <path
-          d="M12 3C6.48 3 2 6.94 2 11.8c0 2.7 1.47 5.1 3.76 6.66-.14 1.07-.63 2.36-1.58 3.54 1.9-.3 3.7-1.08 4.9-1.9.94.2 1.9.3 2.92.3 5.52 0 10-3.94 10-8.8S17.52 3 12 3Z"
-        />
-      </svg>
-      <svg
-        data-reco-icon="close"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2.4"
-        stroke-linecap="round"
-        aria-hidden="true"
-      >
-        <path d="M6 6l12 12M18 6L6 18" />
-      </svg>
-    </button>
-
     <script>
-      // Dev only: Intercom-style open/close via data-reco-open plus focus
-      // management (active question or intro CTA, launcher on close).
-      // Same attribute mechanism applies on the Webflow page. Scoped to
-      // the script's own parent so several copies of this embed on one
-      // page (e.g. a repeated Webflow footer) each bind their own
-      // widget/launcher instead of all grabbing the first in the DOM.
+      // Dev only: full-screen open/close via showModal (focus trap, Échap
+      // natif) plus launcher aria state. Same attribute mechanism applies
+      // on the Webflow page. Scoped to the script's own parent so several
+      // copies of this embed on one page each drive their own
+      // widget/launcher. Delegated clicks: launcher, close button and
+      // markup are injected by reco.js after this script runs.
       {
         const scope = document.currentScript?.parentElement ?? document
-        const w = scope.querySelector('[data-reco-widget]')
-        const l = scope.querySelector('[data-reco-launcher]')
-        if (w && l) {
-          const LABELS = {
-            open: "Ouvrir l'assistant Studely",
-            close: "Fermer l'assistant Studely"
-          }
-          const setOpen = (open) => {
-            if (open && !w.open) w.show()
-            else if (!open && w.open) w.close()
-            w.toggleAttribute('data-reco-open', open)
-            l.setAttribute('aria-expanded', String(open))
-            l.setAttribute('aria-label', open ? LABELS.close : LABELS.open)
-            if (open) {
-              // Focus the active step legend first — hidden earlier steps
-              // must not steal it — then panel title, then the intro CTA.
-              const target = w.querySelector(
-                '[data-reco-step].is-reco-active legend, [data-reco-panel].is-reco-active [data-reco-title], [data-reco-panel].is-reco-active [data-reco-action="start"]'
-              )
-              target?.focus({ preventScroll: true })
-              const body = w.querySelector('[data-reco-body]')
-              if (target && body) {
-                body.scrollTop +=
-                  target.getBoundingClientRect().top - body.getBoundingClientRect().top - 20
-              }
-            } else {
-              l.focus()
-            }
-          }
-          l.addEventListener('click', () => setOpen(w.dataset.recoOpen === undefined))
-          w.querySelector('[data-reco-close]')?.addEventListener('click', () => setOpen(false))
-          addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && w.dataset.recoOpen !== undefined) setOpen(false)
-          })
+        const LABELS = {
+          open: "Ouvrir l'assistant Studely",
+          close: "Fermer l'assistant Studely"
         }
+        const widget = () => scope.querySelector('[data-reco-widget]')
+        const launcher = () => scope.querySelector('[data-reco-launcher]')
+        const setOpen = (open) => {
+          const w = widget()
+          const l = launcher()
+          if (!w || !l) return
+          if (open && !w.open) w.showModal()
+          else if (!open && w.open) w.close()
+          w.toggleAttribute('data-reco-open', open)
+          l.setAttribute('aria-expanded', String(open))
+          l.setAttribute('aria-label', open ? LABELS.close : LABELS.open)
+          if (open) {
+            const target = w.querySelector(
+              '[data-reco-input="message"], [data-reco-input="consent"]'
+            )
+            target?.focus({ preventScroll: true })
+          } else {
+            l.focus()
+          }
+        }
+        scope.addEventListener('click', (e) => {
+          const trigger = e.target?.closest?.('[data-reco-launcher], [data-reco-close]')
+          if (!trigger || (scope !== document && !scope.contains(trigger))) return
+          const w = widget()
+          if (!w) return
+          if (trigger.hasAttribute('data-reco-launcher')) {
+            setOpen(w.dataset.recoOpen === undefined)
+          } else {
+            setOpen(false)
+          }
+        })
+        // Échap natif ferme le <dialog> modal : resynchronise le launcher.
+        widget()?.addEventListener('close', () => {
+          const w = widget()
+          const l = launcher()
+          if (!w || !l || w.dataset.recoOpen === undefined) return
+          w.toggleAttribute('data-reco-open', false)
+          l.setAttribute('aria-expanded', 'false')
+          l.setAttribute('aria-label', LABELS.open)
+          l.focus()
+        })
       }
     </script>
 
@@ -1147,7 +813,7 @@
           try {
             mockWanted = Boolean(
               new URLSearchParams(location.search).get('recoMock') ||
-                localStorage.getItem('recoMock')
+              localStorage.getItem('recoMock')
             )
           } catch {
             mockWanted = Boolean(new URLSearchParams(location.search).get('recoMock'))

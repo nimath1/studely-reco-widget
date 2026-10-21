@@ -1,42 +1,7 @@
 /**
  * Types du contrat d'API réel (chatbot « AI Mobility Coach », OpenAPI
- * chatbot.dev.ml.studely.com) : POST /chat en SSE + structures du
- * questionnaire (options statiques, src/api/options.ts).
+ * chatbot.dev.ml.studely.com) : POST /chat en SSE.
  */
-
-/** Choix affiché dans le questionnaire : `id` technique, `label` affiché. */
-export interface RecoOption {
-  id: string
-  label: string
-}
-
-/** Options du questionnaire — issues du dictionnaire statique localisé. */
-export interface RecoOptions {
-  levels: RecoOption[]
-  fields: RecoOption[]
-  destinations: RecoOption[]
-  languages: RecoOption[]
-  /** Niveaux de langue proposés dans le select de chaque langue choisie. */
-  languageLevels: RecoOption[]
-  budgets: RecoOption[]
-  intakes: RecoOption[]
-}
-
-export interface LanguagePair {
-  language: string
-  level: string
-}
-
-/** Réponses du questionnaire (§5.1) — converties en message /chat. */
-export interface RecoProfile {
-  level: string
-  fields: string[]
-  destinations: string[]
-  languages: LanguagePair[]
-  budget: string
-  intake: string
-  goal?: string
-}
 
 /** POST /chat body: `mode` defaults to « sav » server-side (no other mode documented). */
 export interface ChatRequest {

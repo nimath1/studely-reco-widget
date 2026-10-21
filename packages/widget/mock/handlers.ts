@@ -36,13 +36,12 @@ export function currentScenario(): Scenario {
 
 const BASE = (): string => import.meta.env.VITE_RECO_API_URL as string
 
-/** Locale devinée depuis l'intro localisée du message profil (buildChatMessage). */
-function localeOf(message: string): Locale {
-  if (message.startsWith('I am looking')) return 'en'
-  if (message.startsWith('Busco')) return 'es'
-  if (message.startsWith('Ich suche')) return 'de'
-  if (message.startsWith('أبحث')) return 'ar'
-  return 'fr'
+/** Locale lue sur `<html lang>` — le chat envoie du texte libre. */
+function localeOf(): Locale {
+  const lang = document.documentElement.lang?.split('-')[0]
+  return (['fr', 'en', 'es', 'de', 'ar'] as const).includes(lang as Locale)
+    ? (lang as Locale)
+    : 'fr'
 }
 
 /** Flux SSE du contrat : chunks `delta` puis un `final` de métadonnées. */
@@ -58,7 +57,7 @@ export const handlers = [
   http.post(`${BASE()}/chat`, async ({ request }) => {
     const scenario = currentScenario()
     const body = (await request.json()) as { message?: string; session_id?: string | null }
-    const locale = localeOf(body.message ?? '')
+    const locale = localeOf()
 
     switch (scenario) {
       case 'timeout':

@@ -1,0 +1,38 @@
+/* Tailwind v4 pour le gabarit du widget (index.html → composant/embed
+   Webflow). Liée via <link> dans index.html : jamais importée dans
+   src/index.ts — reco.js reste un bundle JS pur (≤ 25 ko gzip).
+
+   `theme` + `utilities` seuls, SANS preflight : le markup vit dans une
+   page Webflow hôte qui possède déjà son reset ; un reset global
+   Tailwind écraserait la typographie et les bordures de la page.
+   Seules les classes trouvées dans les sources scannées (index.html,
+   src/, futurs gabarits migrés de reference/front-assistant) sont
+   émises — collision possible si la page hôte utilise les mêmes noms
+   de classes (`flex`, `hidden`…) : passer alors à
+   `@import "tailwindcss" prefix(reco)` et préfixer le gabarit. */
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+/* Jetons Studely branchés sur les custom properties `--reco-*` du
+   :root du gabarit : les utilitaires `*-reco-*` (bg-reco-primary,
+   text-reco-ink, font-reco, rounded-reco…) restent pilotés par le
+   <style> de l'embed — restyle Webflow sans recompiler le CSS. */
+@theme {
+  --color-reco-ink: var(--reco-ink);
+  --color-reco-ink-muted: var(--reco-ink-muted);
+  --color-reco-ink-subtle: var(--reco-ink-subtle);
+  --color-reco-paper: var(--reco-paper);
+  --color-reco-surface: var(--reco-surface);
+  --color-reco-bubble: var(--reco-bubble);
+  --color-reco-rule: var(--reco-rule);
+  --color-reco-primary: var(--reco-primary);
+  --color-reco-primary-deep: var(--reco-primary-deep);
+  --color-reco-primary-soft: var(--reco-primary-soft);
+  --color-reco-secondary: var(--reco-secondary);
+  --color-reco-tertiary: var(--reco-tertiary);
+  --color-reco-accent: var(--reco-accent);
+  --color-reco-error: var(--reco-error);
+  --font-reco: var(--reco-font);
+  --radius-reco: var(--reco-radius);
+  --radius-reco-card: var(--reco-radius-card);
+}

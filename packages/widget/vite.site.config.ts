@@ -1,5 +1,6 @@
+import tailwindcss from '@tailwindcss/vite'
 import { defineConfig } from 'vite'
-import { assertApiUrl } from './vite.config'
+import { assertApiUrl, recoTemplate } from './vite.config'
 
 /**
  * "Site" build (Vercel): index.html becomes the public reference page,
@@ -12,6 +13,9 @@ export default defineConfig(({ command, mode }) => {
   if (command === 'build') assertApiUrl(mode)
 
   return {
+    // Compile le <link> src/widget.css d'index.html en asset hashé du site ;
+    // recoTemplate génère le gabarit importé par le module du script inline.
+    plugins: [tailwindcss(), recoTemplate()],
     publicDir: false,
     build: {
       outDir: 'dist-site',

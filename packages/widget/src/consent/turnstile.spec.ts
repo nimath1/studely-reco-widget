@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ensureChallenge, resetChallenge, turnstileToken } from './turnstile'
-import { mountStepsWidget } from '../testing/widget.fixture'
+import { mountWidget } from '../testing/widget.fixture'
 
 const turnstile = () => ({
   render: vi.fn(() => 'widget-1'),
@@ -16,7 +16,7 @@ afterEach(() => {
 
 describe('turnstile', () => {
   it('no-op sans site key configurée', async () => {
-    const el = mountStepsWidget()
+    const el = mountWidget()
     await ensureChallenge(el)
     expect(el.querySelector('[data-reco-turnstile]')?.children.length).toBe(0)
     expect(document.head.querySelector('script')).toBeNull()
@@ -32,7 +32,7 @@ describe('turnstile', () => {
   it('rend le défi une fois quand turnstile est déjà chargé', async () => {
     vi.stubEnv('VITE_TURNSTILE_SITE_KEY', 'key-1')
     window.turnstile = turnstile()
-    const el = mountStepsWidget()
+    const el = mountWidget()
 
     await ensureChallenge(el)
     await ensureChallenge(el)
@@ -50,7 +50,7 @@ describe('turnstile', () => {
   it('expose le jeton et relance le défi', async () => {
     vi.stubEnv('VITE_TURNSTILE_SITE_KEY', 'key-1')
     window.turnstile = turnstile()
-    const el = mountStepsWidget()
+    const el = mountWidget()
 
     expect(turnstileToken(el)).toBeUndefined()
     await ensureChallenge(el)
@@ -63,7 +63,7 @@ describe('turnstile', () => {
   it('ne rend plus après abort', async () => {
     vi.stubEnv('VITE_TURNSTILE_SITE_KEY', 'key-1')
     window.turnstile = turnstile()
-    const el = mountStepsWidget()
+    const el = mountWidget()
     const controller = new AbortController()
     controller.abort()
 

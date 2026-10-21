@@ -127,22 +127,33 @@ export function clearChatSession(origin: string): void {
   }
 }
 
+/** Rejette comme un `AbortError` DOM — la promesse retournée par fetch. */
+function abortError(): DOMException {
+  return new DOMException('Aborted', 'AbortError')
+}
+
 /**
  * POST /chat : message + session courante ; renvoie le texte reconstitué
  * et les métadonnées `final`. Réseau mort et timeout mènent à 'network' ;
  * un 429 garde son Retry-After ; 400/422 → 'input' avec le champ fautif.
+ * `signal` (bouton « Arrêter ») annule la requête : AbortError remonte
+ * tel quel — l'appelant le distingue du timeout (network).
  */
 export async function postChat(
   message: string,
   sessionId: string | null,
-  turnstileToken?: string
+  turnstileToken?: string,
+  signal?: AbortSignal
 ): Promise<ChatReply> {
+  if (signal?.aborted) throw abortError()
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'X-Request-Id': requestId()
   }
   if (turnstileToken) headers['X-Turnstile-Token'] = turnstileToken
   const controller = new AbortController()
+  const onAbort = () => controller.abort()
+  signal?.addEventListener('abort', onAbort, { once: true })
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
   try {
     const res = await fetch(`${API_BASE_URL}/chat`, {
@@ -157,8 +168,11 @@ export async function postChat(
     return parseSse(await res.text())
   } catch (error) {
     if (error instanceof RecoApiError) throw error
+    // Annulation utilisateur : ni erreur réseau ni état indisponible.
+    if (signal?.aborted) throw abortError()
     throw new RecoApiError('network', 'API injoignable ou délai dépassé')
   } finally {
     clearTimeout(timer)
+    signal?.removeEventListener('abort', onAbort)
   }
 }
