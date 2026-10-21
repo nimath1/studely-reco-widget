@@ -566,6 +566,22 @@
       [data-reco-pending] {
         padding-top: 0;
       }
+      /* Compact status row: dots + text on the left, stop action on the
+         trailing edge; wraps below narrow widths instead of overlapping. */
+      [data-reco-pending-status] {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px 16px;
+        max-width: 100%;
+      }
+      [data-reco-pending-status] [role='status'] {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+        flex: 1 1 auto;
+      }
       [data-reco-pending] [data-reco-field='pending-text'] {
         margin: 0;
         font-size: 0.88rem;
@@ -574,8 +590,9 @@
       }
       [data-reco-dots] {
         display: inline-flex;
+        align-items: center;
         gap: 4px;
-        margin-top: 10px;
+        flex-shrink: 0;
       }
       [data-reco-dots] i {
         width: 7px;
@@ -603,17 +620,19 @@
         }
       }
       [data-reco-pending] [data-reco-action='stop'] {
-        margin-top: 12px;
+        margin: 0;
+        margin-inline-start: auto;
         min-height: 36px;
         padding: 4px 14px;
         border: 1.5px solid var(--reco-rule);
         border-radius: 999px;
-        background: var(--reco-paper);
+        background: var(--reco-surface);
         color: var(--reco-ink);
         font: inherit;
         font-size: 0.8rem;
         font-weight: 600;
         cursor: pointer;
+        flex-shrink: 0;
       }
       [data-reco-pending] [data-reco-action='stop']:hover {
         border-color: var(--reco-primary);
@@ -696,7 +715,9 @@
         background: var(--reco-paper);
         box-shadow: 0 12px 36px rgb(21 24 43 / 12%);
       }
-      [data-reco-consent] {
+      /* Legacy checkbox consent (full host templates) — scoped so the
+         passive continuation notice below never picks up flex/pointer. */
+      [data-reco-consent]:not([data-reco-consent='continuation']) {
         display: flex;
         align-items: flex-start;
         gap: 10px;
@@ -706,13 +727,21 @@
         color: var(--reco-ink-muted);
         cursor: pointer;
       }
-      [data-reco-consent] input {
+      [data-reco-consent]:not([data-reco-consent='continuation']) input {
         width: 18px;
         height: 18px;
         margin: 1px 0 0;
         accent-color: var(--reco-primary);
         flex-shrink: 0;
         cursor: pointer;
+      }
+      /* Passive notice: quiet centered legal line, no affordance. */
+      [data-reco-consent='continuation'] {
+        margin: 10px 0 0;
+        font-size: 0.72rem;
+        line-height: 1.5;
+        color: var(--reco-ink-subtle);
+        text-align: center;
       }
       /* Inset input group: textarea + send sit inside one soft well. */
       [data-reco-input-row] {
@@ -1006,6 +1035,10 @@
         [data-reco-input='message'] {
           font-size: 16px;
         }
+        /* Comfortable touch target once the status row wraps. */
+        [data-reco-pending] [data-reco-action='stop'] {
+          min-height: 44px;
+        }
       }
       @media (max-width: 420px) {
         [data-reco-widget] > header {
@@ -1045,6 +1078,10 @@
         <span data-reco-label="reco.consent"
           >J'accepte que mes messages soient analysés automatiquement pour me proposer des
           parcours</span
+        >
+        <span data-reco-label="reco.consent.continuation"
+          >En continuant, vous acceptez l’analyse automatique de vos messages pour vous proposer des
+          parcours.</span
         >
         <span data-reco-label="reco.input.label">Décris ton projet d'études</span>
         <span data-reco-label="reco.input.placeholder">Décris ton projet d'études…</span>

@@ -71,10 +71,7 @@ const ERROR_KEYS: Record<RecoApiError['kind'], string> = {
 }
 
 /** Textes statiques du gabarit passés par le bloc de libellés traduit. */
-const STATIC_LABELS: [field: string, key: string][] = [
-  ['consent-label', 'reco.consent'],
-  ['input-label', 'reco.input.label']
-]
+const STATIC_LABELS: [field: string, key: string][] = [['input-label', 'reco.input.label']]
 
 /**
  * Câblage d'un bloc : conversation pilotée par les templates
@@ -127,6 +124,23 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
   for (const [field, key] of STATIC_LABELS) {
     const label = t(key)
     if (label !== key) fillField(el, field, label)
+  }
+  // Deux gabarits de consentement coexistent : la case héritée garde la
+  // clé `reco.consent`, la notice « continuation » a la sienne — l'une ne
+  // doit jamais écraser l'autre.
+  const legacyConsent = t('reco.consent')
+  if (legacyConsent !== 'reco.consent') {
+    el.querySelectorAll<HTMLElement>('[data-reco-field="consent-label"]').forEach((node) => {
+      if (node.closest('[data-reco-consent="continuation"]')) return
+      node.textContent = legacyConsent
+    })
+  }
+  const continuationNotice = el.querySelector<HTMLElement>(
+    '[data-reco-consent="continuation"] [data-reco-field="consent-label"], [data-reco-consent="continuation"][data-reco-field="consent-label"]'
+  )
+  if (continuationNotice) {
+    const notice = t('reco.consent.continuation')
+    if (notice !== 'reco.consent.continuation') continuationNotice.textContent = notice
   }
   const composer = el.querySelector<HTMLTextAreaElement>('[data-reco-input="message"]')
   if (composer) {
@@ -250,8 +264,14 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     const text = message.trim()
     if (!text || view.state.pending) return
     if (!view.state.consent) {
-      announce(t('reco.error.consent'))
-      return
+      // Mode continuation : l'action d'envoi (texte ou chip d'amorce)
+      // vaut consentement — accordé ici, jamais à l'init. Le gabarit à
+      // case garde son blocage et son annonce.
+      if (view.state.continuation) consentGranted(true)
+      else {
+        announce(t('reco.error.consent'))
+        return
+      }
     }
     lastMessage = text
     appendUser(el, text)

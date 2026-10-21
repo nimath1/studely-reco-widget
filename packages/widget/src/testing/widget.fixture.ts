@@ -17,8 +17,11 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
         <div data-reco-thread role="log"></div>
         <div data-reco-pending hidden>
           <div data-reco-msg="assistant">
-            <div data-reco-bubble>
-              <p data-reco-field="pending-text"></p>
+            <div data-reco-bubble data-reco-pending-status>
+              <div role="status" aria-live="polite" aria-atomic="true">
+                <div data-reco-dots aria-hidden="true"><i></i><i></i><i></i></div>
+                <p data-reco-field="pending-text"></p>
+              </div>
               <button type="button" data-reco-action="stop" data-reco-field="stop-label"></button>
             </div>
           </div>
@@ -86,6 +89,7 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
         <span data-reco-label="reco.suggestion.4">Étudier en France</span>
         <span data-reco-label="reco.suggestion.5">Parler à un conseiller</span>
         <span data-reco-label="reco.consent">J'accepte l'analyse automatique</span>
+        <span data-reco-label="reco.consent.continuation">En continuant, vous acceptez l'analyse automatique de vos messages pour vous proposer des parcours.</span>
         <span data-reco-label="reco.input.label">Décris ton projet</span>
         <span data-reco-label="reco.input.placeholder">Ton projet…</span>
         <span data-reco-label="reco.send">Envoyer</span>

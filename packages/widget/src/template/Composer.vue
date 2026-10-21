@@ -1,11 +1,5 @@
 <template>
   <form data-reco-composer novalidate>
-    <label data-reco-consent>
-      <input type="checkbox" data-reco-input="consent" />
-      <span data-reco-field="consent-label">
-        J'accepte que mes messages soient analysés automatiquement pour me proposer des parcours
-      </span>
-    </label>
     <div data-reco-turnstile></div>
     <div data-reco-input-row>
       <label for="reco-message" class="sr-only" data-reco-field="input-label"
@@ -32,6 +26,10 @@
         </svg>
       </button>
     </div>
+    <p data-reco-consent="continuation" data-reco-field="consent-label">
+      En continuant, vous acceptez l’analyse automatique de vos messages pour vous proposer des
+      parcours.
+    </p>
     <p data-reco-disclaimer>Recommandations indicatives générées automatiquement.</p>
   </form>
 </template>

@@ -12,9 +12,11 @@
             />
           </svg>
         </span>
-        <div data-reco-bubble>
-          <p data-reco-field="pending-text">Analyse de ta demande…</p>
-          <div data-reco-dots aria-hidden="true"><i></i><i></i><i></i></div>
+        <div data-reco-bubble data-reco-pending-status>
+          <div role="status" aria-live="polite" aria-atomic="true">
+            <div data-reco-dots aria-hidden="true"><i></i><i></i><i></i></div>
+            <p data-reco-field="pending-text">Analyse de ta demande…</p>
+          </div>
           <button type="button" data-reco-action="stop" data-reco-field="stop-label">
             Arrêter la réponse
           </button>

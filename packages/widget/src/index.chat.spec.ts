@@ -95,6 +95,93 @@ describe('accueil et consentement', () => {
   })
 })
 
+describe('consentement passif (continuation)', () => {
+  /** Remplace la case par la notice « continuation » puis ré-initialise. */
+  function useContinuationMarkup(): void {
+    const notice = document.createElement('p')
+    notice.dataset.recoConsent = 'continuation'
+    notice.dataset.recoField = 'consent-label'
+    notice.textContent =
+      'En continuant, vous acceptez l’analyse automatique de vos messages pour vous proposer des parcours.'
+    el.querySelector('[data-reco-consent]')!.replaceWith(notice)
+    StudelyReco.init(el)
+  }
+
+  const consentEvents = () => (window.dataLayer ?? []).filter((p) => p.event === 'reco_consent')
+
+  it('saisie libre dès l’ouverture, aucun consentement émis avant interaction', async () => {
+    useContinuationMarkup()
+    await waitFor(() => expect(textarea().disabled).toBe(false))
+    expect(el.querySelector<HTMLButtonElement>('[data-reco-action="send"]')!.disabled).toBe(false)
+    expect(el.querySelector('[data-reco-input="consent"]')).toBeNull()
+    expect(consentEvents()).toHaveLength(0)
+  })
+
+  it('premier chip : envoie son libellé une fois et accorde le consentement', async () => {
+    const spy = mockFetch(async () => ok(SSE('r')))
+    useContinuationMarkup()
+    await waitFor(() =>
+      expect(el.querySelector<HTMLButtonElement>('[data-reco-action="send"]')!.disabled).toBe(false)
+    )
+    el.querySelector<HTMLElement>('[data-reco-thread] [data-reco-send]')!.click()
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1))
+    const body = JSON.parse((spy.mock.calls[0]![1] as { body: string }).body)
+    expect(body.message).toBe('Bachelor en Europe')
+    expect(userEntries().at(-1)!.textContent).toContain('Bachelor en Europe')
+    expect(el.dataset.recoState).toBe('chat')
+    expect(consentEvents()).toHaveLength(1)
+  })
+
+  it('premier envoi texte : un seul POST, puis pas de jalon consentement en plus', async () => {
+    const spy = mockFetch(async () => ok(SSE('r', { session_id: 's1' })))
+    useContinuationMarkup()
+    await waitFor(() => expect(textarea().disabled).toBe(false))
+    await type('Je cherche un master')
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1))
+    expect(consentEvents()).toHaveLength(1)
+    await waitFor(() => expect(assistantEntries().length).toBeGreaterThanOrEqual(2))
+    await type('deuxième message')
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(2))
+    expect(consentEvents()).toHaveLength(1)
+  })
+
+  it('soumission vide : ni consentement ni POST', async () => {
+    const spy = mockFetch(async () => ok(SSE('r')))
+    useContinuationMarkup()
+    await waitFor(() => expect(textarea().disabled).toBe(false))
+    textarea().value = '   '
+    textarea().closest('form')!.requestSubmit()
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(spy).not.toHaveBeenCalled()
+    expect(consentEvents()).toHaveLength(0)
+    expect(el.dataset.recoState).toBe('consent')
+  })
+
+  it('sans case ni marqueur : blocage hérité, annonce consentement', async () => {
+    const spy = mockFetch(async () => ok(SSE('r')))
+    el.querySelector('[data-reco-consent]')!.remove()
+    StudelyReco.init(el)
+    await waitFor(() =>
+      expect(el.querySelector<HTMLButtonElement>('[data-reco-action="send"]')!.disabled).toBe(true)
+    )
+    textarea().value = 'Bonjour'
+    textarea().closest('form')!.requestSubmit()
+    expect(spy).not.toHaveBeenCalled()
+    await waitFor(() =>
+      expect(el.querySelector('[data-reco-live]')!.textContent).toContain('Consentement')
+    )
+    expect(consentEvents()).toHaveLength(0)
+  })
+
+  it('la case héritée garde son blocage puis sa révocation', async () => {
+    await grant()
+    expect(el.dataset.recoState).toBe('chat')
+    consent().checked = false
+    consent().dispatchEvent(new Event('change', { bubbles: true }))
+    expect(el.dataset.recoState).toBe('consent')
+  })
+})
+
 describe('envoi et réponse', () => {
   beforeEach(async () => {
     mockFetch(async () =>

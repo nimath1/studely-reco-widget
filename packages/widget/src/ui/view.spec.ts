@@ -41,6 +41,35 @@ describe('mountView (chat)', () => {
     view.unmount()
   })
 
+  it('marqueur continuation : saisie libre avant consentement, pending verrouille', async () => {
+    const notice = document.createElement('p')
+    notice.dataset.recoConsent = 'continuation'
+    notice.dataset.recoField = 'consent-label'
+    el.querySelector('[data-reco-consent]')!.replaceWith(notice)
+    const view = mountView(el)
+    expect(view.state.consent).toBe(false)
+    expect(view.state.continuation).toBe(true)
+    await nextTick()
+    expect(input().disabled).toBe(false)
+    expect(send().disabled).toBe(false)
+
+    view.state.pending = true
+    await nextTick()
+    expect(input().disabled).toBe(true)
+    expect(send().disabled).toBe(true)
+    view.unmount()
+  })
+
+  it('ni case ni marqueur : la saisie reste verrouillée', async () => {
+    el.querySelector('[data-reco-consent]')!.remove()
+    const view = mountView(el)
+    expect(view.state.continuation).toBe(false)
+    await nextTick()
+    expect(input().disabled).toBe(true)
+    expect(send().disabled).toBe(true)
+    view.unmount()
+  })
+
   it('live alimente [data-reco-live]', async () => {
     const view = mountView(el)
     view.state.live = 'Annonce'

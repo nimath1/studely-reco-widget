@@ -18,6 +18,9 @@ export interface ViewState {
   pending: boolean
   /** Consentement au traitement donné : déverrouille la saisie (§5.1). */
   consent: boolean
+  /** Gabarit « continuer vaut consentement » : la saisie est libre dès
+      l'ouverture, le premier envoi accorde le consentement (§5.1). */
+  continuation: boolean
   /** Annonce lecteur d'écran (`[data-reco-live]`, §8.2). */
   live: string
   /** « Réessayer » désactivé pendant Retry-After (R9). */
@@ -43,8 +46,8 @@ const DELIMITERS: [string, string] = ['[[studely-reco:', ']]']
  * fonctions du scope, pas concaténé dans le code évalué.
  */
 const BINDINGS: [selector: string, directive: string, expression: string][] = [
-  ['[data-reco-input="message"]', ':disabled', 'pending || !consent'],
-  ['[data-reco-action="send"]', ':disabled', 'pending || !consent'],
+  ['[data-reco-input="message"]', ':disabled', 'pending || (!consent && !continuation)'],
+  ['[data-reco-action="send"]', ':disabled', 'pending || (!consent && !continuation)'],
   ['[data-reco-action="retry"]', ':disabled', 'retryLocked'],
   ['[data-reco-live]', 'v-text', 'live']
 ]
@@ -61,6 +64,9 @@ export function mountView(el: HTMLElement): View {
     pending: false,
     // La case peut être pré-cochée dans un gabarit hôte complet.
     consent: el.querySelector<HTMLInputElement>('[data-reco-input="consent"]')?.checked === true,
+    // Le marqueur opte explicitement en mode continuation ; son absence
+    // (avec ou sans case) garde la saisie verrouillée.
+    continuation: el.querySelector('[data-reco-consent="continuation"]') !== null,
     live: text('[data-reco-live]'),
     retryLocked: false,
     $delimiters: DELIMITERS
