@@ -111,6 +111,9 @@ export function appendHandoffForm(el: HTMLElement, t: Translate): HTMLElement | 
 export function greet(el: HTMLElement, t: Translate): void {
   const card = cloneTemplate(el, 'msg-assistant')
   if (!card) return
+  // Greeting marker: the CSS gives a generous welcome layout while the
+  // card is the only thread entry (:only-child).
+  card.dataset.recoGreeting = ''
   fillField(card, 'text', t('reco.greeting'))
   const slot = card.querySelector('[data-reco-field="suggestions"]')
   if (slot) {

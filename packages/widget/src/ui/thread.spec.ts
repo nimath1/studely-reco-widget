@@ -85,14 +85,23 @@ describe('appendHandoffForm', () => {
 })
 
 describe('greet', () => {
-  it('bulle d’accueil + chips libellés → data-reco-send', () => {
+  it('bulle d’accueil marquée + chips libellés → data-reco-send', () => {
     greet(el, t)
     const entry = entries().at(-1)!
     expect(entry.dataset.recoMsg).toBe('assistant')
+    expect(entry.dataset.recoGreeting).toBe('')
     expect(entry.textContent).toContain('Bonjour')
     const chips = [...entry.querySelectorAll<HTMLButtonElement>('[data-reco-send]')]
     expect(chips).toHaveLength(5)
     expect(chips[0]!.dataset.recoSend).toBe('Bachelor en Europe')
+  })
+
+  it('les réponses ordinaires ne portent pas le marqueur d’accueil', () => {
+    appendAssistant(el, { text: 'Voici des pistes', meta: {} }, t)
+    const entry = entries().at(-1)!
+    expect(entry.dataset.recoMsg).toBe('assistant')
+    expect(entry.hasAttribute('data-reco-greeting')).toBe(false)
+    expect(entry.querySelector('[data-reco-field="text"]')!.textContent).toBe('Voici des pistes')
   })
 })
 

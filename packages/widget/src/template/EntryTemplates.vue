@@ -4,6 +4,13 @@
       <p data-reco-field="text"></p>
     </div>
     <div data-reco-template="msg-assistant" data-reco-msg="assistant">
+      <span data-reco-avatar aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path
+            d="M12 2.6 13.8 8l5.4 1.8-5.4 1.8L12 17.2 10.2 11.6 4.8 9.8 10.2 8 12 2.6ZM18.5 15l.9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9.9-2.6Z"
+          />
+        </svg>
+      </span>
       <div data-reco-bubble>
         <p data-reco-field="text"></p>
         <div data-reco-field="suggestions"></div>
@@ -20,6 +27,13 @@
     <!-- Mise en relation : le conseiller est contacté via un mini-formulaire
          dans le fil (nom + e-mail), pas une navigation externe. -->
     <div data-reco-template="handoff-form" data-reco-msg="assistant">
+      <span data-reco-avatar aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path
+            d="M12 2.6 13.8 8l5.4 1.8-5.4 1.8L12 17.2 10.2 11.6 4.8 9.8 10.2 8 12 2.6ZM18.5 15l.9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9.9-2.6Z"
+          />
+        </svg>
+      </span>
       <div data-reco-bubble>
         <p data-reco-field="text"></p>
         <form data-reco-handoff novalidate>

@@ -28,7 +28,7 @@
           stroke-linejoin="round"
           aria-hidden="true"
         >
-          <path d="M9 6l6 6-6 6" />
+          <path d="M12 19V5M5 12l7-7 7 7" />
         </svg>
       </button>
     </div>

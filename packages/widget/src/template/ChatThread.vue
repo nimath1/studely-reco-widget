@@ -5,6 +5,13 @@
     <div data-reco-thread role="log"></div>
     <div data-reco-pending hidden>
       <div data-reco-msg="assistant">
+        <span data-reco-avatar aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M12 2.6 13.8 8l5.4 1.8-5.4 1.8L12 17.2 10.2 11.6 4.8 9.8 10.2 8 12 2.6ZM18.5 15l.9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9.9-2.6Z"
+            />
+          </svg>
+        </span>
         <div data-reco-bubble>
           <p data-reco-field="pending-text">Analyse de ta demande…</p>
           <div data-reco-dots aria-hidden="true"><i></i><i></i><i></i></div>
