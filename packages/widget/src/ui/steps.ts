@@ -254,35 +254,6 @@ export function validateStep(
 }
 
 /**
- * Chrome de l'étape courante : « Étape x sur 5 », barre de progression,
- * Retour masqué à l'étape 1, « Voir mes recommandations » à l'étape 5.
- */
-export function updateStepChrome(
-  el: HTMLElement,
-  step: number,
-  t: Translate,
-  formatNumber: (value: number) => string = String
-): void {
-  const progress = el.querySelector('[data-reco-progress]')
-  if (progress) {
-    progress.textContent = t('reco.progress', {
-      step: formatNumber(step),
-      total: formatNumber(STEP_COUNT)
-    })
-  }
-  const bar = el.querySelector<HTMLElement>('[data-reco-progress-bar]')
-  if (bar) bar.style.width = `${(step / STEP_COUNT) * 100}%`
-
-  const action = (name: string) => el.querySelector<HTMLElement>(`[data-reco-action="${name}"]`)
-  const back = action('back')
-  const next = action('next')
-  const submit = action('submit')
-  if (back) back.hidden = step <= 1
-  if (next) next.hidden = step >= STEP_COUNT
-  if (submit) submit.hidden = step < STEP_COUNT
-}
-
-/**
  * Étape du champ fautif renvoyé par un 400 (`profile.fields` → 2, §5.3).
  */
 export function stepOfField(field: string): number | null {

@@ -74,16 +74,23 @@ export function nextState(state: WidgetState, action: RecoAction): WidgetState |
   return step === null ? fromLeaf(state, action) : fromStep(step, action)
 }
 
+/** Part de la vue réactive (src/ui/view.ts) que la machine pilote. */
+export interface MachineView {
+  state: WidgetState
+  step: number
+}
+
 /**
- * Machine à états adossée au conteneur : `data-reco-state` reflète l'état,
- * un seul panel porte `is-reco-active` (le panel `steps` pour tous les
- * `step-N`, avec le fieldset courant marqué à son tour).
+ * Machine à états adossée au conteneur : `data-reco-state` reflète l'état
+ * (synchrone — CSS et tracking le lisent), et la vue réactive en déduit le
+ * panel et le fieldset actifs (`is-reco-active`).
  */
 export class RecoMachine {
   private current: WidgetState
 
   constructor(
     private readonly el: HTMLElement,
+    private readonly view: MachineView,
     initial: WidgetState = 'intro'
   ) {
     this.current = initial
@@ -120,19 +127,8 @@ export class RecoMachine {
 
   private apply(state: WidgetState): void {
     this.el.dataset.recoState = state
+    this.view.state = state
     const step = stepOf(state)
-    const panelName = step === null ? state : 'steps'
-    this.el.querySelectorAll('[data-reco-panel]').forEach((panel) => {
-      panel.classList.toggle(
-        'is-reco-active',
-        panel instanceof HTMLElement && panel.dataset.recoPanel === panelName
-      )
-    })
-    this.el.querySelectorAll('[data-reco-step]').forEach((node) => {
-      node.classList.toggle(
-        'is-reco-active',
-        step !== null && node instanceof HTMLElement && node.dataset.recoStep === String(step)
-      )
-    })
+    if (step !== null) this.view.step = step
   }
 }

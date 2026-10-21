@@ -11,7 +11,7 @@ export default defineConfig({
       provider: 'v8',
       reportsDirectory: './coverage',
       include: ['src/**/*.ts'],
-      exclude: ['src/**/*.spec.ts', 'src/vite-env.d.ts'],
+      exclude: ['src/**/*.spec.ts', 'src/**/*.d.ts'],
       reporter: ['text', ['lcov', { file: 'lcov.info' }]],
       thresholds: {
         lines: 90,

@@ -1,4 +1,4 @@
-import { nextState, RecoMachine, stepOf } from './machine'
+import { nextState, RecoMachine, stepOf, type WidgetState } from './machine'
 import { RECO_EVENT } from '../tracking/events'
 import { mountStepsWidget } from '../testing/widget.fixture'
 
@@ -61,38 +61,30 @@ describe('nextState — table du §4', () => {
   })
 })
 
-describe('RecoMachine — DOM', () => {
-  it('pose data-reco-state et is-reco-active sur un seul panel', () => {
+describe('RecoMachine', () => {
+  const view = () => ({ state: 'intro' as WidgetState, step: 1 })
+
+  it('pose data-reco-state et pilote l’état et l’étape de la vue', () => {
     const el = mountStepsWidget()
-    const machine = new RecoMachine(el)
+    const v = view()
+    const machine = new RecoMachine(el, v)
 
     expect(el.dataset.recoState).toBe('intro')
-    const actifs = () => el.querySelectorAll('[data-reco-panel].is-reco-active')
-    expect(actifs()).toHaveLength(1)
-    expect(actifs()[0]!.getAttribute('data-reco-panel')).toBe('intro')
+    expect(v).toEqual({ state: 'intro', step: 1 })
 
     machine.dispatch('start')
-    expect(el.dataset.recoState).toBe('step-1')
-    expect(actifs()[0]!.getAttribute('data-reco-panel')).toBe('steps')
-    expect(el.querySelector('[data-reco-step="1"]')!.classList.contains('is-reco-active')).toBe(
-      true
-    )
-    expect(el.querySelector('[data-reco-step="2"]')!.classList.contains('is-reco-active')).toBe(
-      false
-    )
-  })
+    machine.dispatch('next')
+    expect(el.dataset.recoState).toBe('step-2')
+    expect(v).toEqual({ state: 'step-2', step: 2 })
 
-  it('le panel fallback ne reçoit jamais is-reco-active', () => {
-    const el = mountStepsWidget()
-    new RecoMachine(el)
-    expect(
-      el.querySelector('[data-reco-panel="fallback"]')!.classList.contains('is-reco-active')
-    ).toBe(false)
+    // Hors questionnaire, la vue garde la dernière étape affichée.
+    machine.goTo('error')
+    expect(v).toEqual({ state: 'error', step: 2 })
   })
 
   it('émet studely:reco à chaque transition, rien sur une transition ignorée', () => {
     const el = mountStepsWidget()
-    const machine = new RecoMachine(el)
+    const machine = new RecoMachine(el, view())
     const seen: unknown[] = []
     el.addEventListener(RECO_EVENT, (e) => seen.push((e as CustomEvent).detail))
 
@@ -108,7 +100,7 @@ describe('RecoMachine — DOM', () => {
 
   it('goTo impose un état hors table (400 API → étape du champ)', () => {
     const el = mountStepsWidget()
-    const machine = new RecoMachine(el, 'loading')
+    const machine = new RecoMachine(el, view(), 'loading')
     machine.goTo('step-2')
     expect(machine.state).toBe('step-2')
     expect(el.dataset.recoState).toBe('step-2')

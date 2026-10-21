@@ -63,6 +63,10 @@ importers:
         version: 8.62.0(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3)
 
   packages/widget:
+    dependencies:
+      petite-vue:
+        specifier: 0.4.1
+        version: 0.4.1
     devDependencies:
       '@axe-core/playwright':
         specifier: ^4.14.0
@@ -3001,6 +3005,12 @@ packages:
       }
     engines: { node: '>= 14.16' }
 
+  petite-vue@0.4.1:
+    resolution:
+      {
+        integrity: sha512-/gtYKQe9r1OV4IEwn2RsPXAHgFTe1nVq4QhldAP6/l8DSe9I754K6Oe1+Ff6dbnT5P8X2XP7PTUZkGRz5uFnFQ==
+      }
+
   picocolors@1.1.1:
     resolution:
       {
@@ -5309,6 +5319,8 @@ snapshots:
   pathe@2.0.3: {}
 
   pathval@2.0.1: {}
+
+  petite-vue@0.4.1: {}
 
   picocolors@1.1.1: {}
 

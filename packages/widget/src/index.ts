@@ -34,9 +34,9 @@ import {
   saveDraft,
   showFieldError,
   stepOfField,
-  updateStepChrome,
   validateStep
 } from './ui/steps'
+import { mountView, nextTick } from './ui/view'
 
 export const version: string = pkgVersion
 
@@ -73,15 +73,26 @@ const ERROR_KEYS: Record<RecoApiError['kind'], string> = {
 }
 
 /**
- * Câblage d'un bloc : machine à états, actions `data-reco-action`, options
- * et soumission à l'API, brouillon sessionStorage. Tout repose sur le
- * `signal` : un `init` suivant retire proprement écouteurs et minuteurs.
+ * Câblage d'un bloc : vue réactive, machine à états, actions
+ * `data-reco-action`, options et soumission à l'API, brouillon
+ * sessionStorage. Tout repose sur le `signal` : un `init` suivant retire
+ * proprement écouteurs, minuteurs et effets réactifs.
  */
 function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void {
   const t = readLabels(el)
   const fmt = makeFormatters(config.locale)
-  const machine = new RecoMachine(el, 'intro')
+  const view = mountView(el, t, fmt.number)
+  signal.addEventListener('abort', view.unmount, { once: true })
+  const machine = new RecoMachine(el, view.state, 'intro')
   const draft = loadDraft(config.origin)
+
+  /** Exécute `fn` une fois le DOM à jour, sauf si le bloc a changé d'état entre-temps. */
+  const afterRender = (fn: () => void) => {
+    const state = machine.state
+    void nextTick(() => {
+      if (!signal.aborted && machine.state === state) fn()
+    })
+  }
 
   // Le lien conseiller est disponible dans tous les états (§4).
   el.querySelectorAll<HTMLAnchorElement>('[data-reco-action="advisor"]').forEach((link) => {
@@ -107,9 +118,8 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
   })
 
   /** Annonces lecteur d'écran : changement d'étape et erreurs (§8.2). */
-  const live = el.querySelector('[data-reco-live]')
   const announce = (text: string) => {
-    if (live) live.textContent = text
+    view.state.live = text
   }
 
   const persist = () =>
@@ -122,20 +132,23 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
   function syncChrome(): void {
     const step = stepOf(machine.state)
     if (step !== null) {
-      updateStepChrome(el, step, t, fmt.number)
       announce(t('reco.progress', { step: fmt.number(step), total: fmt.number(STEP_COUNT) }))
       // Optional transcript repainted before focusing the active question.
       renderConversation(el, step)
-      const legend = el.querySelector<HTMLElement>(`[data-reco-step="${step}"] legend`)
-      // preventScroll only when a scrollable body exists: templates without
-      // one keep the default focus scroll behavior.
-      const body = el.querySelector<HTMLElement>('[data-reco-body]')
-      legend?.focus({ preventScroll: Boolean(body) })
-      // Bring the question to the top of the scrollable body only — never
-      // scrollIntoView, which could move an embedded host page.
-      if (legend && body) {
-        body.scrollTop += legend.getBoundingClientRect().top - body.getBoundingClientRect().top - 20
-      }
+      // The fieldset only becomes visible once the view has rendered.
+      afterRender(() => {
+        const legend = el.querySelector<HTMLElement>(`[data-reco-step="${step}"] legend`)
+        // preventScroll only when a scrollable body exists: templates without
+        // one keep the default focus scroll behavior.
+        const body = el.querySelector<HTMLElement>('[data-reco-body]')
+        legend?.focus({ preventScroll: Boolean(body) })
+        // Bring the question to the top of the scrollable body only — never
+        // scrollIntoView, which could move an embedded host page.
+        if (legend && body) {
+          body.scrollTop +=
+            legend.getBoundingClientRect().top - body.getBoundingClientRect().top - 20
+        }
+      })
       // Le script Turnstile n'est chargé qu'à l'arrivée sur l'étape 5 (§9.1).
       if (step === STEP_COUNT) void ensureChallenge(el, signal)
     }
@@ -148,14 +161,13 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     )
     if (!title) return
     title.tabIndex = -1
-    title.focus()
+    afterRender(() => title.focus())
   }
 
   function showError(error: unknown): void {
     const kind = error instanceof RecoApiError ? error.kind : 'network'
-    const message = el.querySelector('[data-reco-error-message]')
-    if (message) {
-      message.textContent = t(ERROR_KEYS[kind])
+    if (el.querySelector('[data-reco-error-message]')) {
+      view.state.errorMessage = t(ERROR_KEYS[kind])
       announce(t(ERROR_KEYS[kind]))
     }
     machine.dispatch('error')
@@ -275,11 +287,9 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
   /** « Réessayer » désactivé pendant Retry-After (R9). */
   function lockRetry(seconds: number): void {
     retryLockUntil = Date.now() + seconds * 1000
-    const button = el.querySelector<HTMLButtonElement>('[data-reco-action="retry"]')
-    if (!button) return
-    button.disabled = true
+    view.state.retryLocked = true
     const timer = setTimeout(() => {
-      button.disabled = false
+      view.state.retryLocked = false
     }, seconds * 1000)
     signal.addEventListener('abort', () => clearTimeout(timer), { once: true })
   }

@@ -1,5 +1,6 @@
 import { mountStepsWidget } from './testing/widget.fixture'
 import { DRAFT_KEY } from './ui/steps'
+import { nextTick } from './ui/view'
 import { RECO_EVENT } from './tracking/events'
 
 type IndexModule = typeof import('./index')
@@ -85,6 +86,7 @@ describe('parcours du questionnaire', () => {
 
     click(el, 'start')
     expect(el.dataset.recoState).toBe('step-1')
+    await nextTick() // la vue réactive rend en microtâche
     expect(
       el.querySelector('[data-reco-panel="steps"]')!.classList.contains('is-reco-active')
     ).toBe(true)
@@ -235,6 +237,7 @@ describe('erreurs API', () => {
     click(el, 'retry')
     expect(spy).toHaveBeenCalledTimes(1) // pas de renvoi pendant le verrou
     vi.advanceTimersByTime(30_000)
+    await nextTick()
     expect(retry.disabled).toBe(false)
     vi.useRealTimers()
   })

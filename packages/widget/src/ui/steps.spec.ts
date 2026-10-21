@@ -12,7 +12,6 @@ import {
   saveDraft,
   showFieldError,
   stepOfField,
-  updateStepChrome,
   validateStep,
   type Answers
 } from './steps'
@@ -156,23 +155,6 @@ describe('aria-invalid / aria-describedby', () => {
     expect(box.getAttribute('aria-invalid')).toBe('true')
     clearFieldError(el, 'consent')
     expect(box.hasAttribute('aria-invalid')).toBe(false)
-  })
-})
-
-describe('updateStepChrome', () => {
-  it('met à jour progression, barre et boutons', () => {
-    const el = mountStepsWidget()
-    updateStepChrome(el, 1, t(el))
-    expect(el.querySelector('[data-reco-progress]')!.textContent).toBe('Étape 1 sur 5')
-    expect((el.querySelector('[data-reco-progress-bar]') as HTMLElement).style.width).toBe('20%')
-    expect((el.querySelector('[data-reco-action="back"]') as HTMLElement).hidden).toBe(true)
-    expect((el.querySelector('[data-reco-action="next"]') as HTMLElement).hidden).toBe(false)
-    expect((el.querySelector('[data-reco-action="submit"]') as HTMLElement).hidden).toBe(true)
-
-    updateStepChrome(el, 5, t(el))
-    expect((el.querySelector('[data-reco-action="back"]') as HTMLElement).hidden).toBe(false)
-    expect((el.querySelector('[data-reco-action="next"]') as HTMLElement).hidden).toBe(true)
-    expect((el.querySelector('[data-reco-action="submit"]') as HTMLElement).hidden).toBe(false)
   })
 })
 
