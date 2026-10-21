@@ -20,6 +20,7 @@ import { emitRecoEvent, trackReco } from './tracking/events'
 import { injectTemplate } from './ui/template'
 import {
   appendAssistant,
+  appendHandoffForm,
   appendUser,
   clearThread,
   greet,
@@ -72,8 +73,7 @@ const ERROR_KEYS: Record<RecoApiError['kind'], string> = {
 /** Textes statiques du gabarit passés par le bloc de libellés traduit. */
 const STATIC_LABELS: [field: string, key: string][] = [
   ['consent-label', 'reco.consent'],
-  ['input-label', 'reco.input.label'],
-  ['reset-label', 'reco.reset']
+  ['input-label', 'reco.input.label']
 ]
 
 /**
@@ -122,10 +122,6 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     view.state.live = text
   }
 
-  // Le lien conseiller est disponible dans tous les états (§4).
-  el.querySelectorAll<HTMLAnchorElement>('[data-reco-action="advisor"]').forEach((link) => {
-    link.href = config.advisorUrl
-  })
   // Libellés du gabarit remplacés par la traduction du bloc — les clés
   // absentes gardent le texte FR du gabarit (jamais la clé affichée).
   for (const [field, key] of STATIC_LABELS) {
@@ -177,7 +173,7 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
   /** Réponse /chat affichée : bulle assistant, ou refus out-of-scope. */
   function showReply(reply: ChatReply): void {
     const rejected = reply.meta.out_of_scope === true || reply.meta.intent === 'out_of_scope'
-    const { pieces, links } = appendAssistant(el, reply, t, config.advisorUrl)
+    const { pieces, links } = appendAssistant(el, reply, t)
     lastResultCount = links > 0 ? links : pieces
     if (rejected) {
       emitRecoEvent(el, 'empty')
@@ -297,6 +293,85 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     greet(el, t)
   }
 
+  /**
+   * Mise en relation : valide nom + e-mail puis transmet — POST JSON vers
+   * `data-reco-handoff-url` quand l'endpoint est configuré, sinon repli
+   * sur la page conseiller (coordonnées passées en query, nouvel onglet).
+   * La carte se transforme en confirmation ; échec réseau → message dans
+   * la carte et saisie réactivée.
+   */
+  async function submitHandoff(form: HTMLFormElement): Promise<void> {
+    const nameInput = form.querySelector<HTMLInputElement>('[data-reco-input="handoff-name"]')
+    const emailInput = form.querySelector<HTMLInputElement>('[data-reco-input="handoff-email"]')
+    const name = nameInput?.value.trim() ?? ''
+    const email = emailInput?.value.trim() ?? ''
+    const invalid = !name || !email || (emailInput ? !emailInput.checkValidity() : true)
+    const errorField = form.parentElement?.querySelector<HTMLElement>(
+      '[data-reco-field="handoff-error"]'
+    )
+    if (invalid) {
+      if (errorField) {
+        errorField.textContent = t('reco.handoff.invalid')
+        errorField.hidden = false
+      }
+      announce(t('reco.handoff.invalid'))
+      return
+    }
+    const controls = form.querySelectorAll('input, button')
+    controls.forEach((control) => ((control as HTMLButtonElement).disabled = true))
+    let delivered = false
+    if (config.handoffUrl) {
+      try {
+        const response = await fetch(config.handoffUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, session_id: sessionId, origin: config.origin })
+        })
+        delivered = response.ok
+      } catch {
+        delivered = false
+      }
+    } else {
+      const target = new URL(config.advisorUrl, el.ownerDocument.location.href)
+      target.searchParams.set('nom', name)
+      target.searchParams.set('email', email)
+      el.ownerDocument.defaultView?.open(target.toString(), '_blank', 'noopener')
+      delivered = true
+    }
+    if (!delivered) {
+      controls.forEach((control) => ((control as HTMLButtonElement).disabled = false))
+      if (errorField) {
+        errorField.textContent = t('reco.error.network')
+        errorField.hidden = false
+      }
+      announce(t('reco.error.network'))
+      return
+    }
+    const card = form.closest<HTMLElement>('[data-reco-msg]')
+    if (card) {
+      card.querySelector('[data-reco-bubble]')?.replaceChildren()
+      fillField(card, 'text', t('reco.handoff.confirm'))
+      if (!card.querySelector('[data-reco-field="text"]')) {
+        const p = document.createElement('p')
+        p.dataset.recoField = 'text'
+        p.textContent = t('reco.handoff.confirm')
+        card.querySelector('[data-reco-bubble]')?.append(p)
+      }
+    }
+    emitRecoEvent(el, 'handoff', { mode: config.handoffUrl ? 'api' : 'redirect' })
+    announce(t('reco.handoff.confirm'))
+  }
+
+  /** « Parler à un conseiller » : le mini-formulaire rejoint le fil. */
+  function proposeHandoff(): void {
+    emitRecoEvent(el, 'advisor', { from: phase })
+    const card = appendHandoffForm(el, t)
+    if (!card) {
+      // Gabarit sans le template : repli sur le lien direct.
+      el.ownerDocument.defaultView?.open(config.advisorUrl, '_blank', 'noopener')
+    }
+  }
+
   function handleAction(action: string, trigger: HTMLElement): void {
     switch (action) {
       case 'send':
@@ -313,7 +388,7 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
         restart()
         break
       case 'advisor':
-        emitRecoEvent(el, 'advisor', { from: phase })
+        proposeHandoff()
         break
       default:
         // Chip d'amorce : son libellé part comme message utilisateur.
@@ -367,12 +442,19 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     },
     { signal }
   )
-  el.querySelector('form')?.addEventListener(
+  // Soumissions déléguées : composer en bas, formulaire de mise en
+  // relation cloné dans le fil (présent seulement après un CTA conseiller).
+  el.addEventListener(
     'submit',
     (event) => {
+      const form = event.target
+      if (!(form instanceof HTMLFormElement) || !el.contains(form)) return
       event.preventDefault()
-      send(composer?.value ?? '')
-      if (composer) composer.value = ''
+      if (form.matches('[data-reco-handoff]')) void submitHandoff(form)
+      else {
+        send(composer?.value ?? '')
+        if (composer) composer.value = ''
+      }
     },
     { signal }
   )

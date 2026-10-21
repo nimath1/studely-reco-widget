@@ -50,12 +50,13 @@ bootstrap scanne le DOM à `DOMContentLoaded` et ne fait rien sans widget).
 
 ### Attributs du conteneur
 
-| Attribut                | Obligatoire | Rôle                                               |
-| ----------------------- | ----------- | -------------------------------------------------- |
-| `data-reco-widget`      | Oui         | Marque le conteneur                                |
-| `data-reco-origin`      | Oui*        | Slug du pays d'origine (`mexique`), envoyé à l'API |
-| `data-reco-advisor-url` | Oui*        | Cible du bouton « Parler à un conseiller »         |
-| `data-reco-locale`      | Non         | Locale si `<html lang>` est absent (repli `fr`)    |
+| Attribut                | Obligatoire | Rôle                                                                                                                                    |
+| ----------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `data-reco-widget`      | Oui         | Marque le conteneur                                                                                                                     |
+| `data-reco-origin`      | Oui*        | Slug du pays d'origine (`mexique`), envoyé à l'API                                                                                      |
+| `data-reco-advisor-url` | Oui*        | Page conseiller de repli (reçoit nom/e-mail en query)                                                                                   |
+| `data-reco-handoff-url` | Non         | Endpoint de mise en relation : le mini-formulaire y POST `{name, email, session_id, origin}` en JSON ; absent → repli sur `advisor-url` |
+| `data-reco-locale`      | Non         | Locale si `<html lang>` est absent (repli `fr`)                                                                                         |
 
 \* ou `<meta name="reco-origin" content="…">` /
 `<meta name="reco-advisor-url" content="…">` dans le `<head>` de la page :
@@ -84,9 +85,9 @@ R12) et un avertissement `[studely-reco]` est émis en console.
 - Fil : `data-reco-thread` (`role="log"`, région live) dans le viewport
   `data-reco-body` ; les entrées `data-reco-msg="user|assistant"` sont
   clonées depuis les templates — bulle utilisateur à droite, bulle
-  assistant avec avatar, texte, citations (liens `data-reco-field="links"`
-  filtrés https studely.com, R10) et actions (CTA conseiller sur
-  `out_of_scope`/`handoff_proposed`).
+  assistant avec texte, citations (liens `data-reco-field="links"`
+  filtrés https studely.com, R10) et actions (CTA « Parler à un
+  conseiller » sur `out_of_scope`/`handoff_proposed`).
 - Transitoires persistants : `data-reco-pending` (squelette + bouton
   `data-reco-action="stop"`) et `data-reco-error` (carte + `retry` +
   lien `advisor`), basculés par `hidden` en pied de fil.
@@ -97,11 +98,18 @@ R12) et un avertissement `[studely-reco]` est émis en console.
   `data-reco-action="send"`, ligne `data-reco-disclaimer`.
 - Templates `data-reco-template` : `msg-user`, `msg-assistant` (champs
   `text`, `suggestions`, `links`, `actions`), `suggestion` (chip
-  `data-reco-send` — son libellé part comme message), `advisor-cta` ;
+  `data-reco-send` — son libellé part comme message), `advisor-cta`,
+  `handoff-form` (mini-formulaire nom + e-mail, champs
+  `data-reco-input="handoff-name|email"`, `data-reco-action="handoff"`) ;
   bloc `data-reco-labels` (une entrée `data-reco-label` par clé i18n) ;
   `data-reco-live` (annonces), panel `fallback` (config invalide).
-- Boutons `data-reco-action` : `send`, `stop`, `retry`, `reset`
-  (« Nouvelle recherche »), `advisor`.
+- Boutons `data-reco-action` : `send`, `stop`, `retry`, `advisor`,
+  `handoff`.
+- Mise en relation : « Parler à un conseiller » (bulle de refus ou carte
+  d'indisponibilité) ajoute le mini-formulaire au fil ; validé, il POST
+  vers `data-reco-handoff-url` ou, à défaut, ouvre `advisor-url` avec
+  `?nom=&email=` — puis la carte devient une confirmation (jalon
+  `reco_handoff`).
 - Gabarit : le markup complet (header, fil, composer, templates,
   launcher) vit dans `src/template/*.vue`, rendu en HTML statique au
   build — `vite build`/`dev`/`test` génèrent `src/template.generated.txt`

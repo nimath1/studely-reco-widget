@@ -11,7 +11,7 @@ export const VALID_ATTRS = 'data-reco-origin="mexique" data-reco-advisor-url="/m
 export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
   document.body.innerHTML = `
     <section data-reco-widget ${attrs}>
-      <header><button type="button" data-reco-action="reset">Nouvelle recherche</button></header>
+      <header><button type="button" data-reco-close>Fermer</button></header>
       <div data-reco-live class="sr-only"></div>
       <div data-reco-body>
         <div data-reco-thread role="log"></div>
@@ -29,7 +29,7 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
             <p data-reco-error-message></p>
             <div>
               <button type="button" data-reco-action="retry" data-reco-field="retry-label"></button>
-              <a data-reco-action="advisor" data-reco-field="advisor-label"></a>
+              <button type="button" data-reco-action="advisor" data-reco-field="advisor-label"></button>
             </div>
           </div>
         </div>
@@ -63,15 +63,28 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
         <button type="button" data-reco-template="suggestion" data-reco-send>
           <span data-reco-field="label"></span>
         </button>
-        <a data-reco-template="advisor-cta" data-reco-action="advisor">
+        <button type="button" data-reco-template="advisor-cta" data-reco-action="advisor">
           <span data-reco-field="label"></span>
-        </a>
+        </button>
+        <div data-reco-template="handoff-form" data-reco-msg="assistant">
+          <div data-reco-bubble>
+            <p data-reco-field="text"></p>
+            <form data-reco-handoff novalidate>
+              <input type="text" data-reco-input="handoff-name" />
+              <input type="email" data-reco-input="handoff-email" />
+              <button type="submit" data-reco-action="handoff" data-reco-field="handoff-submit"></button>
+            </form>
+            <p data-reco-field="handoff-error" hidden></p>
+          </div>
+        </div>
       </div>
       <div data-reco-labels hidden>
-        <span data-reco-label="reco.greeting">Bonjour, décris ton projet.</span>
+        <span data-reco-label="reco.greeting">Bonjour, comment puis-je vous aider ?</span>
         <span data-reco-label="reco.suggestion.1">Bachelor en Europe</span>
         <span data-reco-label="reco.suggestion.2">Master à l'étranger</span>
         <span data-reco-label="reco.suggestion.3">Étudier en anglais</span>
+        <span data-reco-label="reco.suggestion.4">Étudier en France</span>
+        <span data-reco-label="reco.suggestion.5">Parler à un conseiller</span>
         <span data-reco-label="reco.consent">J'accepte l'analyse automatique</span>
         <span data-reco-label="reco.input.label">Décris ton projet</span>
         <span data-reco-label="reco.input.placeholder">Ton projet…</span>
@@ -91,6 +104,12 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
         <span data-reco-label="reco.disclaimer">Recommandations indicatives.</span>
         <span data-reco-label="reco.results.count">{count} recommandations</span>
         <span data-reco-label="reco.empty">Aucun parcours</span>
+        <span data-reco-label="reco.handoff.intro">Laisse tes coordonnées pour la mise en relation.</span>
+        <span data-reco-label="reco.handoff.name">Ton nom</span>
+        <span data-reco-label="reco.handoff.email">Ton adresse e-mail</span>
+        <span data-reco-label="reco.handoff.submit">Envoyer ma demande</span>
+        <span data-reco-label="reco.handoff.confirm">C'est noté ! Un conseiller te contactera.</span>
+        <span data-reco-label="reco.handoff.invalid">Nom et e-mail valides requis.</span>
       </div>
     </section>`
   const el = document.querySelector<HTMLElement>('[data-reco-widget]')

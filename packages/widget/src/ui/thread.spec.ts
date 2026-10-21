@@ -1,6 +1,7 @@
 import type { Translate } from '../i18n/labels'
 import {
   appendAssistant,
+  appendHandoffForm,
   appendUser,
   clearThread,
   greet,
@@ -44,8 +45,7 @@ describe('appendUser / appendAssistant', () => {
           ]
         }
       },
-      t,
-      '/mexique#contact'
+      t
     )
     expect(links).toBe(1)
     const entry = entries().at(-1)!
@@ -54,27 +54,33 @@ describe('appendUser / appendAssistant', () => {
   })
 
   it('out_of_scope : CTA conseiller sous la bulle', () => {
-    appendAssistant(
-      el,
-      { text: 'Hors périmètre', meta: { out_of_scope: true } },
-      t,
-      '/mexique#contact'
-    )
+    appendAssistant(el, { text: 'Hors périmètre', meta: { out_of_scope: true } }, t)
     const entry = entries().at(-1)!
-    const cta = entry.querySelector<HTMLAnchorElement>('[data-reco-action="advisor"]')
+    const cta = entry.querySelector<HTMLButtonElement>('[data-reco-action="advisor"]')
     expect(cta).not.toBeNull()
-    expect(cta!.getAttribute('href')).toBe('/mexique#contact')
     expect(cta!.textContent).toContain('Parler à un conseiller')
   })
 
   it('handoff_proposed : CTA conseiller aussi', () => {
-    appendAssistant(el, { text: 'Réponse', meta: { handoff_proposed: true } }, t, '/mexico#contact')
+    appendAssistant(el, { text: 'Réponse', meta: { handoff_proposed: true } }, t)
     expect(entries().at(-1)!.querySelector('[data-reco-action="advisor"]')).not.toBeNull()
   })
 
   it('réponse vide : la bulle garde le message « aucun parcours »', () => {
-    appendAssistant(el, { text: '', meta: {} }, t, '/x')
+    appendAssistant(el, { text: '', meta: {} }, t)
     expect(entries().at(-1)!.textContent).toContain('Aucun parcours')
+  })
+})
+
+describe('appendHandoffForm', () => {
+  it('carte formulaire nom + e-mail dans le fil, une seule à la fois', () => {
+    const card = appendHandoffForm(el, t)!
+    expect(card.dataset.recoMsg).toBe('assistant')
+    expect(card.querySelector('[data-reco-input="handoff-name"]')).not.toBeNull()
+    expect(card.querySelector('[data-reco-input="handoff-email"]')).not.toBeNull()
+    expect(card.textContent).toContain('mise en relation')
+    appendHandoffForm(el, t)
+    expect(el.querySelectorAll('[data-reco-thread] [data-reco-handoff]')).toHaveLength(1)
   })
 })
 
@@ -85,7 +91,7 @@ describe('greet', () => {
     expect(entry.dataset.recoMsg).toBe('assistant')
     expect(entry.textContent).toContain('Bonjour')
     const chips = [...entry.querySelectorAll<HTMLButtonElement>('[data-reco-send]')]
-    expect(chips).toHaveLength(3)
+    expect(chips).toHaveLength(5)
     expect(chips[0]!.dataset.recoSend).toBe('Bachelor en Europe')
   })
 })

@@ -15,6 +15,9 @@ const ORIGIN_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 export interface WidgetConfig {
   origin: string
   advisorUrl: string
+  /** Endpoint de mise en relation (POST JSON nom+e-mail) ; absent → la
+      confirmation renvoie vers `advisorUrl` avec les coordonnées en query. */
+  handoffUrl?: string
   locale: Locale
   dir: 'ltr' | 'rtl'
 }
@@ -66,7 +69,9 @@ export function readConfig(el: HTMLElement): WidgetConfig {
   const advisorUrl = el.dataset.recoAdvisorUrl?.trim() || pageMeta(el, 'reco-advisor-url')
   if (!advisorUrl) throw new ConfigError('data-reco-advisor-url')
 
+  const handoffUrl = el.dataset.recoHandoffUrl?.trim() || undefined
+
   const locale = resolveLocale(el.ownerDocument.documentElement.lang, el.dataset.recoLocale)
 
-  return { origin, advisorUrl, locale, dir: RTL_LOCALES.has(locale) ? 'rtl' : 'ltr' }
+  return { origin, advisorUrl, handoffUrl, locale, dir: RTL_LOCALES.has(locale) ? 'rtl' : 'ltr' }
 }

@@ -10,7 +10,7 @@ import type { Translate } from '../i18n/labels'
 import { cloneTemplate, fillAssistantEntry, fillField } from './render'
 
 /** Nombre de chips « amorce » proposées sous le message d'accueil. */
-const SUGGESTION_COUNT = 3
+const SUGGESTION_COUNT = 5
 
 function thread(el: HTMLElement): HTMLElement | null {
   return el.querySelector<HTMLElement>('[data-reco-thread]')
@@ -50,8 +50,7 @@ export function appendUser(el: HTMLElement, text: string): void {
 export function appendAssistant(
   el: HTMLElement,
   reply: ChatReply,
-  t: Translate,
-  advisorUrl: string
+  t: Translate
 ): { pieces: number; links: number } {
   const card = cloneTemplate(el, 'msg-assistant')
   if (!card) return { pieces: 0, links: 0 }
@@ -67,16 +66,41 @@ export function appendAssistant(
     fillAssistantEntry(card, t('reco.empty'), [])
   }
   const actions = card.querySelector('[data-reco-field="actions"]')
-  if (actions && (rejected || reply.meta.handoff_proposed === true)) {
+  // Sans réponse exploitable, le bot propose toujours la sortie conseiller.
+  const noAnswer = !reply.text.trim() && links === 0
+  if (actions && (rejected || reply.meta.handoff_proposed === true || noAnswer)) {
     const cta = cloneTemplate(el, 'advisor-cta')
-    if (cta instanceof HTMLAnchorElement) {
-      cta.href = advisorUrl
+    if (cta) {
       fillField(cta, 'label', t('reco.advisor'))
       actions.append(cta)
     }
   }
   append(el, card)
   return { pieces, links }
+}
+
+/**
+ * Mise en relation : une seule carte formulaire à la fois — un second
+ * déclencheur refocalise la carte existante plutôt que d'empiler.
+ */
+export function appendHandoffForm(el: HTMLElement, t: Translate): HTMLElement | null {
+  const existing = el.querySelector<HTMLElement>('[data-reco-thread] [data-reco-handoff]')
+  if (existing) {
+    existing.querySelector<HTMLElement>('[data-reco-input]')?.focus()
+    scrollEnd(el)
+    return existing.closest('[data-reco-msg]')
+  }
+  const card = cloneTemplate(el, 'handoff-form')
+  if (!card) return null
+  fillField(card, 'text', t('reco.handoff.intro'))
+  fillField(card, 'handoff-submit', t('reco.handoff.submit'))
+  const name = card.querySelector<HTMLInputElement>('[data-reco-input="handoff-name"]')
+  const email = card.querySelector<HTMLInputElement>('[data-reco-input="handoff-email"]')
+  if (name) name.placeholder = t('reco.handoff.name')
+  if (email) email.placeholder = t('reco.handoff.email')
+  append(el, card)
+  name?.focus()
+  return card
 }
 
 /**

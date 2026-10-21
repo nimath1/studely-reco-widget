@@ -254,19 +254,10 @@
         outline-offset: 2px;
         border-radius: 8px;
       }
-      /* « Nouvelle recherche » pill, then the close icon. */
-      [data-reco-widget] > header [data-reco-reset] {
-        margin-inline-start: auto;
-        padding: 0 14px;
-        border: 1.5px solid rgb(255 255 255 / 55%);
-        border-radius: 999px;
-      }
-      [data-reco-widget] > header [data-reco-reset]:hover {
-        background: rgb(255 255 255 / 14%);
-        text-decoration: none;
-      }
+      /* The close icon, pushed to the trailing edge. */
       [data-reco-widget] > header button[data-reco-close] {
         width: var(--reco-control);
+        margin-inline-start: auto;
         border-radius: 50%;
       }
       [data-reco-widget] > header button[data-reco-close]:hover {
@@ -296,7 +287,7 @@
         gap: 16px;
         padding-top: 28px;
       }
-      /* ── Entries: avatar + bubble rows ── */
+      /* ── Entries: bubble rows ── */
       [data-reco-msg] {
         display: flex;
         gap: 10px;
@@ -304,20 +295,6 @@
       }
       [data-reco-msg='user'] {
         justify-content: flex-end;
-      }
-      [data-reco-avatar] {
-        display: grid;
-        place-items: center;
-        width: 34px;
-        height: 34px;
-        border-radius: 50%;
-        background: var(--reco-primary);
-        color: var(--reco-accent);
-        flex-shrink: 0;
-      }
-      [data-reco-avatar] svg {
-        width: 16px;
-        height: 16px;
       }
       [data-reco-bubble] {
         min-width: 0;
@@ -421,12 +398,55 @@
         border-radius: 999px;
         background: var(--reco-paper);
         color: var(--reco-primary-deep);
+        font: inherit;
         font-size: 0.82rem;
         font-weight: 600;
         text-decoration: none;
+        cursor: pointer;
       }
       [data-reco-field='actions'] [data-reco-action='advisor']:hover {
         border-color: var(--reco-primary);
+      }
+      /* Handoff mini-form inside the thread (name + email). */
+      [data-reco-handoff] {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 10px;
+        max-width: 320px;
+      }
+      [data-reco-handoff] input {
+        min-height: 40px;
+        padding: 8px 14px;
+        border: 1.5px solid var(--reco-rule);
+        border-radius: var(--reco-radius-card);
+        background: var(--reco-paper);
+        font: inherit;
+        font-size: 0.88rem;
+      }
+      [data-reco-handoff] input:focus-visible {
+        outline: 3px solid var(--reco-primary);
+        outline-offset: 1px;
+        border-color: var(--reco-primary);
+      }
+      [data-reco-handoff] [data-reco-action='handoff'] {
+        align-self: flex-start;
+        min-height: 40px;
+        padding: 6px 18px;
+        border: none;
+        border-radius: 999px;
+        background: linear-gradient(120deg, var(--reco-primary) 0%, var(--reco-primary-deep) 100%);
+        color: #fff;
+        font: inherit;
+        font-size: 0.84rem;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      [data-reco-field='handoff-error'] {
+        margin: 6px 0 0;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--reco-error);
       }
       /* ── Pending skeleton + error card ── */
       [data-reco-pending] {
@@ -684,12 +704,12 @@
            data-* du conteneur, ce bloc de libellés traduit par Webflow
            Localization (§8.1), les styles et les scripts. -->
       <div data-reco-labels hidden>
-        <span data-reco-label="reco.greeting"
-          >Bonjour ! Décris-moi ton projet d'études, je t'aide à trouver ton parcours.</span
-        >
-        <span data-reco-label="reco.suggestion.1">Je veux faire un bachelor en Europe</span>
-        <span data-reco-label="reco.suggestion.2">Je cherche un master à l'étranger</span>
-        <span data-reco-label="reco.suggestion.3">Je veux étudier en anglais</span>
+        <span data-reco-label="reco.greeting">Bonjour, comment puis-je vous aider ?</span>
+        <span data-reco-label="reco.suggestion.1">Je veux étudier en France</span>
+        <span data-reco-label="reco.suggestion.2">Je veux faire un bachelor en Europe</span>
+        <span data-reco-label="reco.suggestion.3">Je cherche un master à l'étranger</span>
+        <span data-reco-label="reco.suggestion.4">Je veux étudier en anglais</span>
+        <span data-reco-label="reco.suggestion.5">Je veux parler à un conseiller</span>
         <span data-reco-label="reco.consent"
           >J'accepte que mes messages soient analysés automatiquement pour me proposer des
           parcours</span
@@ -697,7 +717,6 @@
         <span data-reco-label="reco.input.label">Décris ton projet d'études</span>
         <span data-reco-label="reco.input.placeholder">Décris ton projet d'études…</span>
         <span data-reco-label="reco.send">Envoyer</span>
-        <span data-reco-label="reco.reset">Nouvelle recherche</span>
         <span data-reco-label="reco.pending">Analyse de ta demande…</span>
         <span data-reco-label="reco.stop">Arrêter la réponse</span>
         <span data-reco-label="reco.retry">Réessayer</span>
@@ -716,6 +735,18 @@
         >
         <span data-reco-label="reco.results.count">{count} recommandations pour toi.</span>
         <span data-reco-label="reco.empty">Aucun parcours ne correspond à ta demande.</span>
+        <span data-reco-label="reco.handoff.intro"
+          >Pour te mettre en relation avec un conseiller, laisse-moi tes coordonnées.</span
+        >
+        <span data-reco-label="reco.handoff.name">Ton nom</span>
+        <span data-reco-label="reco.handoff.email">Ton adresse e-mail</span>
+        <span data-reco-label="reco.handoff.submit">Envoyer ma demande</span>
+        <span data-reco-label="reco.handoff.confirm"
+          >C'est noté ! Un conseiller te contactera très vite.</span
+        >
+        <span data-reco-label="reco.handoff.invalid"
+          >Merci d'indiquer un nom et une adresse e-mail valides.</span
+        >
       </div>
     </dialog>
 

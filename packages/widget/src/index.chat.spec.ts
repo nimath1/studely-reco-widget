@@ -3,7 +3,7 @@
  * erreurs, retry, stop, reset, session et jalons `studely:reco`.
  */
 import * as StudelyReco from './index'
-import { mountWidget } from './testing/widget.fixture'
+import { mountWidget, VALID_ATTRS } from './testing/widget.fixture'
 
 const SSE = (text: string, meta: object = {}) =>
   `event: delta\ndata: ${JSON.stringify({ text })}\n\nevent: final\ndata: ${JSON.stringify(meta)}\n\n`
@@ -68,10 +68,10 @@ afterEach(() => {
 })
 
 describe('accueil et consentement', () => {
-  it('bulle d’accueil + 3 chips ; état consent tant que la case n’est pas cochée', () => {
+  it('bulle d’accueil + 5 chips ; état consent tant que la case n’est pas cochée', () => {
     expect(el.dataset.recoState).toBe('consent')
     expect(assistantEntries()).toHaveLength(1)
-    expect(el.querySelectorAll('[data-reco-thread] [data-reco-send]')).toHaveLength(3)
+    expect(el.querySelectorAll('[data-reco-thread] [data-reco-send]')).toHaveLength(5)
     expect(textarea().disabled).toBe(true)
   })
 
@@ -228,18 +228,6 @@ describe('erreurs, retry, stop, reset', () => {
     expect(userEntries()).toHaveLength(1)
   })
 
-  it('« Nouvelle recherche » : fil vidé, session purgée, accueil reposé', async () => {
-    mockFetch(async () => ok(SSE('r', { session_id: 's1' })))
-    await type('master')
-    await waitFor(() => expect(assistantEntries().length).toBeGreaterThanOrEqual(2))
-    expect(sessionStorage.getItem('studely.reco.session.mexique')).toBe('s1')
-
-    el.querySelector<HTMLElement>('[data-reco-action="reset"]')!.click()
-    expect(userEntries()).toHaveLength(0)
-    expect(assistantEntries()).toHaveLength(1) // accueil re-greeté
-    expect(sessionStorage.getItem('studely.reco.session.mexique')).toBeNull()
-  })
-
   it('double envoi verrouillé tant que pending', async () => {
     let resolveFetch: (r: Partial<Response>) => void = () => undefined
     mockFetch(
@@ -258,5 +246,122 @@ describe('erreurs, retry, stop, reset', () => {
     )
     await type('deux')
     expect(userEntries()).toHaveLength(2)
+  })
+})
+
+describe('mise en relation conseiller', () => {
+  const handoffForm = () => el.querySelector<HTMLFormElement>('[data-reco-handoff]')
+
+  beforeEach(async () => {
+    await grant()
+  })
+
+  it('« Parler à un conseiller » ajoute le mini-formulaire au fil', async () => {
+    mockFetch(async () => ok(SSE('Hors périmètre', { out_of_scope: true })))
+    await type('météo ?')
+    await waitFor(() =>
+      expect(
+        assistantEntries().at(-1)!.querySelector('[data-reco-action="advisor"]')
+      ).not.toBeNull()
+    )
+    assistantEntries().at(-1)!.querySelector<HTMLElement>('[data-reco-action="advisor"]')!.click()
+    expect(handoffForm()).not.toBeNull()
+    const events = (window.dataLayer ?? []).map((p) => p.event)
+    expect(events).toContain('reco_advisor')
+  })
+
+  it('formulaire invalide : erreur affichée, rien n’est posté', async () => {
+    const spy = mockFetch(async () => ok(SSE('r')))
+    mockFetch(async () => ok(SSE('Hors périmètre', { out_of_scope: true })))
+    await type('x')
+    await waitFor(() =>
+      expect(
+        assistantEntries().at(-1)!.querySelector('[data-reco-action="advisor"]')
+      ).not.toBeNull()
+    )
+    assistantEntries().at(-1)!.querySelector<HTMLElement>('[data-reco-action="advisor"]')!.click()
+    const callsBefore = spy.mock.calls.length
+    handoffForm()!.requestSubmit()
+    await waitFor(() =>
+      expect(el.querySelector<HTMLElement>('[data-reco-field="handoff-error"]')!.hidden).toBe(false)
+    )
+    expect(spy.mock.calls).toHaveLength(callsBefore)
+  })
+
+  it('sans handoff-url : ouvre la page conseiller avec nom + e-mail, bulle confirm', async () => {
+    mockFetch(async () => ok(SSE('Hors périmètre', { out_of_scope: true })))
+    const openSpy = vi.fn()
+    vi.stubGlobal('open', openSpy)
+    await type('x')
+    await waitFor(() =>
+      expect(
+        assistantEntries().at(-1)!.querySelector('[data-reco-action="advisor"]')
+      ).not.toBeNull()
+    )
+    assistantEntries().at(-1)!.querySelector<HTMLElement>('[data-reco-action="advisor"]')!.click()
+    handoffForm()!.querySelector<HTMLInputElement>('[data-reco-input="handoff-name"]')!.value =
+      'Awa'
+    handoffForm()!.querySelector<HTMLInputElement>('[data-reco-input="handoff-email"]')!.value =
+      'awa@exemple.com'
+    handoffForm()!.requestSubmit()
+    await waitFor(() => expect(openSpy).toHaveBeenCalled())
+    const url = openSpy.mock.calls[0]![0] as string
+    expect(url).toContain('nom=Awa')
+    expect(url).toContain('email=awa%40exemple.com')
+    await waitFor(() =>
+      expect(assistantEntries().at(-1)!.textContent).toContain('conseiller te contactera')
+    )
+    const events = (window.dataLayer ?? []).map((p) => p.event)
+    expect(events).toContain('reco_handoff')
+  })
+
+  it('avec handoff-url : POST JSON nom + e-mail puis confirmation', async () => {
+    const extra = mountWidget(
+      `${VALID_ATTRS} data-reco-handoff-url="https://api.studely.com/handoff"`
+    )
+    StudelyReco.init(extra)
+    const consent2 = extra.querySelector<HTMLInputElement>('[data-reco-input="consent"]')!
+    consent2.checked = true
+    consent2.dispatchEvent(new Event('change', { bubbles: true }))
+    const spy = mockFetch(async (input: unknown) => {
+      const url = typeof input === 'string' ? input : (input as Request).url
+      if (url === 'https://api.studely.com/handoff') return ok('{}')
+      return ok(SSE('Hors périmètre', { out_of_scope: true }))
+    })
+    await waitFor(() =>
+      expect(extra.querySelector<HTMLButtonElement>('[data-reco-action="send"]')!.disabled).toBe(
+        false
+      )
+    )
+    const ta = extra.querySelector<HTMLTextAreaElement>('[data-reco-input="message"]')!
+    ta.value = 'conseiller'
+    extra.querySelector<HTMLElement>('[data-reco-action="send"]')!.click()
+    const extraEntries = () => [
+      ...extra.querySelectorAll<HTMLElement>('[data-reco-thread] > [data-reco-msg="assistant"]')
+    ]
+    await waitFor(() =>
+      expect(extraEntries().at(-1)!.querySelector('[data-reco-action="advisor"]')).not.toBeNull()
+    )
+    extraEntries().at(-1)!.querySelector<HTMLElement>('[data-reco-action="advisor"]')!.click()
+    const form = extra.querySelector<HTMLFormElement>('[data-reco-handoff]')!
+    form.querySelector<HTMLInputElement>('[data-reco-input="handoff-name"]')!.value = 'Awa'
+    form.querySelector<HTMLInputElement>('[data-reco-input="handoff-email"]')!.value =
+      'awa@exemple.com'
+    form.requestSubmit()
+    await waitFor(() =>
+      expect(
+        spy.mock.calls.some(([input]) =>
+          (typeof input === 'string' ? input : (input as Request).url).includes('/handoff')
+        )
+      ).toBe(true)
+    )
+    const post = spy.mock.calls.find(([input]) =>
+      (typeof input === 'string' ? input : (input as Request).url).includes('/handoff')
+    )!
+    const body = JSON.parse((post[1] as { body: string }).body)
+    expect(body).toMatchObject({ name: 'Awa', email: 'awa@exemple.com', origin: 'mexique' })
+    await waitFor(() =>
+      expect(extraEntries().at(-1)!.textContent).toContain('conseiller te contactera')
+    )
   })
 })
