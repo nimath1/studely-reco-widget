@@ -2,8 +2,9 @@ import { defineConfig } from 'vite'
 import { assertApiUrl } from './vite.config'
 
 /**
- * "Site" build (Vercel): index.html becomes the public reference page,
- * with reco.js deployed alongside it by package-release.mjs.
+ * "Site" build (local only): bundles index.html into dist-site as the
+ * reference page preview. Not part of `build:vercel` — the Vercel
+ * deployment serves only reco.js + assets via scripts/package-release.mjs.
  * `publicDir: false` — the dev MSW worker and assets are copied
  * selectively by scripts/package-release.mjs (fonts + logo only).
  * Same target as the bundle (§7.6) and same HTTPS API URL guard.

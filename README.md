@@ -61,9 +61,10 @@ charges : bundle sans framework, ≤ 25 ko gzip, templates Webflow).
 
 ## Déploiement Vercel (page de référence + CDN reco.js)
 
-`vercel.json` à la racine publie `packages/widget/dist-site` : la page de
-référence (`index.html` buildé par `vite.site.config.ts`) et le bundle
-`reco.js` servi aux pages Webflow.
+`vercel.json` à la racine publie `packages/widget/dist-site` : le bundle
+`reco.js` servi aux pages Webflow (CDN statique), plus les fonts
+Montserrat et le logo référencés par la CSS du composant Webflow. La
+page de référence (`vite.site.config.ts`) n'est pas déployée.
 
 - **Projet Vercel** : racine `.` (repo root), Node 22+, framework `null`,
   build `pnpm --filter @studely/widget build:vercel` (script racine

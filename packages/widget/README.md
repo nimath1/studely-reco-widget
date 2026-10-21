@@ -11,7 +11,7 @@ cloner, remplir et basculer les états via les attributs `data-reco-*`.
 pnpm --filter @studely/widget dev               # page de dev (squelette §10.3) sur http://localhost:5173
 pnpm --filter @studely/widget build:staging     # dist/reco.js pointant l'API de staging
 pnpm --filter @studely/widget build:production  # dist/reco.js pointant l'API de production
-pnpm --filter @studely/widget build:vercel      # build + site de référence packagé dans dist-site/
+pnpm --filter @studely/widget build:vercel      # bundle reco.js + assets packagés dans dist-site/
 pnpm --filter @studely/widget test              # unitaires + intégration MSW (Vitest)
 pnpm --filter @studely/widget test:coverage     # seuils : 90 % lignes/fonctions/instructions
 pnpm --filter @studely/widget test:e2e:install  # navigateurs Playwright (1re fois)
