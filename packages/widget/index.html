@@ -1090,38 +1090,47 @@
     <script>
       // Dev only: Intercom-style open/close via data-reco-open plus focus
       // management (active question or intro CTA, launcher on close).
-      // Same attribute mechanism applies on the Webflow page.
+      // Same attribute mechanism applies on the Webflow page. Scoped to
+      // the script's own parent so several copies of this embed on one
+      // page (e.g. a repeated Webflow footer) each bind their own
+      // widget/launcher instead of all grabbing the first in the DOM.
       {
-        const w = document.querySelector('[data-reco-widget]')
-        const l = document.querySelector('[data-reco-launcher]')
-        const LABELS = { open: "Ouvrir l'assistant Studely", close: "Fermer l'assistant Studely" }
-        const setOpen = (open) => {
-          if (open && !w.open) w.show()
-          else if (!open && w.open) w.close()
-          w.toggleAttribute('data-reco-open', open)
-          l.setAttribute('aria-expanded', String(open))
-          l.setAttribute('aria-label', open ? LABELS.close : LABELS.open)
-          if (open) {
-            // Focus the active step legend first — hidden earlier steps
-            // must not steal it — then panel title, then the intro CTA.
-            const target = w.querySelector(
-              '[data-reco-step].is-reco-active legend, [data-reco-panel].is-reco-active [data-reco-title], [data-reco-panel].is-reco-active [data-reco-action="start"]'
-            )
-            target?.focus({ preventScroll: true })
-            const body = w.querySelector('[data-reco-body]')
-            if (target && body) {
-              body.scrollTop +=
-                target.getBoundingClientRect().top - body.getBoundingClientRect().top - 20
-            }
-          } else {
-            l.focus()
+        const scope = document.currentScript?.parentElement ?? document
+        const w = scope.querySelector('[data-reco-widget]')
+        const l = scope.querySelector('[data-reco-launcher]')
+        if (w && l) {
+          const LABELS = {
+            open: "Ouvrir l'assistant Studely",
+            close: "Fermer l'assistant Studely"
           }
+          const setOpen = (open) => {
+            if (open && !w.open) w.show()
+            else if (!open && w.open) w.close()
+            w.toggleAttribute('data-reco-open', open)
+            l.setAttribute('aria-expanded', String(open))
+            l.setAttribute('aria-label', open ? LABELS.close : LABELS.open)
+            if (open) {
+              // Focus the active step legend first — hidden earlier steps
+              // must not steal it — then panel title, then the intro CTA.
+              const target = w.querySelector(
+                '[data-reco-step].is-reco-active legend, [data-reco-panel].is-reco-active [data-reco-title], [data-reco-panel].is-reco-active [data-reco-action="start"]'
+              )
+              target?.focus({ preventScroll: true })
+              const body = w.querySelector('[data-reco-body]')
+              if (target && body) {
+                body.scrollTop +=
+                  target.getBoundingClientRect().top - body.getBoundingClientRect().top - 20
+              }
+            } else {
+              l.focus()
+            }
+          }
+          l.addEventListener('click', () => setOpen(w.dataset.recoOpen === undefined))
+          w.querySelector('[data-reco-close]')?.addEventListener('click', () => setOpen(false))
+          addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && w.dataset.recoOpen !== undefined) setOpen(false)
+          })
         }
-        l.addEventListener('click', () => setOpen(w.dataset.recoOpen === undefined))
-        w.querySelector('[data-reco-close]').addEventListener('click', () => setOpen(false))
-        addEventListener('keydown', (e) => {
-          if (e.key === 'Escape' && w.dataset.recoOpen !== undefined) setOpen(false)
-        })
       }
     </script>
 
@@ -1129,22 +1138,28 @@
       // MSW mock — dev only: import.meta.env.DEV tree-shakes this whole
       // block from the production site build, and localStorage can throw
       // (private mode, disabled storage) without breaking bootstrap.
-      let mockWanted = false
-      if (import.meta.env.DEV) {
-        try {
-          mockWanted = Boolean(
-            new URLSearchParams(location.search).get('recoMock') || localStorage.getItem('recoMock')
-          )
-        } catch {
-          mockWanted = Boolean(new URLSearchParams(location.search).get('recoMock'))
+      // Outside the Vite pipeline (raw paste, e.g. the Webflow embed)
+      // import.meta.env is undefined and reco.js is loaded by its own
+      // <script> tag — this block is a no-op there.
+      if (import.meta.env) {
+        let mockWanted = false
+        if (import.meta.env.DEV) {
+          try {
+            mockWanted = Boolean(
+              new URLSearchParams(location.search).get('recoMock') ||
+                localStorage.getItem('recoMock')
+            )
+          } catch {
+            mockWanted = Boolean(new URLSearchParams(location.search).get('recoMock'))
+          }
         }
+        // The worker must be active BEFORE the widget; async IIFE (the
+        // Safari 15 target does not support top-level await).
+        void (async () => {
+          if (mockWanted) await import('./mock/browser.ts')
+          await import('./src/index.ts')
+        })()
       }
-      // The worker must be active BEFORE the widget; async IIFE (the
-      // Safari 15 target does not support top-level await).
-      void (async () => {
-        if (mockWanted) await import('./mock/browser.ts')
-        await import('./src/index.ts')
-      })()
     </script>
   </body>
 </html>

@@ -12,8 +12,16 @@ const VALID = { 'data-reco-origin': 'mexique', 'data-reco-advisor-url': '/mexiqu
 
 afterEach(() => {
   document.body.replaceChildren()
+  document.head.querySelectorAll('meta[name^="reco-"]').forEach((m) => m.remove())
   document.documentElement.removeAttribute('lang')
 })
+
+function setMeta(name: string, content: string): void {
+  const meta = document.createElement('meta')
+  meta.setAttribute('name', name)
+  meta.setAttribute('content', content)
+  document.head.append(meta)
+}
 
 describe('resolveLocale', () => {
   it('lit <html lang> en priorité, sous-tag régional ignoré', () => {
@@ -71,5 +79,29 @@ describe('readConfig', () => {
     expect(() => readConfig(widget({ ...VALID, 'data-reco-advisor-url': '  ' }))).toThrow(
       ConfigError
     )
+  })
+
+  it('replie sur les <meta> de la page quand les attributs sont absents', () => {
+    setMeta('reco-origin', 'senegal')
+    setMeta('reco-advisor-url', '/senegal#contact')
+    expect(readConfig(widget({}))).toMatchObject({
+      origin: 'senegal',
+      advisorUrl: '/senegal#contact'
+    })
+  })
+
+  it('les attributs du bloc priment sur les <meta>', () => {
+    setMeta('reco-origin', 'senegal')
+    setMeta('reco-advisor-url', '/senegal#contact')
+    expect(readConfig(widget(VALID))).toMatchObject({
+      origin: 'mexique',
+      advisorUrl: '/mexique#contact'
+    })
+  })
+
+  it('rejette une <meta reco-origin> invalide', () => {
+    setMeta('reco-origin', 'Mexique')
+    setMeta('reco-advisor-url', '/x')
+    expect(() => readConfig(widget({}))).toThrow(new ConfigError('data-reco-origin'))
   })
 })

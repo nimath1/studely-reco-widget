@@ -443,6 +443,48 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
 }
 
 /**
+ * Origin of the deployed `reco.js` bundle, read from the page's own
+ * `<script>` tag — no configured site URL needed, so the same Webflow
+ * embed resolves its assets on webflow.io, preview deploys, or a future
+ * custom domain. Empty when the bundle didn't come from a script tag
+ * (e.g. dev entry or tests).
+ */
+function bundleOrigin(doc: Document): string {
+  for (const script of doc.scripts) {
+    if (/\/reco(?:\.min)?\.js(?:[?#]|$)/.test(script.src)) {
+      try {
+        return new URL(script.src).origin
+      } catch {
+        // URL invalide : script suivant.
+      }
+    }
+  }
+  return ''
+}
+
+/**
+ * The embed markup references its assets (logo `<img>`, Montserrat
+ * `url('/fonts/…')` in the scoped `<style>`) as root-relative paths that
+ * only exist on the deployment — they 404 on the Webflow host. Rewritten
+ * to the bundle origin at init; page-relative links (advisor URL) are
+ * left untouched. No-op on the deployment itself or without a script
+ * tag, and idempotent across re-inits and duplicated embeds.
+ */
+function resolveAssets(el: HTMLElement, doc: Document): void {
+  const base = bundleOrigin(doc)
+  if (!base || base === doc.location?.origin) return
+  // The embed container (div.w-embed on Webflow, body on the dev page)
+  // holds the widget, its <style> and the launcher as siblings.
+  const scope = el.parentElement ?? el
+  for (const img of scope.querySelectorAll('img[src^="/"]')) {
+    img.setAttribute('src', base + (img.getAttribute('src') ?? ''))
+  }
+  for (const styleEl of scope.querySelectorAll('style')) {
+    styleEl.textContent = styleEl.textContent.replace(/url\((['"]?)\//g, `url($1${base}/`)
+  }
+}
+
+/**
  * (Ré)initialise un bloc, par exemple après une interaction Webflow : les
  * écouteurs de l'initialisation précédente et l'observer en attente sont
  * retirés avant de repartir, sans doublon.
@@ -467,6 +509,7 @@ export function init(el: HTMLElement): WidgetConfig | null {
     return null
   }
 
+  resolveAssets(el, el.ownerDocument)
   instance.controller = new AbortController()
 
   if (config.dir === 'rtl') el.setAttribute('dir', 'rtl')

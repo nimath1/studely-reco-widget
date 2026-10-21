@@ -46,11 +46,24 @@ export function resolveLocale(htmlLang: string | null | undefined, attr?: string
   return DEFAULT_LOCALE
 }
 
+/**
+ * Fallback page-level pour un composant partagé (footer Webflow posé sur
+ * toutes les pages) : `<meta name="reco-origin" content="…">` et
+ * `<meta name="reco-advisor-url" content="…">` dans le <head> fournissent
+ * la valeur quand l'attribut du bloc est absent. L'attribut prime.
+ */
+function pageMeta(el: HTMLElement, name: string): string {
+  return (
+    el.ownerDocument.head?.querySelector(`meta[name="${name}"]`)?.getAttribute('content')?.trim() ??
+    ''
+  )
+}
+
 export function readConfig(el: HTMLElement): WidgetConfig {
-  const origin = el.dataset.recoOrigin?.trim() ?? ''
+  const origin = el.dataset.recoOrigin?.trim() || pageMeta(el, 'reco-origin')
   if (!ORIGIN_PATTERN.test(origin)) throw new ConfigError('data-reco-origin')
 
-  const advisorUrl = el.dataset.recoAdvisorUrl?.trim() ?? ''
+  const advisorUrl = el.dataset.recoAdvisorUrl?.trim() || pageMeta(el, 'reco-advisor-url')
   if (!advisorUrl) throw new ConfigError('data-reco-advisor-url')
 
   const locale = resolveLocale(el.ownerDocument.documentElement.lang, el.dataset.recoLocale)

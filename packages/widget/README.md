@@ -49,14 +49,25 @@ bootstrap scanne le DOM à `DOMContentLoaded` et ne fait rien sans widget).
 | Attribut                | Obligatoire | Rôle                                               |
 | ----------------------- | ----------- | -------------------------------------------------- |
 | `data-reco-widget`      | Oui         | Marque le conteneur                                |
-| `data-reco-origin`      | Oui         | Slug du pays d'origine (`mexique`), envoyé à l'API |
-| `data-reco-advisor-url` | Oui         | Cible du bouton « Parler à un conseiller »         |
+| `data-reco-origin`      | Oui*        | Slug du pays d'origine (`mexique`), envoyé à l'API |
+| `data-reco-advisor-url` | Oui*        | Cible du bouton « Parler à un conseiller »         |
 | `data-reco-locale`      | Non         | Locale si `<html lang>` est absent (repli `fr`)    |
+
+\* ou `<meta name="reco-origin" content="…">` /
+`<meta name="reco-advisor-url" content="…">` dans le `<head>` de la page :
+l'attribut du bloc prime, la meta sert de repli — un même composant
+Webflow partagé (ex. footer posé sur toutes les pages) fonctionne alors
+partout, chaque page ne déclarant que son origine en custom code.
 
 **Q7 tranché** : `data-reco-origin` et `data-reco-advisor-url` sont posés
 sur la `div` englobante qui porte `data-reco-widget` (les propriétés de
 composant Webflow ne peuvent pas écrire d'attributs custom) — changer deux
 attributs suffit pour poser le widget sur n'importe quelle page d'origine.
+
+Les URLs d'assets racine du gabarit (`<img src="/…">`,
+`url('/fonts/…')`) sont réécrites à l'init vers l'origine du `<script>`
+`reco.js` lui-même : aucun `SITE_URL` à configurer, le même embed rend
+logo et fonts sur webflow.io, les previews Vercel ou un domaine custom.
 
 Config invalide : le bloc reste sur son panel `fallback` (CTA conseiller,
 R12) et un avertissement `[studely-reco]` est émis en console.

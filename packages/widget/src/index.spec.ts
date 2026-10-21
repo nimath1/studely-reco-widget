@@ -124,6 +124,47 @@ describe('API publique', () => {
   })
 })
 
+describe('assets du gabarit', () => {
+  const script = document.createElement('script')
+
+  beforeEach(() => {
+    script.src = 'https://cdn.example.com/reco/v1/reco.js'
+    document.head.append(script)
+  })
+
+  afterEach(() => {
+    script.remove()
+  })
+
+  it('réécrit les URLs racine vers l’origine qui sert reco.js', async () => {
+    const { init } = await load()
+    mount(`<div class="w-embed">
+      <style>@font-face { src: url('/fonts/M.otf'); } a { background: url("/img/x.png") }</style>
+      <section data-reco-widget ${VALID}><img src="/logo.jpg"><a href="/mexique#contact">x</a></section>
+    </div>`)
+    const el = document.querySelector<HTMLElement>('[data-reco-widget]')!
+
+    init(el)
+
+    expect(el.querySelector('img')!.getAttribute('src')).toBe('https://cdn.example.com/logo.jpg')
+    const css = document.querySelector('style')!.textContent!
+    expect(css).toContain("url('https://cdn.example.com/fonts/M.otf'")
+    expect(css).toContain('url("https://cdn.example.com/img/x.png")')
+    // Les liens relatifs de page ne sont pas touchés.
+    expect(el.querySelector('a')!.getAttribute('href')).toBe('/mexique#contact')
+  })
+
+  it('ne touche rien sans <script> reco.js sur la page', async () => {
+    script.remove()
+    const { init } = await load()
+    mount(`<section data-reco-widget ${VALID}><img src="/logo.jpg"></section>`)
+    const el = document.querySelector<HTMLElement>('[data-reco-widget]')!
+
+    init(el)
+    expect(el.querySelector('img')!.getAttribute('src')).toBe('/logo.jpg')
+  })
+})
+
 describe('bootstrap', () => {
   it('n’initialise un bloc qu’à son approche de l’écran (marge 200 px)', async () => {
     document.documentElement.lang = 'ar'
