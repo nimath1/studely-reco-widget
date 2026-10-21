@@ -94,6 +94,9 @@ export function appendHandoffForm(el: HTMLElement, t: Translate): HTMLElement | 
   if (!card) return null
   fillField(card, 'text', t('reco.handoff.intro'))
   fillField(card, 'handoff-submit', t('reco.handoff.submit'))
+  // Implicit wrapping labels may carry their own translated text spans.
+  fillField(card, 'handoff-name-label', t('reco.handoff.name'))
+  fillField(card, 'handoff-email-label', t('reco.handoff.email'))
   const name = card.querySelector<HTMLInputElement>('[data-reco-input="handoff-name"]')
   const email = card.querySelector<HTMLInputElement>('[data-reco-input="handoff-email"]')
   if (name) name.placeholder = t('reco.handoff.name')

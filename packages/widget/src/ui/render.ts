@@ -1,8 +1,10 @@
 /**
  * Clonage et remplissage des templates `[data-reco-template]` (§10.2).
- * Données injectées via textContent uniquement (§7.4).
+ * Data is injected via textContent or as createElement-built DOM nodes
+ * only — API text is never reparsed as HTML (§7.4).
  */
 import type { ChatCitation } from '../api/types'
+import { renderMarkdown } from './markdown'
 
 /** Clone d'un template, sans l'attribut qui le ferait masquer par le CSS. */
 export function cloneTemplate(el: HTMLElement, name: string): HTMLElement | null {
@@ -37,9 +39,9 @@ export function isAllowedUrl(url: string | undefined): boolean {
 }
 
 /**
- * Remplit une entrée assistant (`msg-assistant`) : texte + liens de
- * citations — filtrés comme les cartes (https studely.com uniquement,
- * R10) — construits par createElement, jamais de HTML injecté (§7.4).
+ * Remplit une entrée assistant (`msg-assistant`) : Markdown rendered as
+ * createElement-built DOM nodes (never reparsed HTML, §7.4) + citation
+ * links — filtered like cards (https studely.com only, R10).
  * `pieces` = texte + liens affichés ; `links` = citations retenues.
  */
 export function fillAssistantEntry(
@@ -49,8 +51,18 @@ export function fillAssistantEntry(
 ): { pieces: number; links: number } {
   const links = (citations ?? []).filter((citation) => isAllowedUrl(citation.url)).slice(0, 5)
   if (!text.trim() && links.length === 0) return { pieces: 0, links: 0 }
-  const body = card.querySelector('[data-reco-field="text"]') ?? card
-  body.textContent = text.trim()
+  let body = card.querySelector('[data-reco-field="text"]') ?? card
+  const fragment = renderMarkdown(text.trim(), isAllowedUrl)
+  // Legacy embeds: a <p> cannot hold block nodes — swap it for a <div>
+  // while keeping its attributes (§10.2).
+  if (body instanceof HTMLParagraphElement && fragment.childElementCount > 0) {
+    const div = document.createElement('div')
+    for (const attr of Array.from(body.attributes)) div.setAttribute(attr.name, attr.value)
+    body.replaceWith(div)
+    body = div
+  }
+  if (body instanceof HTMLElement) body.dataset.recoMarkdown = ''
+  body.replaceChildren(fragment)
   const list = card.querySelector('[data-reco-field="links"]')
   if (list) {
     list.replaceChildren()

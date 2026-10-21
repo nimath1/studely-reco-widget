@@ -64,6 +64,9 @@ importers:
 
   packages/widget:
     dependencies:
+      marked:
+        specifier: ^18.1.1
+        version: 18.1.1
       petite-vue:
         specifier: 0.4.1
         version: 0.4.1
@@ -3206,6 +3209,14 @@ packages:
       }
     engines: { node: '>=10' }
 
+  marked@18.1.1:
+    resolution:
+      {
+        integrity: sha512-zEGgrtUG8crk+TrMacJSVABU4DYDDkS8uqgU3ohrn/2fW9C2AEfUrO3m6IhpIpQpl7YcVpiXXC9cSMWDANT3dg==
+      }
+    engines: { node: '>= 20' }
+    hasBin: true
+
   mdn-data@2.27.1:
     resolution:
       {
@@ -5812,6 +5823,8 @@ snapshots:
   make-dir@4.0.0:
     dependencies:
       semver: 7.8.5
+
+  marked@18.1.1: {}
 
   mdn-data@2.27.1: {}
 

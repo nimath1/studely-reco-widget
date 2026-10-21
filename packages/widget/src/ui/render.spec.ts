@@ -80,4 +80,149 @@ describe('fillAssistantEntry', () => {
       links: 0
     })
   })
+
+  const body = (entry: HTMLElement) => entry.querySelector('[data-reco-field="text"]')!
+
+  it('paragraph + bold-label list; [S1] markers stay literal', () => {
+    const entry = card()
+    fillAssistantEntry(
+      entry,
+      'Voici deux pistes :\n\n- **Via application** : dépose en ligne [S1]\n- **Via conseiller** : rendez-vous [S4][S5]',
+      undefined
+    )
+    const scope = body(entry)
+    expect(scope.hasAttribute('data-reco-markdown')).toBe(true)
+    expect(scope.querySelector('p')!.textContent).toBe('Voici deux pistes :')
+    const items = [...scope.querySelectorAll('ul > li')]
+    expect(items).toHaveLength(2)
+    expect(items[0]!.querySelector('strong')!.textContent).toBe('Via application')
+    expect(items[1]!.querySelector('strong')!.textContent).toBe('Via conseiller')
+    expect(items[0]!.textContent).toContain('[S1]')
+    expect(items[1]!.textContent).toContain('[S4][S5]')
+    // No inferred links on citation markers.
+    expect(scope.querySelectorAll('a')).toHaveLength(0)
+  })
+
+  it('nested and ordered lists with start', () => {
+    const entry = card()
+    fillAssistantEntry(entry, '- a\n  - b\n\n3. trois\n4. quatre', undefined)
+    const scope = body(entry)
+    expect(scope.querySelector('ul > li > ul > li')!.textContent).toBe('b')
+    const ol = scope.querySelector('ol')!
+    expect(ol.getAttribute('start')).toBe('3')
+    expect(ol.querySelectorAll('li')).toHaveLength(2)
+  })
+
+  it('emphasis, code, heading, blockquote, hr, table', () => {
+    const entry = card()
+    fillAssistantEntry(
+      entry,
+      '## Titre\n\n*it* ~~rayé~~ `x<y`\n\n> note\n\n---\n\n| a |\n|---|\n| 1 |',
+      undefined
+    )
+    const scope = body(entry)
+    expect(scope.querySelector('h2')!.textContent).toBe('Titre')
+    expect(scope.querySelector('em')!.textContent).toBe('it')
+    expect(scope.querySelector('del')!.textContent).toBe('rayé')
+    expect(scope.querySelector('code')!.textContent).toBe('x<y')
+    expect(scope.querySelector('blockquote')!.textContent).toContain('note')
+    expect(scope.querySelector('hr')).not.toBeNull()
+    expect(scope.querySelector('[data-reco-md-table] table td')!.textContent).toBe('1')
+  })
+
+  it('code stays literal: entities and markup are not decoded', () => {
+    const entry = card()
+    fillAssistantEntry(entry, '`&amp; &lt;img&gt;`\n\n```\n&copy; <b>x</b>\n```', undefined)
+    const scope = body(entry)
+    expect(scope.querySelector('p code')!.textContent).toBe('&amp; &lt;img&gt;')
+    expect(scope.querySelector('pre code')!.textContent).toBe('&copy; <b>x</b>')
+    expect(scope.querySelector('img, b')).toBeNull()
+  })
+
+  it('raw HTML keeps entities exactly as typed', () => {
+    const entry = card()
+    fillAssistantEntry(entry, '<div class="x">&amp;</div>', undefined)
+    const scope = body(entry)
+    expect(scope.querySelector('div')).toBeNull()
+    expect(scope.textContent).toContain('<div class="x">&amp;</div>')
+  })
+
+  it('links: https studely.com clickable, everything else stays text', () => {
+    const entry = card()
+    fillAssistantEntry(
+      entry,
+      [
+        '[ok](https://www.studely.com/p)',
+        '[js](javascript:alert(1))',
+        '[data](data:text/html,x)',
+        '[http](http://studely.com/p)',
+        '[ext](https://example.com/)',
+        '[sub](https://studely.com.evil.com/)',
+        '[enc](&#106;avascript:alert(1))'
+      ].join(' '),
+      undefined
+    )
+    const links = [...body(entry).querySelectorAll<HTMLAnchorElement>('a')]
+    expect(links).toHaveLength(1)
+    expect(links[0]!.href).toBe('https://www.studely.com/p')
+    expect(links[0]!.target).toBe('_blank')
+    expect(links[0]!.rel).toBe('noopener')
+    const text = body(entry).textContent!
+    for (const label of ['js', 'data', 'http', 'ext', 'sub', 'enc']) expect(text).toContain(label)
+  })
+
+  it('raw HTML (script/img/svg, handlers) stays inert literal text', () => {
+    const entry = card()
+    fillAssistantEntry(
+      entry,
+      'a <img src=x onerror=alert(1)> b\n\n<script>alert(1)</script>\n\n<svg onload=alert(1)></svg>',
+      undefined
+    )
+    const scope = body(entry)
+    expect(scope.querySelector('img, script, svg')).toBeNull()
+    expect(scope.textContent).toContain('<img src=x onerror=alert(1)>')
+    expect(scope.textContent).toContain('<script>')
+    expect(scope.querySelector('[onclick], [onerror]')).toBeNull()
+  })
+
+  it('image: alt as text, no media nodes', () => {
+    const entry = card()
+    fillAssistantEntry(entry, 'voir ![logo studely](https://x.test/i.png) fin', undefined)
+    const scope = body(entry)
+    expect(scope.querySelector('img, picture, source, video')).toBeNull()
+    expect(scope.textContent).toContain('logo studely')
+  })
+
+  it('entities decoded, escaped punctuation literal', () => {
+    const entry = card()
+    fillAssistantEntry(entry, 'a &amp; b &lt;tag&gt; &#233;tudier \\+ \\_x\\_', undefined)
+    const text = body(entry).textContent!
+    expect(text).toContain('a & b')
+    expect(text).toContain('<tag>')
+    expect(text).toContain('étudier')
+    expect(text).toContain('+ _x_')
+    expect(body(entry).querySelector('em')).toBeNull()
+  })
+
+  it('a second fill replaces the previous rendering', () => {
+    const entry = card()
+    fillAssistantEntry(entry, '**gras**', undefined)
+    fillAssistantEntry(entry, 'simple', undefined)
+    const scope = body(entry)
+    expect(scope.querySelector('strong')).toBeNull()
+    expect(scope.textContent).toBe('simple')
+  })
+
+  it('legacy <p> container → converted to <div>, attributes kept', () => {
+    const legacy = document.createElement('div')
+    const p = document.createElement('p')
+    p.dataset.recoField = 'text'
+    p.className = 'keep'
+    legacy.append(p)
+    fillAssistantEntry(legacy, '- item', undefined)
+    const field = legacy.querySelector('[data-reco-field="text"]')!
+    expect(field.tagName).toBe('DIV')
+    expect(field.className).toBe('keep')
+    expect(field.querySelector('ul > li')!.textContent).toBe('item')
+  })
 })

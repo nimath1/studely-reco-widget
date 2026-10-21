@@ -12,7 +12,7 @@
         </svg>
       </span>
       <div data-reco-bubble>
-        <p data-reco-field="text"></p>
+        <div data-reco-field="text"></div>
         <div data-reco-field="suggestions"></div>
         <div data-reco-field="links"></div>
         <div data-reco-field="actions"></div>
@@ -37,19 +37,27 @@
       <div data-reco-bubble>
         <p data-reco-field="text"></p>
         <form data-reco-handoff novalidate>
-          <input
-            type="text"
-            data-reco-input="handoff-name"
-            autocomplete="name"
-            data-reco-field="handoff-name"
-          />
-          <input
-            type="email"
-            data-reco-input="handoff-email"
-            autocomplete="email"
-            inputmode="email"
-            data-reco-field="handoff-email"
-          />
+          <!-- Implicit wrapping labels: no duplicate ids across cloned
+               templates or multiple widget instances. -->
+          <label>
+            <span class="sr-only" data-reco-field="handoff-name-label">Nom complet</span>
+            <input
+              type="text"
+              data-reco-input="handoff-name"
+              autocomplete="name"
+              data-reco-field="handoff-name"
+            />
+          </label>
+          <label>
+            <span class="sr-only" data-reco-field="handoff-email-label">E-mail</span>
+            <input
+              type="email"
+              data-reco-input="handoff-email"
+              autocomplete="email"
+              inputmode="email"
+              data-reco-field="handoff-email"
+            />
+          </label>
           <button type="submit" data-reco-action="handoff" data-reco-field="handoff-submit"></button>
         </form>
         <p data-reco-field="handoff-error" role="alert" hidden></p>

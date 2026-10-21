@@ -235,6 +235,21 @@ describe('envoi et réponse', () => {
     expect(reply.querySelector('img')).toBeNull()
   })
 
+  it('Markdown reply → DOM structure (bold + list), [S1] markers literal', async () => {
+    mockFetch(async () =>
+      ok(SSE('Voici deux pistes :\n\n- **Via application** : dépose en ligne [S1]'))
+    )
+    await type('x')
+    await waitFor(() => expect(assistantEntries().length).toBeGreaterThanOrEqual(2))
+    const reply = assistantEntries().at(-1)!
+    const scope = reply.querySelector('[data-reco-field="text"]')!
+    expect(scope.querySelector('p')!.textContent).toBe('Voici deux pistes :')
+    const item = scope.querySelector('ul > li')!
+    expect(item.querySelector('strong')!.textContent).toBe('Via application')
+    expect(item.textContent).toContain('[S1]')
+    expect(scope.querySelectorAll('a')).toHaveLength(0)
+  })
+
   it('out_of_scope → CTA conseiller + jalon empty', async () => {
     mockFetch(async () => ok(SSE('Hors périmètre', { out_of_scope: true })))
     await type('météo ?')

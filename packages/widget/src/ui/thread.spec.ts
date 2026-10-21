@@ -82,6 +82,38 @@ describe('appendHandoffForm', () => {
     appendHandoffForm(el, t)
     expect(el.querySelectorAll('[data-reco-thread] [data-reco-handoff]')).toHaveLength(1)
   })
+
+  const labelsOf = (card: HTMLElement, name: string) => {
+    const input = card.querySelector<HTMLInputElement>(`[data-reco-input="${name}"]`)!
+    return [...(input.labels ?? [])].filter((label) => label.contains(input))
+  }
+
+  it('each field is wrapped in a label with the translated text', () => {
+    const card = appendHandoffForm(el, t)!
+    expect(labelsOf(card, 'handoff-name')[0]?.textContent).toContain('Ton nom')
+    expect(labelsOf(card, 'handoff-email')[0]?.textContent).toContain('Ton adresse e-mail')
+    // Implicit association only: no id/for coupling to duplicate.
+    expect(card.querySelector('[data-reco-input="handoff-name"]')!.id).toBe('')
+    expect(card.querySelector('[data-reco-input="handoff-email"]')!.id).toBe('')
+  })
+
+  it('a second invocation reuses the form and keeps label associations', () => {
+    const first = appendHandoffForm(el, t)!
+    const again = appendHandoffForm(el, t)
+    expect(again).toBe(first.closest('[data-reco-msg]'))
+    expect(labelsOf(first, 'handoff-name')[0]?.textContent).toContain('Ton nom')
+    expect(labelsOf(first, 'handoff-email')).toHaveLength(1)
+  })
+
+  it('two widget instances keep independent implicit labels', () => {
+    const other = mountWidget()
+    const cardA = appendHandoffForm(el, t)!
+    const cardB = appendHandoffForm(other, readLabels(other))!
+    expect(labelsOf(cardA, 'handoff-name')).toHaveLength(1)
+    expect(labelsOf(cardB, 'handoff-name')).toHaveLength(1)
+    expect(labelsOf(cardA, 'handoff-name')[0]).not.toBe(labelsOf(cardB, 'handoff-name')[0])
+    other.remove()
+  })
 })
 
 describe('greet', () => {

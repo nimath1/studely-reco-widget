@@ -57,7 +57,7 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
         </div>
         <div data-reco-template="msg-assistant" data-reco-msg="assistant">
           <div data-reco-bubble>
-            <p data-reco-field="text"></p>
+            <div data-reco-field="text"></div>
             <div data-reco-field="suggestions"></div>
             <div data-reco-field="links"></div>
             <div data-reco-field="actions"></div>
@@ -73,8 +73,14 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
           <div data-reco-bubble>
             <p data-reco-field="text"></p>
             <form data-reco-handoff novalidate>
-              <input type="text" data-reco-input="handoff-name" />
-              <input type="email" data-reco-input="handoff-email" />
+              <label>
+                <span class="sr-only" data-reco-field="handoff-name-label">Nom complet</span>
+                <input type="text" data-reco-input="handoff-name" />
+              </label>
+              <label>
+                <span class="sr-only" data-reco-field="handoff-email-label">E-mail</span>
+                <input type="email" data-reco-input="handoff-email" />
+              </label>
               <button type="submit" data-reco-action="handoff" data-reco-field="handoff-submit"></button>
             </form>
             <p data-reco-field="handoff-error" hidden></p>

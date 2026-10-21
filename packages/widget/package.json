@@ -39,6 +39,7 @@
     ]
   },
   "dependencies": {
+    "marked": "^18.1.1",
     "petite-vue": "0.4.1"
   }
 }

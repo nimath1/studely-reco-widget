@@ -351,6 +351,103 @@
         white-space: pre-line;
         overflow-wrap: anywhere;
       }
+      /* ── Assistant Markdown: real block nodes replace the pre-line
+         text, so spacing comes from element margins, never from
+         whitespace. Scoped to replies rendered via [data-reco-markdown]. ── */
+      [data-reco-msg='assistant'] [data-reco-markdown] {
+        white-space: normal;
+      }
+      [data-reco-markdown] > :first-child {
+        margin-block-start: 0;
+      }
+      [data-reco-markdown] > :last-child {
+        margin-block-end: 0;
+      }
+      [data-reco-markdown] p {
+        margin: 0 0 0.6em;
+      }
+      [data-reco-markdown] h1,
+      [data-reco-markdown] h2,
+      [data-reco-markdown] h3,
+      [data-reco-markdown] h4,
+      [data-reco-markdown] h5,
+      [data-reco-markdown] h6 {
+        margin: 0.9em 0 0.4em;
+        font-size: 1rem;
+        line-height: 1.4;
+        color: var(--reco-ink);
+      }
+      [data-reco-markdown] h1,
+      [data-reco-markdown] h2 {
+        font-size: 1.05rem;
+      }
+      [data-reco-markdown] ul,
+      [data-reco-markdown] ol {
+        margin: 0.4em 0;
+        padding-inline-start: 1.4em;
+      }
+      /* Host pages often reset list markers; restore them explicitly. */
+      [data-reco-markdown] ul {
+        list-style: disc;
+      }
+      [data-reco-markdown] ol {
+        list-style: decimal;
+      }
+      [data-reco-markdown] li {
+        margin: 0.15em 0;
+      }
+      [data-reco-markdown] li > ul,
+      [data-reco-markdown] li > ol {
+        margin: 0.15em 0;
+      }
+      [data-reco-markdown] blockquote {
+        margin: 0.6em 0;
+        padding-inline-start: 0.8em;
+        border-inline-start: 3px solid var(--reco-rule);
+        color: var(--reco-ink-muted);
+      }
+      [data-reco-markdown] pre {
+        margin: 0.6em 0;
+        padding: 10px 12px;
+        overflow: auto;
+        white-space: pre;
+        background: var(--reco-surface);
+        border: 1px solid var(--reco-rule);
+        border-radius: 8px;
+      }
+      [data-reco-markdown] code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.85em;
+      }
+      [data-reco-markdown] pre code {
+        font-size: 0.85rem;
+      }
+      [data-reco-markdown] a {
+        color: var(--reco-primary);
+        text-decoration: underline;
+        text-underline-offset: 2px;
+      }
+      [data-reco-markdown] hr {
+        margin: 0.8em 0;
+        border: 0;
+        border-block-start: 1px solid var(--reco-rule);
+      }
+      /* Tables scroll inside the bubble instead of widening the panel. */
+      [data-reco-markdown] [data-reco-md-table] {
+        max-width: 100%;
+        margin: 0.6em 0;
+        overflow-x: auto;
+      }
+      [data-reco-markdown] table {
+        border-collapse: collapse;
+        font-size: 0.85em;
+      }
+      [data-reco-markdown] th,
+      [data-reco-markdown] td {
+        padding: 4px 8px;
+        border: 1px solid var(--reco-rule);
+        text-align: start;
+      }
       /* ── Welcome card: generous centered layout while the greeting is
          the only thread entry; shrinks back to a normal card once the
          conversation grows. ── */
@@ -528,6 +625,10 @@
         gap: 8px;
         margin-top: 10px;
         max-width: 320px;
+      }
+      /* Wrapping labels keep the flex layout untouched. */
+      [data-reco-handoff] > label {
+        display: contents;
       }
       [data-reco-handoff] input {
         min-height: 40px;
