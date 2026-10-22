@@ -48,6 +48,21 @@ test.describe('parcours widget (mock MSW)', () => {
     const handoff = thread(page).locator('[data-reco-handoff]')
     await expect(handoff).toBeVisible()
     await expect(handoff.locator('[data-reco-input="handoff-name"]')).toBeFocused()
+    // La demande part vraiment : PUT profil + POST handoff (mock MSW) puis
+    // la carte affiche la confirmation.
+    const requests: string[] = []
+    page.on('request', (req) => {
+      if (req.method() !== 'GET') requests.push(`${req.method()} ${req.url()}`)
+    })
+    await handoff.locator('[data-reco-input="handoff-name"]').fill('Awa')
+    await handoff.locator('[data-reco-input="handoff-email"]').fill('awa@exemple.com')
+    await handoff.locator('[data-reco-action="handoff"]').click()
+    await expect(thread(page).locator('[data-reco-msg="assistant"]').last()).toContainText(
+      'conseiller te contactera',
+      { timeout: 10_000 }
+    )
+    expect(requests.some((r) => r.startsWith('PUT') && r.includes('/users/'))).toBe(true)
+    expect(requests.some((r) => r.startsWith('POST') && r.includes('/handoff'))).toBe(true)
   })
 
   test('rate : 429 affiche l’erreur et verrouille Réessayer', async ({ page }) => {

@@ -97,13 +97,19 @@ export default defineConfig(({ command, mode }) => {
       // relayés au chatbot réel — pas de CORS côté navigateur, la vraie
       // API est testable localement sans mock (`?recoMock=` reste prioritaire).
       proxy: {
-        '/chat': {
-          target:
-            process.env.VITE_RECO_PROXY_TARGET ??
-            loadEnv(mode, process.cwd(), 'VITE_').VITE_RECO_PROXY_TARGET ??
-            'https://chatbot.dev.ml.studely.com',
-          changeOrigin: true
-        }
+        // Même cible pour /chat (envoi) et /users + /conversations (handoff).
+        ...Object.fromEntries(
+          ['/chat', '/users', '/conversations'].map((path) => [
+            path,
+            {
+              target:
+                process.env.VITE_RECO_PROXY_TARGET ??
+                loadEnv(mode, process.cwd(), 'VITE_').VITE_RECO_PROXY_TARGET ??
+                'https://chatbot.dev.ml.studely.com',
+              changeOrigin: true
+            }
+          ])
+        )
       }
     },
     build: {

@@ -115,5 +115,19 @@ export const handlers = [
         return sse(reply)
       }
     }
-  })
+  }),
+
+  // Formulaire conseiller : identité puis ticket — formes du contrat réel.
+  http.put(`${BASE()}/users/:userId`, async ({ params, request }) => {
+    const profile = (await request.json()) as Record<string, unknown>
+    return HttpResponse.json({ user_id: params.userId, ...profile })
+  }),
+  http.post(`${BASE()}/conversations/:sessionId/handoff`, ({ params }) =>
+    HttpResponse.json({
+      status: 'requested',
+      ticket_id: 'mock-ticket-1',
+      session_id: params.sessionId,
+      updated_at: new Date().toISOString()
+    })
+  )
 ]

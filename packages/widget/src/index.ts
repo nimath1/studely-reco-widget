@@ -6,9 +6,12 @@
 import { version as pkgVersion } from '../package.json'
 import {
   clearChatSession,
+  ensureUserId,
   loadChatSession,
   postChat,
+  putProfile,
   RecoApiError,
+  requestHandoff,
   saveChatSession
 } from './api/client'
 import type { ChatReply } from './api/types'
@@ -144,6 +147,8 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
 
   /** La session /chat continue d'un envoi à l'autre (retry compris). */
   let sessionId = loadChatSession(config.origin)
+  /** `user_id` stable : relie conversation, profil déclaré et ticket handoff. */
+  const userId = ensureUserId(config.origin)
   let retryLockUntil = 0
   /** Échecs captcha consécutifs : relance du défi au 1er, erreur au 2e (§9.1). */
   let captchaFailures = 0
@@ -229,7 +234,7 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     showPending(el, t)
     sendAbort = new AbortController()
     try {
-      const reply = await postChat(message, sessionId, turnstileToken(el), sendAbort.signal)
+      const reply = await postChat(message, sessionId, userId, turnstileToken(el), sendAbort.signal)
       if (signal.aborted || gen !== generation) return
       captchaFailures = 0
       if (reply.meta.session_id) {
@@ -332,8 +337,10 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
 
   /**
    * Mise en relation : valide nom + e-mail puis transmet — POST JSON vers
-   * `data-reco-handoff-url` quand l'endpoint est configuré, sinon repli
-   * sur la page conseiller (coordonnées passées en query, nouvel onglet).
+   * `data-reco-handoff-url` quand un endpoint maison est configuré, sinon
+   * contrat réel : PUT /users/{user_id} attache l'identité déclarée puis
+   * POST /conversations/{session_id}/handoff crée le ticket (sauté sans
+   * session, ex. erreur avant la première réponse — le profil suffit).
    * La carte se transforme en confirmation ; échec réseau → message dans
    * la carte et saisie réactivée.
    */
@@ -356,26 +363,7 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     }
     const controls = form.querySelectorAll('input, button')
     controls.forEach((control) => ((control as HTMLButtonElement).disabled = true))
-    let delivered = false
-    if (config.handoffUrl) {
-      try {
-        const response = await fetch(config.handoffUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, email, session_id: sessionId, origin: config.origin })
-        })
-        delivered = response.ok
-      } catch {
-        delivered = false
-      }
-    } else {
-      const target = new URL(config.advisorUrl, el.ownerDocument.location.href)
-      target.searchParams.set('nom', name)
-      target.searchParams.set('email', email)
-      el.ownerDocument.defaultView?.open(target.toString(), '_blank', 'noopener')
-      delivered = true
-    }
-    if (!delivered) {
+    if (!(await deliverHandoff(name, email))) {
       controls.forEach((control) => ((control as HTMLButtonElement).disabled = false))
       if (errorField) {
         errorField.textContent = t('reco.error.network')
@@ -395,8 +383,35 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
         card.querySelector('[data-reco-bubble]')?.append(p)
       }
     }
-    emitRecoEvent(el, 'handoff', { mode: config.handoffUrl ? 'api' : 'redirect' })
+    emitRecoEvent(el, 'handoff', { mode: config.handoffUrl ? 'api' : 'contract' })
     announce(t('reco.handoff.confirm'))
+  }
+
+  /**
+   * Envoie effectif : endpoint maison (`data-reco-handoff-url`, POST JSON
+   * nom + e-mail + session) ou contrat réel — PUT /users/{user_id} pour
+   * l'identité puis POST /conversations/{id}/handoff pour le ticket.
+   */
+  async function deliverHandoff(name: string, email: string): Promise<boolean> {
+    if (config.handoffUrl) {
+      try {
+        const response = await fetch(config.handoffUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, session_id: sessionId, origin: config.origin })
+        })
+        return response.ok
+      } catch {
+        return false
+      }
+    }
+    try {
+      await putProfile(userId, { lastname: name, email, lang: config.locale })
+      if (sessionId) await requestHandoff(sessionId)
+      return true
+    } catch {
+      return false
+    }
   }
 
   /** « Parler à un conseiller » : le mini-formulaire rejoint le fil. */

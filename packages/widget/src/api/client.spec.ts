@@ -1,10 +1,13 @@
 import {
   API_BASE_URL,
   clearChatSession,
+  ensureUserId,
   loadChatSession,
   parseSse,
   postChat,
+  putProfile,
   RecoApiError,
+  requestHandoff,
   requestId,
   saveChatSession
 } from './client'
@@ -25,6 +28,7 @@ function ok(body: string): Partial<Response> {
 afterEach(() => {
   vi.unstubAllGlobals()
   sessionStorage.clear()
+  localStorage.clear()
 })
 
 describe('requestId', () => {
@@ -127,11 +131,66 @@ describe('session /chat', () => {
   })
 })
 
+describe('user_id', () => {
+  it('stable par origine, uuid v4, indépendant entre origines', () => {
+    const a = ensureUserId('mexique')
+    const b = ensureUserId('bresil')
+    expect(a).toMatch(/^[0-9a-f-]{36}$/)
+    expect(b).not.toBe(a)
+    expect(ensureUserId('mexique')).toBe(a)
+  })
+
+  it('storage inaccessible → uuid volatil, jamais null', () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new DOMException('Accès refusé', 'SecurityError')
+    })
+    expect(ensureUserId('mexique')).toMatch(/^[0-9a-f-]{36}$/)
+    vi.restoreAllMocks()
+  })
+})
+
+describe('handoff', () => {
+  it('PUT /users/{id} : profil JSON, X-Request-Id', async () => {
+    const spy = mockFetch(async () => ok('{}'))
+    await putProfile('u-1', { lastname: 'Awa', email: 'awa@exemple.com', lang: 'fr' })
+    const [url, init] = spy.mock.calls[0]! as [
+      string,
+      { method: string; headers: Record<string, string>; body: string }
+    ]
+    expect(url).toBe(`${API_BASE_URL}/users/u-1`)
+    expect(init.method).toBe('PUT')
+    expect(init.headers['X-Request-Id']).toMatch(/^.{36}$/)
+    expect(JSON.parse(init.body)).toEqual({
+      lastname: 'Awa',
+      email: 'awa@exemple.com',
+      lang: 'fr'
+    })
+  })
+
+  it('POST /conversations/{id}/handoff : pas de corps', async () => {
+    const spy = mockFetch(async () => ok('{}'))
+    await requestHandoff('sess-1')
+    const [url, init] = spy.mock.calls[0]! as [string, { method: string; body?: string }]
+    expect(url).toBe(`${API_BASE_URL}/conversations/sess-1/handoff`)
+    expect(init.method).toBe('POST')
+    expect(init.body).toBeUndefined()
+  })
+
+  it('erreurs mappées : 429 → rate, réseau mort → network', async () => {
+    mockFetch(async () => ({ ok: false, status: 429, headers: new Headers() }))
+    await expect(requestHandoff('s')).rejects.toMatchObject({ kind: 'rate' })
+    mockFetch(async () => {
+      throw new TypeError('fetch failed')
+    })
+    await expect(putProfile('u', {})).rejects.toMatchObject({ kind: 'network' })
+  })
+})
+
 describe('postChat', () => {
   it('POST /chat : message + session_id, X-Request-Id unique et X-Turnstile-Token', async () => {
     const spy = mockFetch(async () => ok(SSE('Salut', { session_id: 's9' })))
-    const reply = await postChat('Bonjour', 's8', 'tok')
-    await postChat('Bonjour', null)
+    const reply = await postChat('Bonjour', 's8', 'u1', 'tok')
+    await postChat('Bonjour', null, 'u1')
 
     const [url1, init1] = spy.mock.calls[0]! as [
       string,
@@ -147,14 +206,22 @@ describe('postChat', () => {
     expect(init1.headers['X-Turnstile-Token']).toBe('tok')
     expect(init1.headers['X-Request-Id']).toMatch(/^.{36}$/)
     expect(init1.headers['X-Request-Id']).not.toBe(init2.headers['X-Request-Id'])
-    expect(JSON.parse(init1.body)).toEqual({ message: 'Bonjour', session_id: 's8' })
-    expect(JSON.parse(init2.body)).toEqual({ message: 'Bonjour', session_id: null })
+    expect(JSON.parse(init1.body)).toEqual({
+      message: 'Bonjour',
+      session_id: 's8',
+      user_id: 'u1'
+    })
+    expect(JSON.parse(init2.body)).toEqual({
+      message: 'Bonjour',
+      session_id: null,
+      user_id: 'u1'
+    })
     expect(reply).toEqual({ text: 'Salut', meta: { session_id: 's9' } })
   })
 
   it('omet X-Turnstile-Token sans token', async () => {
     const spy = mockFetch(async () => ok(SSE('x')))
-    await postChat('m', null)
+    await postChat('m', null, 'u1')
     const [, init] = spy.mock.calls[0]! as [string, { headers: Record<string, string> }]
     expect(init.headers).not.toHaveProperty('X-Turnstile-Token')
   })
@@ -163,7 +230,7 @@ describe('postChat', () => {
     mockFetch(async () => {
       throw new TypeError('fetch failed')
     })
-    await expect(postChat('m', null)).rejects.toMatchObject({ kind: 'network' })
+    await expect(postChat('m', null, 'u1')).rejects.toMatchObject({ kind: 'network' })
   })
 
   it('coupe la requête à 20 s (réponse SSE potentiellement longue)', async () => {
@@ -175,7 +242,7 @@ describe('postChat', () => {
         signal!.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
       })
     })
-    const pending = postChat('m', null)
+    const pending = postChat('m', null, 'u1')
     const assertion = expect(pending).rejects.toMatchObject({ kind: 'network' })
     await vi.advanceTimersByTimeAsync(19_999)
     expect(signal!.aborted).toBe(false)
@@ -202,7 +269,7 @@ describe('postChat', () => {
       )
       return { ok: true, text }
     })
-    const pending = postChat('m', null)
+    const pending = postChat('m', null, 'u1')
     await vi.advanceTimersByTimeAsync(0) // flush fetch resolution + res.text()
     expect(text).toHaveBeenCalledOnce()
     const assertion = expect(pending).rejects.toMatchObject({ kind: 'network' })
@@ -217,7 +284,7 @@ describe('postChat', () => {
       status: 429,
       headers: new Headers({ 'Retry-After': '30' })
     }))
-    await expect(postChat('m', null)).rejects.toMatchObject({ kind: 'rate', retryAfter: 30 })
+    await expect(postChat('m', null, 'u1')).rejects.toMatchObject({ kind: 'rate', retryAfter: 30 })
   })
 
   it('422 FastAPI → input avec le dernier segment de loc', async () => {
@@ -226,19 +293,22 @@ describe('postChat', () => {
       status: 422,
       json: async () => ({ detail: [{ loc: ['body', 'message'], msg: 'field required' }] })
     }))
-    await expect(postChat('m', null)).rejects.toMatchObject({ kind: 'input', field: 'message' })
+    await expect(postChat('m', null, 'u1')).rejects.toMatchObject({
+      kind: 'input',
+      field: 'message'
+    })
   })
 
   it('422 sans corps lisible → input sans champ', async () => {
     mockFetch(async () => ({ ok: false, status: 422, json: async () => null }))
-    await expect(postChat('m', null)).rejects.toMatchObject({ kind: 'input' })
+    await expect(postChat('m', null, 'u1')).rejects.toMatchObject({ kind: 'input' })
   })
 
   it('403 → forbidden (flux Turnstile) ; 503 → server', async () => {
     mockFetch(async () => ({ ok: false, status: 403 }))
-    await expect(postChat('m', null)).rejects.toMatchObject({ kind: 'forbidden' })
+    await expect(postChat('m', null, 'u1')).rejects.toMatchObject({ kind: 'forbidden' })
     mockFetch(async () => ({ ok: false, status: 503 }))
-    await expect(postChat('m', null)).rejects.toMatchObject({ kind: 'server' })
+    await expect(postChat('m', null, 'u1')).rejects.toMatchObject({ kind: 'server' })
   })
 
   it('l’erreur porte son nom', () => {

@@ -62,6 +62,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
   sessionStorage.clear()
+  localStorage.clear()
   delete window.dataLayer
   delete window.Cookiebot
   document.body.innerHTML = ''
@@ -431,10 +432,12 @@ describe('mise en relation conseiller', () => {
     expect(spy.mock.calls).toHaveLength(callsBefore)
   })
 
-  it('sans handoff-url : ouvre la page conseiller avec nom + e-mail, bulle confirm', async () => {
-    mockFetch(async () => ok(SSE('Hors périmètre', { out_of_scope: true })))
-    const openSpy = vi.fn()
-    vi.stubGlobal('open', openSpy)
+  it('sans handoff-url : PUT profil puis POST handoff sur la session, bulle confirm', async () => {
+    const spy = mockFetch(async (input: unknown) => {
+      const url = typeof input === 'string' ? input : (input as Request).url
+      if (url.includes('/users/') || url.includes('/handoff')) return ok('{}')
+      return ok(SSE('Hors périmètre', { out_of_scope: true, session_id: 'sess-9' }))
+    })
     await type('x')
     await waitFor(() =>
       expect(
@@ -447,15 +450,47 @@ describe('mise en relation conseiller', () => {
     handoffForm()!.querySelector<HTMLInputElement>('[data-reco-input="handoff-email"]')!.value =
       'awa@exemple.com'
     handoffForm()!.requestSubmit()
-    await waitFor(() => expect(openSpy).toHaveBeenCalled())
-    const url = openSpy.mock.calls[0]![0] as string
-    expect(url).toContain('nom=Awa')
-    expect(url).toContain('email=awa%40exemple.com')
+    const calls = () =>
+      spy.mock.calls.map(([i]) => (typeof i === 'string' ? i : (i as Request).url))
+    await waitFor(() => expect(calls().some((u) => u.includes('/users/'))).toBe(true))
+    await waitFor(() =>
+      expect(calls().some((u) => u.includes('/conversations/sess-9/handoff'))).toBe(true)
+    )
+    const put = spy.mock.calls.find(([i]) =>
+      (typeof i === 'string' ? i : (i as Request).url).includes('/users/')
+    )!
+    const body = JSON.parse((put[1] as { body: string }).body)
+    expect(body).toMatchObject({ lastname: 'Awa', email: 'awa@exemple.com', lang: 'fr' })
     await waitFor(() =>
       expect(assistantEntries().at(-1)!.textContent).toContain('conseiller te contactera')
     )
     const events = (window.dataLayer ?? []).map((p) => p.event)
     expect(events).toContain('reco_handoff')
+  })
+
+  it('sans session : le profil part quand même, le POST handoff est sauté', async () => {
+    // Erreur 500 avant toute réponse → pas de session_id ; le CTA erreur
+    // ouvre quand même le formulaire et PUT /users livre les coordonnées.
+    const spy = mockFetch(async (input: unknown) => {
+      const url = typeof input === 'string' ? input : (input as Request).url
+      if (url.includes('/users/')) return ok('{}')
+      return { ok: false, status: 500, json: async () => null }
+    })
+    await type('x')
+    await waitFor(() => expect(errorCard().hidden).toBe(false))
+    errorCard().querySelector<HTMLElement>('[data-reco-action="advisor"]')!.click()
+    handoffForm()!.querySelector<HTMLInputElement>('[data-reco-input="handoff-name"]')!.value =
+      'Awa'
+    handoffForm()!.querySelector<HTMLInputElement>('[data-reco-input="handoff-email"]')!.value =
+      'awa@exemple.com'
+    handoffForm()!.requestSubmit()
+    const calls = () =>
+      spy.mock.calls.map(([i]) => (typeof i === 'string' ? i : (i as Request).url))
+    await waitFor(() => expect(calls().some((u) => u.includes('/users/'))).toBe(true))
+    expect(calls().some((u) => u.includes('/handoff'))).toBe(false)
+    await waitFor(() =>
+      expect(assistantEntries().at(-1)!.textContent).toContain('conseiller te contactera')
+    )
   })
 
   it('avec handoff-url : POST JSON nom + e-mail puis confirmation', async () => {

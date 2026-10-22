@@ -9,6 +9,14 @@
     {
       "source": "/chat",
       "destination": "https://chatbot.dev.ml.studely.com/chat"
+    },
+    {
+      "source": "/users/:path*",
+      "destination": "https://chatbot.dev.ml.studely.com/users/:path*"
+    },
+    {
+      "source": "/conversations/:path*",
+      "destination": "https://chatbot.dev.ml.studely.com/conversations/:path*"
     }
   ],
   "headers": [

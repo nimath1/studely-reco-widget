@@ -13,6 +13,7 @@ export const API_BASE_URL: string = import.meta.env.VITE_RECO_API_URL
 // Global /chat call timeout (spec §7.4: 20 s), headers and body included.
 const TIMEOUT_MS = 20_000
 const SESSION_KEY_PREFIX = 'studely.reco.session.'
+const USER_KEY_PREFIX = 'studely.reco.user.'
 
 /** Familles d'erreurs du §5.3 : chacune a sa clé i18n et son comportement. */
 export type RecoErrorKind = 'network' | 'rate' | 'server' | 'input' | 'forbidden'
@@ -149,6 +150,25 @@ export function clearChatSession(origin: string): void {
   }
 }
 
+/**
+ * `user_id` stable par origine (localStorage, survit aux sessions) :
+ * envoyé dans POST /chat et réutilisé par PUT /users — la conversation,
+ * le profil et le ticket handoff partagent le même identifiant. Un
+ * storage inaccessible retourne un uuid volatil, jamais null.
+ */
+export function ensureUserId(origin: string): string {
+  const key = `${USER_KEY_PREFIX}${origin}`
+  try {
+    const stored = globalThis.localStorage?.getItem(key)
+    if (stored) return stored
+    const fresh = requestId()
+    globalThis.localStorage?.setItem(key, fresh)
+    return fresh
+  } catch {
+    return requestId()
+  }
+}
+
 /** Rejette comme un `AbortError` DOM — la promesse retournée par fetch. */
 function abortError(): DOMException {
   return new DOMException('Aborted', 'AbortError')
@@ -164,6 +184,7 @@ function abortError(): DOMException {
 export async function postChat(
   message: string,
   sessionId: string | null,
+  userId: string,
   turnstileToken?: string,
   signal?: AbortSignal
 ): Promise<ChatReply> {
@@ -181,7 +202,7 @@ export async function postChat(
     const res = await fetch(`${API_BASE_URL}/chat`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ message, session_id: sessionId }),
+      body: JSON.stringify({ message, session_id: sessionId, user_id: userId }),
       signal: controller.signal
     })
     if (!res.ok) throw await toApiError(res)
@@ -196,5 +217,62 @@ export async function postChat(
   } finally {
     clearTimeout(timer)
     signal?.removeEventListener('abort', onAbort)
+  }
+}
+
+/** Corps du `PUT /users/{user_id}` (ProfileUpsertBody) — champs optionnels. */
+export interface ProfileUpsert {
+  firstname?: string
+  lastname?: string
+  email?: string
+  lang?: string
+  country?: string
+  destination_country?: string
+  is_minor?: boolean
+}
+
+/** En-têtes JSON + trace, partagés par les appels hors /chat. */
+async function callApi(path: string, init: { method: string; body?: string }): Promise<Response> {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Request-Id': requestId()
+    }
+  })
+  if (!res.ok) throw await toApiError(res)
+  return res
+}
+
+/**
+ * PUT /users/{user_id} : identité déclarée par l'utilisateur (ADR 0007) —
+ * utilisée par le formulaire conseiller pour attacher nom + e-mail au
+ * profil avant de demander le ticket.
+ */
+export async function putProfile(userId: string, profile: ProfileUpsert): Promise<void> {
+  try {
+    await callApi(`/users/${encodeURIComponent(userId)}`, {
+      method: 'PUT',
+      body: JSON.stringify(profile)
+    })
+  } catch (error) {
+    if (error instanceof RecoApiError) throw error
+    throw new RecoApiError('network', 'API injoignable ou délai dépassé')
+  }
+}
+
+/**
+ * POST /conversations/{session_id}/handoff : « geste UI → ticket créé » —
+ * aucun corps (le ticket naît de la session), la réponse porte ticket_id.
+ * Sans session (erreur avant la 1re réponse) l'appelant saute ce pas.
+ */
+export async function requestHandoff(sessionId: string): Promise<void> {
+  try {
+    await callApi(`/conversations/${encodeURIComponent(sessionId)}/handoff`, {
+      method: 'POST'
+    })
+  } catch (error) {
+    if (error instanceof RecoApiError) throw error
+    throw new RecoApiError('network', 'API injoignable ou délai dépassé')
   }
 }
