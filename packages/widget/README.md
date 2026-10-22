@@ -48,6 +48,46 @@ Le chargeur du site ne pose ce `<script>` que si `[data-reco-widget]` est
 présent dans la page ; sinon, un `<script defer>` en footer suffit (le
 bootstrap scanne le DOM à `DOMContentLoaded` et ne fait rien sans widget).
 
+### Contenu de l'embed
+
+Le markup du widget (header, fil, composer, templates, launcher) est
+compilé dans `reco.js` et injecté au chargement — il ne se copie **pas**
+dans l'embed. Celui-ci ne contient que quatre blocs, tous présents dans
+`index.html` (source canonique à copier) :
+
+```html
+<!-- 1. Conteneur : obligatoirement un <dialog> (ouverture via showModal) -->
+<dialog data-reco-widget data-reco-origin="mexique" data-reco-advisor-url="/mexique#contact">
+  <!-- 2. Libellés : traduits par Webflow Localization (une locale = une
+         version du bloc). Clé absente → texte FR du gabarit conservé. -->
+  <div data-reco-labels hidden>
+    <span data-reco-label="reco.greeting">Bonjour, comment puis-je vous aider ?</span>
+    <!-- … toutes les clés reco.* — liste complète dans index.html … -->
+  </div>
+</dialog>
+
+<!-- 3. Styles : tout le CSS du widget (reco.js n'embarque aucun style).
+        Copier le <style> de index.html — nommage BEM reco-*, RTL inclus. -->
+<style>
+  …
+</style>
+
+<!-- 4. Script inline open/close : showModal, animation de sortie, sync
+       launcher, focus — vit dans la page hôte, pas dans reco.js.
+       Copier le <script> « full-screen open/close » de index.html. -->
+<script>
+  …
+</script>
+
+<!-- 5. Le bundle -->
+<script defer src="https://scripts.studely.com/reco/v1/reco.js"></script>
+```
+
+Langues : FR et EN passent par Webflow Localization (deux versions du bloc
+`data-reco-labels` + `<html lang>`) ; `data-reco-locale` ne sert que de
+repli si `lang` est absent. RTL : poser `dir="rtl"` sur le conteneur ou la
+page — la feuille `[data-reco-widget][dir="rtl"]` prend le relais.
+
 ### Attributs du conteneur
 
 | Attribut                | Obligatoire | Rôle                                                                                                                                    |
