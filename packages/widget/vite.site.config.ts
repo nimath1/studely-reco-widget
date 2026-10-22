@@ -16,6 +16,12 @@ export default defineConfig(({ command, mode }) => {
     // Compile le <link> src/widget.css d'index.html en asset hashé du site ;
     // recoTemplate génère le gabarit importé par le module du script inline.
     plugins: [tailwindcss(), recoTemplate()],
+    define: {
+      // Page de référence seulement : base vide → fetch('/chat') même-origine,
+      // relayé par le rewrite Vercel vers l'API dev (comme le proxy local).
+      // dist/reco.js (embed Webflow) garde l'URL absolue de .env.production.
+      'import.meta.env.VITE_RECO_API_URL': '""'
+    },
     publicDir: false,
     build: {
       outDir: 'dist-site',

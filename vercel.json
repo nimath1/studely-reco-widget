@@ -5,6 +5,12 @@
   "buildCommand": "pnpm --filter @studely/widget build:vercel",
   "outputDirectory": "packages/widget/dist-site",
   "installCommand": "pnpm install --frozen-lockfile",
+  "rewrites": [
+    {
+      "source": "/chat",
+      "destination": "https://chatbot.dev.ml.studely.com/chat"
+    }
+  ],
   "headers": [
     {
       "source": "/reco/v1/reco.js",
