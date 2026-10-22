@@ -10,11 +10,12 @@ async function open(page: Page, scenario = 'nominal'): Promise<void> {
   await page.goto(`/?recoMock=${scenario}`)
   await page.locator('[data-reco-launcher]').click()
   await expect(
-    page.locator('[data-reco-widget] [data-reco-options="level"] input').first()
+    page.locator('[data-reco-widget] [data-reco-msg="assistant"]').first()
   ).toBeAttached()
 }
 
 const widget = (page: Page) => page.locator('[data-reco-widget]')
+const thread = (page: Page) => widget(page).locator('[data-reco-thread]')
 
 async function expectAccessible(page: Page, label: string): Promise<void> {
   const { violations } = await new AxeBuilder({ page }).include('[data-reco-widget]').analyze()
@@ -22,56 +23,32 @@ async function expectAccessible(page: Page, label: string): Promise<void> {
   expect(blocking, `violations axe sur ${label}`).toEqual([])
 }
 
-async function toStep(page: Page, step: number): Promise<void> {
-  await widget(page).locator('[data-reco-action="start"]').first().click()
-  const picks: Record<number, () => Promise<void>> = {
-    2: async () => {
-      await widget(page).locator('[data-reco-options="level"] input').first().check()
-      await widget(page).locator('[data-reco-action="next"]').first().click()
-    },
-    5: async () => {
-      for (const field of ['level', 'fields', 'destinations']) {
-        await widget(page).locator(`[data-reco-options="${field}"] input`).first().check()
-        await widget(page).locator('[data-reco-action="next"]').first().click()
-      }
-      await widget(page)
-        .locator('[data-reco-options="languages"] select')
-        .first()
-        .selectOption({ index: 1 })
-      await widget(page).locator('[data-reco-action="next"]').first().click()
-    }
-  }
-  if (step === 5) await picks[5]!()
-  else if (step > 1) await picks[step]!()
-}
-
 test.describe('axe-core par état', () => {
-  test('intro et étapes sans violation sérieuse', async ({ page }) => {
+  test('accueil et réponse sans violation sérieuse', async ({ page }) => {
     await open(page)
-    await expectAccessible(page, 'fallback/intro')
-    await toStep(page, 5)
-    await expectAccessible(page, 'step-5')
+    await expectAccessible(page, 'accueil')
+    await thread(page).locator('[data-reco-send]').first().click()
+    await expect(thread(page).locator('[data-reco-msg="assistant"]')).toHaveCount(2, {
+      timeout: 10_000
+    })
+    await expectAccessible(page, 'réponse avec liens')
   })
 
-  test('results sans violation sérieuse', async ({ page }) => {
-    await open(page)
-    await toStep(page, 5)
-    await widget(page).locator('[data-reco-options="budget"] input').first().check()
-    await widget(page).locator('[data-reco-options="intake"] input').first().check()
-    await widget(page).locator('[data-reco-input="consent"]').check()
-    await widget(page).locator('[data-reco-action="submit"]').first().click()
-    await expect.poll(() => widget(page).getAttribute('data-reco-state')).toBe('results')
-    await expectAccessible(page, 'results')
+  test('empty et formulaire conseiller sans violation sérieuse', async ({ page }) => {
+    await open(page, 'empty')
+    await thread(page).locator('[data-reco-send]').first().click()
+    const reply = thread(page).locator('[data-reco-msg="assistant"]').nth(1)
+    await expect(reply).toContainText('Aucun parcours', { timeout: 10_000 })
+    await expectAccessible(page, 'empty')
+    await reply.locator('[data-reco-action="advisor"]').click()
+    await expect(thread(page).locator('[data-reco-handoff]')).toBeVisible()
+    await expectAccessible(page, 'formulaire conseiller')
   })
 
   test('error sans violation sérieuse', async ({ page }) => {
     await open(page, 'server')
-    await toStep(page, 5)
-    await widget(page).locator('[data-reco-options="budget"] input').first().check()
-    await widget(page).locator('[data-reco-options="intake"] input').first().check()
-    await widget(page).locator('[data-reco-input="consent"]').check()
-    await widget(page).locator('[data-reco-action="submit"]').first().click()
-    await expect.poll(() => widget(page).getAttribute('data-reco-state')).toBe('error')
+    await thread(page).locator('[data-reco-send]').first().click()
+    await expect(widget(page).locator('[data-reco-error]')).toBeVisible({ timeout: 10_000 })
     await expectAccessible(page, 'error')
   })
 })
