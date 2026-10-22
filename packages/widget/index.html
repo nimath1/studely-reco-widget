@@ -1117,12 +1117,11 @@
         }
       }
       /* ── Mobile: safe-area, single-column suggestions, ≥16 px input
-         (iOS focus zoom), expanded launcher parked above the composer ── */
+         (iOS focus zoom), expanded launcher hidden — la croix du header
+         suffit pour fermer, pas de doublon bleu au-dessus du composer ── */
       @media (max-width: 960px) {
         [data-reco-widget] [data-reco-launcher][aria-expanded='true'] {
-          width: 48px;
-          height: 48px;
-          bottom: calc(var(--reco-composer-height, 180px) + 36px + env(safe-area-inset-bottom));
+          display: none;
         }
       }
       @media (max-width: 480px) {
