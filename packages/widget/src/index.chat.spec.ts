@@ -207,6 +207,13 @@ describe('envoi et réponse', () => {
     expect(textarea().value).toBe('')
   })
 
+  it('le focus revient au composer quand la réponse arrive', async () => {
+    textarea().focus()
+    await type('x')
+    await waitFor(() => expect(assistantEntries().length).toBeGreaterThanOrEqual(2))
+    await waitFor(() => expect(document.activeElement).toBe(textarea()))
+  })
+
   it('session /chat persistée et repostée au tour suivant', async () => {
     const spy = mockFetch(async () => ok(SSE('r', { session_id: 's1' })))
     await type('premier')

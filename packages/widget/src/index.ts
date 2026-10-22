@@ -34,7 +34,7 @@ import {
   showPending
 } from './ui/thread'
 import { fillField } from './ui/render'
-import { mountView } from './ui/view'
+import { mountView, nextTick } from './ui/view'
 
 export const version: string = pkgVersion
 
@@ -204,6 +204,13 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     view.state.pending = false
     hidePending(el)
     setChipsEnabled(el, true)
+    // Le `disabled` réactif du composer a fait tomber le focus pendant
+    // l'envoi : on le rend si le focus est resté dans le widget ou a
+    // chuté sur body — jamais s'il a été déplacé ailleurs volontairement.
+    void nextTick(() => {
+      const active = el.ownerDocument.activeElement
+      if (active === el.ownerDocument.body || el.contains(active)) composer?.focus()
+    })
   }
 
   /** Réponse /chat affichée : bulle assistant, ou refus out-of-scope. */
