@@ -5,7 +5,7 @@
  * l'UI n'affiche que l'état loading pendant la réponse, pas de rendu
  * progressif.
  */
-import type { ChatDelta, ChatFinal, ChatReply } from './types'
+import type { ChatCitation, ChatDelta, ChatFinal, ChatReply } from './types'
 
 /** Injectée au build par environnement (`VITE_RECO_API_URL`), jamais lue depuis la page. */
 export const API_BASE_URL: string = import.meta.env.VITE_RECO_API_URL
@@ -13,6 +13,7 @@ export const API_BASE_URL: string = import.meta.env.VITE_RECO_API_URL
 // Global /chat call timeout (spec §7.4: 20 s), headers and body included.
 const TIMEOUT_MS = 20_000
 const SESSION_KEY_PREFIX = 'studely.reco.session.'
+const USER_KEY_PREFIX = 'studely.reco.user.'
 
 /** Familles d'erreurs du §5.3 : chacune a sa clé i18n et son comportement. */
 export type RecoErrorKind = 'network' | 'rate' | 'server' | 'input' | 'forbidden'
@@ -68,28 +69,50 @@ async function toApiError(res: Response): Promise<RecoApiError> {
   return new RecoApiError('input', String(res.status))
 }
 
+/** Reads one SSE block: last `event:` line wins, `data:` lines concatenate. */
+function parseSseBlock(block: string): { event: string; data: string } {
+  let event = ''
+  let data = ''
+  for (const line of block.split('\n')) {
+    if (line.startsWith('event:')) event = line.slice(6).trim()
+    else if (line.startsWith('data:')) data += line.slice(5).trim()
+  }
+  return { event, data }
+}
+
+/** Reply state accumulated while walking the stream's blocks. */
+interface SseState {
+  text: string
+  meta: ChatFinal
+  sources: ChatCitation[] | undefined
+}
+
+/** Dispatches one parsed SSE block onto the reply state: `delta` concatenates
+    text, `final` replaces meta, `sources` is kept aside. Non-JSON skipped. */
+function applySseBlock(state: SseState, event: string, data: string): void {
+  try {
+    const parsed = JSON.parse(data) as ChatDelta & ChatFinal
+    if (event === 'delta') state.text += parsed.text ?? ''
+    else if (event === 'final') state.meta = parsed
+    else if (event === 'sources' && Array.isArray(parsed.sources)) state.sources = parsed.sources
+  } catch {
+    // Chunk non-JSON ignoré : le flux reste utilisable.
+  }
+}
+
 /** Parses an SSE stream read in one shot: concatenates `delta`, keeps
     `final`. CRLF normalized to LF: some proxies/servers emit `\r\n`. */
 export function parseSse(stream: string): ChatReply {
-  let text = ''
-  let meta: ChatFinal = {}
+  // `event: sources` precedes the deltas; kept aside so a later `final`
+  // (which replaces `meta`) cannot drop it.
+  const state: SseState = { text: '', meta: {}, sources: undefined }
   for (const block of stream.replaceAll('\r\n', '\n').split('\n\n')) {
-    let event = ''
-    let data = ''
-    for (const line of block.split('\n')) {
-      if (line.startsWith('event:')) event = line.slice(6).trim()
-      else if (line.startsWith('data:')) data += line.slice(5).trim()
-    }
+    const { event, data } = parseSseBlock(block)
     if (!data) continue
-    try {
-      const parsed = JSON.parse(data) as ChatDelta & ChatFinal
-      if (event === 'delta') text += parsed.text ?? ''
-      else if (event === 'final') meta = parsed
-    } catch {
-      // Chunk non-JSON ignoré : le flux reste utilisable.
-    }
+    applySseBlock(state, event, data)
   }
-  return { text, meta }
+  if (state.sources) state.meta.sources = state.sources
+  return { text: state.text, meta: state.meta }
 }
 
 function storage(): Storage | null {
@@ -128,27 +151,58 @@ export function clearChatSession(origin: string): void {
 }
 
 /**
+ * `user_id` stable par origine (localStorage, survit aux sessions) :
+ * envoyé dans POST /chat et réutilisé par PUT /users — la conversation,
+ * le profil et le ticket handoff partagent le même identifiant. Un
+ * storage inaccessible retourne un uuid volatil, jamais null.
+ */
+export function ensureUserId(origin: string): string {
+  const key = `${USER_KEY_PREFIX}${origin}`
+  try {
+    const stored = globalThis.localStorage?.getItem(key)
+    if (stored) return stored
+    const fresh = requestId()
+    globalThis.localStorage?.setItem(key, fresh)
+    return fresh
+  } catch {
+    return requestId()
+  }
+}
+
+/** Rejette comme un `AbortError` DOM — la promesse retournée par fetch. */
+function abortError(): DOMException {
+  return new DOMException('Aborted', 'AbortError')
+}
+
+/**
  * POST /chat : message + session courante ; renvoie le texte reconstitué
  * et les métadonnées `final`. Réseau mort et timeout mènent à 'network' ;
  * un 429 garde son Retry-After ; 400/422 → 'input' avec le champ fautif.
+ * `signal` (bouton « Arrêter ») annule la requête : AbortError remonte
+ * tel quel — l'appelant le distingue du timeout (network).
  */
 export async function postChat(
   message: string,
   sessionId: string | null,
-  turnstileToken?: string
+  userId: string,
+  turnstileToken?: string,
+  signal?: AbortSignal
 ): Promise<ChatReply> {
+  if (signal?.aborted) throw abortError()
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'X-Request-Id': requestId()
   }
   if (turnstileToken) headers['X-Turnstile-Token'] = turnstileToken
   const controller = new AbortController()
+  const onAbort = () => controller.abort()
+  signal?.addEventListener('abort', onAbort, { once: true })
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
   try {
     const res = await fetch(`${API_BASE_URL}/chat`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ message, session_id: sessionId }),
+      body: JSON.stringify({ message, session_id: sessionId, user_id: userId }),
       signal: controller.signal
     })
     if (!res.ok) throw await toApiError(res)
@@ -157,8 +211,68 @@ export async function postChat(
     return parseSse(await res.text())
   } catch (error) {
     if (error instanceof RecoApiError) throw error
+    // Annulation utilisateur : ni erreur réseau ni état indisponible.
+    if (signal?.aborted) throw abortError()
     throw new RecoApiError('network', 'API injoignable ou délai dépassé')
   } finally {
     clearTimeout(timer)
+    signal?.removeEventListener('abort', onAbort)
+  }
+}
+
+/** Corps du `PUT /users/{user_id}` (ProfileUpsertBody) — champs optionnels. */
+export interface ProfileUpsert {
+  firstname?: string
+  lastname?: string
+  email?: string
+  lang?: string
+  country?: string
+  destination_country?: string
+  is_minor?: boolean
+}
+
+/** En-têtes JSON + trace, partagés par les appels hors /chat. */
+async function callApi(path: string, init: { method: string; body?: string }): Promise<Response> {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Request-Id': requestId()
+    }
+  })
+  if (!res.ok) throw await toApiError(res)
+  return res
+}
+
+/**
+ * PUT /users/{user_id} : identité déclarée par l'utilisateur (ADR 0007) —
+ * utilisée par le formulaire conseiller pour attacher nom + e-mail au
+ * profil avant de demander le ticket.
+ */
+export async function putProfile(userId: string, profile: ProfileUpsert): Promise<void> {
+  try {
+    await callApi(`/users/${encodeURIComponent(userId)}`, {
+      method: 'PUT',
+      body: JSON.stringify(profile)
+    })
+  } catch (error) {
+    if (error instanceof RecoApiError) throw error
+    throw new RecoApiError('network', 'API injoignable ou délai dépassé')
+  }
+}
+
+/**
+ * POST /conversations/{session_id}/handoff : « geste UI → ticket créé » —
+ * aucun corps (le ticket naît de la session), la réponse porte ticket_id.
+ * Sans session (erreur avant la 1re réponse) l'appelant saute ce pas.
+ */
+export async function requestHandoff(sessionId: string): Promise<void> {
+  try {
+    await callApi(`/conversations/${encodeURIComponent(sessionId)}/handoff`, {
+      method: 'POST'
+    })
+  } catch (error) {
+    if (error instanceof RecoApiError) throw error
+    throw new RecoApiError('network', 'API injoignable ou délai dépassé')
   }
 }

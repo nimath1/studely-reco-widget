@@ -2,6 +2,7 @@ import js from '@eslint/js'
 import { defineConfig } from 'eslint/config'
 import tseslint from 'typescript-eslint'
 import prettier from 'eslint-config-prettier'
+import sonarjs from 'eslint-plugin-sonarjs'
 import globals from 'globals'
 
 const vitestGlobals = {
@@ -29,6 +30,21 @@ export default defineConfig(
     ]
   },
   js.configs.recommended,
+  // SonarJS — mirrors the SonarLint analyzer (same rule ids); the
+  // threshold set in sonarlint.rules (.vscode/settings.json) is the
+  // plugin default for S3776 (15).
+  sonarjs.configs.recommended,
+  {
+    rules: {
+      // Type-aware rules with a systemic false-positive rate on this
+      // codebase (untyped API JSON, DOM guards) — same offs as onrari.
+      'sonarjs/no-redundant-optional': 'off',
+      'sonarjs/null-dereference': 'off',
+      'sonarjs/argument-type': 'off',
+      'sonarjs/function-return-type': 'off',
+      'sonarjs/different-types-comparison': 'off'
+    }
+  },
   ...tseslint.configs.recommended,
   {
     files: ['packages/widget/**/*.spec.ts'],

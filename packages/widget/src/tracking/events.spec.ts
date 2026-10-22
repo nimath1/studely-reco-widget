@@ -34,16 +34,16 @@ describe('trackReco', () => {
       getResultCount: () => 3
     })
 
-    emitRecoEvent(el, 'results', { from: 'loading', to: 'results' })
+    emitRecoEvent(el, 'reply', { from: 'chat', to: 'chat' })
 
     expect(window.dataLayer).toEqual([
       {
-        event: 'reco_results',
+        event: 'reco_reply',
         reco_locale: 'fr',
         reco_origin: 'mexique',
         reco_version: '0.0.1',
-        from_state: 'loading',
-        to_state: 'results',
+        from_state: 'chat',
+        to_state: 'chat',
         duration_ms: 1234,
         result_count: 3
       }
@@ -70,7 +70,7 @@ describe('trackReco', () => {
     const el = document.createElement('section')
     trackReco(el, ctx, new AbortController().signal)
 
-    emitRecoEvent(el, 'results', { from: 'loading', to: 'results' })
+    emitRecoEvent(el, 'reply', { from: 'chat', to: 'chat' })
 
     expect(window.dataLayer).toBeUndefined()
   })
@@ -78,7 +78,7 @@ describe('trackReco', () => {
   it('no CMP detected: non-blocking, pushes normally', () => {
     const el = document.createElement('section')
     trackReco(el, ctx, new AbortController().signal)
-    emitRecoEvent(el, 'start', { from: 'intro', to: 'step-1' })
+    emitRecoEvent(el, 'consent', { from: 'consent', to: 'chat' })
     expect(window.dataLayer).toHaveLength(1)
   })
 

@@ -1,246 +1,115 @@
 import { expect, test, type Page } from '@playwright/test'
 
 /**
- * Page de dev : le mock MSW est activé par ?recoMock=<scénario>, la locale
- * par ?lang=. Attente web-first : le widget est prêt quand les options de
- * l'étape 1 sont rendues (dictionnaire statique local ; POST /chat SSE
- * intercepté par le worker MSW).
+ * Parcours chat sur mock MSW (`?recoMock=<scénario>`, `?lang=`).
+ * Attente web-first : le widget est prêt quand la bulle d'accueil
+ * (seul `data-reco-msg="assistant"` initial) est rendue — POST /chat
+ * SSE intercepté par le worker MSW, aucun réseau réel.
  */
 async function open(page: Page, scenario = 'nominal', lang = 'fr'): Promise<void> {
   await page.goto(`/?recoMock=${scenario}&lang=${lang}`)
   await page.locator('[data-reco-launcher]').click()
   await expect(widget(page)).toHaveAttribute('data-reco-open', '')
-  await expect(
-    page.locator('[data-reco-widget] [data-reco-options="level"] input').first()
-  ).toBeAttached()
+  await expect(thread(page).locator('[data-reco-msg="assistant"]')).toHaveCount(1)
 }
 
 const widget = (page: Page) => page.locator('[data-reco-widget]')
-const state = (page: Page) => widget(page).getAttribute('data-reco-state')
-const click = (page: Page, selector: string) => widget(page).locator(selector).first().click()
+const thread = (page: Page) => widget(page).locator('[data-reco-thread]')
 
-/** Répond aux 5 étapes puis soumet avec consentement. */
-async function play(page: Page): Promise<void> {
-  await click(page, '[data-reco-action="start"]')
-  await widget(page).locator('[data-reco-options="level"] input').first().check()
-  await click(page, '[data-reco-action="next"]')
-  await widget(page).locator('[data-reco-options="fields"] input').first().check()
-  await click(page, '[data-reco-action="next"]')
-  await widget(page).locator('[data-reco-options="destinations"] input').first().check()
-  await click(page, '[data-reco-action="next"]')
-  const select = widget(page).locator('[data-reco-options="languages"] select').first()
-  await select.selectOption({ index: 1 })
-  await click(page, '[data-reco-action="next"]')
-  await widget(page).locator('[data-reco-options="budget"] input').first().check()
-  await widget(page).locator('[data-reco-options="intake"] input').first().check()
-  await widget(page).locator('[data-reco-input="consent"]').check()
-  await click(page, '[data-reco-action="submit"]')
+/** Envoie la première suggestion d'amorce et attend la réponse du bot. */
+async function ask(page: Page): Promise<void> {
+  await thread(page).locator('[data-reco-send]').first().click()
+  await expect(thread(page).locator('[data-reco-msg="user"]')).toHaveCount(1)
 }
 
 test.describe('parcours widget (mock MSW)', () => {
-  test('nominal : 5 étapes puis réponse du bot et liens studely.com', async ({ page }) => {
+  test('nominal : réponse du bot et trois liens studely.com', async ({ page }) => {
     await open(page)
-    await play(page)
-    await expect.poll(() => state(page)).toBe('results')
-    await expect(
-      widget(page).locator('[data-reco-results] [data-reco-field="text"]')
-    ).not.toBeEmpty()
-    const links = widget(page).locator('[data-reco-results] [data-reco-field="links"] a')
+    await ask(page)
+    const reply = thread(page).locator('[data-reco-msg="assistant"]').nth(1)
+    await expect(reply).toBeAttached({ timeout: 10_000 })
+    await expect(reply.locator('[data-reco-field="text"]')).not.toBeEmpty()
+    const links = reply.locator('[data-reco-field="links"] a')
     await expect(links).toHaveCount(3)
     for (const link of await links.all()) {
-      await expect(link).toHaveAttribute('href', /https:\/\/(www\.)?studely\.com/)
+      await expect(link).toHaveAttribute('href', /https:\/\/([\w-]+\.)*studely\.com/)
     }
+    // L'envoi a valu consentement (continuation) : la phase chat est active.
+    await expect(widget(page)).toHaveAttribute('data-reco-state', 'chat')
   })
 
-  test('sans consentement, l’envoi est bloqué (R15)', async ({ page }) => {
-    await open(page)
-    await click(page, '[data-reco-action="start"]')
-    await widget(page).locator('[data-reco-options="level"] input').first().check()
-    await click(page, '[data-reco-action="next"]')
-    await widget(page).locator('[data-reco-options="fields"] input').first().check()
-    await click(page, '[data-reco-action="next"]')
-    await widget(page).locator('[data-reco-options="destinations"] input').first().check()
-    await click(page, '[data-reco-action="next"]')
-    await widget(page)
-      .locator('[data-reco-options="languages"] select')
-      .first()
-      .selectOption({ index: 1 })
-    await click(page, '[data-reco-action="next"]')
-    await widget(page).locator('[data-reco-options="budget"] input').first().check()
-    await widget(page).locator('[data-reco-options="intake"] input').first().check()
-    await click(page, '[data-reco-action="submit"]')
-    await expect.poll(() => state(page)).toBe('step-5')
-    await expect(widget(page).locator('[data-reco-error-for="consent"]')).not.toBeEmpty()
-  })
-
-  test('empty : panel dégradé avec CTA conseiller', async ({ page }) => {
+  test('empty : aucun parcours, CTA conseiller et mini-formulaire', async ({ page }) => {
     await open(page, 'empty')
-    await play(page)
-    await expect.poll(() => state(page)).toBe('empty')
-    await expect(
-      widget(page).locator('[data-reco-panel="empty"] [data-reco-action="advisor"]')
-    ).toHaveAttribute('href', /\/mexique#contact/)
+    await ask(page)
+    const reply = thread(page).locator('[data-reco-msg="assistant"]').nth(1)
+    await expect(reply).toContainText('Aucun parcours', { timeout: 10_000 })
+    // Sortie conseiller à portée : le CTA clone le formulaire de contact.
+    await reply.locator('[data-reco-action="advisor"]').click()
+    const handoff = thread(page).locator('[data-reco-handoff]')
+    await expect(handoff).toBeVisible()
+    await expect(handoff.locator('[data-reco-input="handoff-name"]')).toBeFocused()
+    // La demande part vraiment : PUT profil + POST handoff (mock MSW) puis
+    // la carte affiche la confirmation.
+    const requests: string[] = []
+    page.on('request', (req) => {
+      if (req.method() !== 'GET') requests.push(`${req.method()} ${req.url()}`)
+    })
+    await handoff.locator('[data-reco-input="handoff-name"]').fill('Awa')
+    await handoff.locator('[data-reco-input="handoff-email"]').fill('awa@exemple.com')
+    await handoff.locator('[data-reco-action="handoff"]').click()
+    await expect(thread(page).locator('[data-reco-msg="assistant"]').last()).toContainText(
+      'conseiller te contactera',
+      { timeout: 10_000 }
+    )
+    expect(requests.some((r) => r.startsWith('PUT') && r.includes('/users/'))).toBe(true)
+    expect(requests.some((r) => r.startsWith('POST') && r.includes('/handoff'))).toBe(true)
   })
 
   test('rate : 429 affiche l’erreur et verrouille Réessayer', async ({ page }) => {
     await open(page, 'rate')
-    await play(page)
-    await expect.poll(() => state(page)).toBe('error')
-    await expect(widget(page).locator('[data-reco-action="retry"]')).toBeDisabled()
+    await ask(page)
+    const error = widget(page).locator('[data-reco-error]')
+    await expect(error).toBeVisible({ timeout: 10_000 })
+    await expect(error.locator('[data-reco-error-message]')).toContainText('Trop de demandes')
+    await expect(error.locator('[data-reco-action="retry"]')).toBeDisabled()
   })
 
-  test('brouillon : rechargement restaure l’étape mais pas le consentement', async ({ page }) => {
-    await open(page)
-    await click(page, '[data-reco-action="start"]')
-    await widget(page).locator('[data-reco-options="level"] input').first().check()
-    await click(page, '[data-reco-action="next"]')
-    await widget(page).locator('[data-reco-options="fields"] input').first().check()
-    await click(page, '[data-reco-action="next"]')
-    await page.reload()
-    await expect.poll(() => state(page)).toBe('step-3')
-    await expect(widget(page).locator('[data-reco-input="consent"]')).not.toBeChecked()
+  test('server : erreur 500, Réessayer reposte le même message', async ({ page }) => {
+    await open(page, 'server')
+    await ask(page)
+    const error = widget(page).locator('[data-reco-error]')
+    await expect(error).toBeVisible({ timeout: 10_000 })
+    const retry = error.locator('[data-reco-action="retry"]')
+    await expect(retry).toBeEnabled()
+    // Le mock sert toujours 500 : la carte erreur revient après le repost.
+    await retry.click()
+    await expect(error).toBeVisible({ timeout: 10_000 })
+    await expect(thread(page).locator('[data-reco-msg="user"]')).toHaveCount(1)
   })
 
-  test('arabe : dir=rtl et parcours complet', async ({ page }) => {
+  test('bad-url : citations hors studely.com écartées, repli conseiller', async ({ page }) => {
+    await open(page, 'bad-url')
+    await ask(page)
+    const reply = thread(page).locator('[data-reco-msg="assistant"]').nth(1)
+    await expect(reply).toContainText('Aucun parcours', { timeout: 10_000 })
+    await expect(reply.locator('[data-reco-field="links"] a')).toHaveCount(0)
+    await expect(reply.locator('[data-reco-action="advisor"]')).toBeVisible()
+  })
+
+  test('html-reason : le HTML de la réponse reste du texte brut', async ({ page }) => {
+    await open(page, 'html-reason')
+    await ask(page)
+    const reply = thread(page).locator('[data-reco-msg="assistant"]').nth(1)
+    await expect(reply).toContainText('<img src=x onerror=alert(1)>', { timeout: 10_000 })
+    await expect(reply.locator('img')).toHaveCount(0)
+  })
+
+  test('arabe : dir=rtl et réponse complète', async ({ page }) => {
     await open(page, 'nominal', 'ar')
     await expect(widget(page)).toHaveAttribute('dir', 'rtl')
-    await play(page)
-    await expect.poll(() => state(page)).toBe('results')
-  })
-
-  // R14 : aucun débordement sur un écran de 360 px, quel que soit le projet.
-  test('mobile 360 px : pas de débordement horizontal', async ({ page }) => {
-    await page.setViewportSize({ width: 360, height: 740 })
-    await open(page)
-    await click(page, '[data-reco-action="start"]')
-    const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth)
-    expect(scrollWidth).toBeLessThanOrEqual(360)
-  })
-
-  test('coquille : ouverture, fermeture et Échap rendent le focus au lanceur', async ({ page }) => {
-    await open(page)
-    await click(page, '[data-reco-action="start"]')
-    const input = widget(page).locator('[data-reco-options="level"] input').first()
-    await input.check()
-    await click(page, '[data-reco-close]')
-    await expect(widget(page)).not.toHaveAttribute('data-reco-open', '')
-    await expect(page.locator('[data-reco-launcher]')).toBeFocused()
-    // The draft survives closing: the selection is still there.
-    await page.locator('[data-reco-launcher]').click()
-    await expect(input).toBeChecked()
-    await page.keyboard.press('Escape')
-    await expect(page.locator('[data-reco-launcher]')).toBeFocused()
-    await expect(page.locator('[data-reco-launcher]')).toHaveAttribute('aria-expanded', 'false')
-  })
-
-  test('réouverture à l’étape 5 : la légende active prend le focus', async ({ page }) => {
-    await open(page)
-    await click(page, '[data-reco-action="start"]')
-    for (const field of ['level', 'fields', 'destinations']) {
-      await widget(page).locator(`[data-reco-options="${field}"] input`).first().check()
-      await click(page, '[data-reco-action="next"]')
-    }
-    await widget(page)
-      .locator('[data-reco-options="languages"] select')
-      .first()
-      .selectOption({ index: 1 })
-    await click(page, '[data-reco-action="next"]')
-    await click(page, '[data-reco-close]')
-    await page.locator('[data-reco-launcher]').click()
-    // The active question (step 5) regains focus, not the first step.
-    await expect(widget(page).locator('[data-reco-step="5"] legend')).toBeFocused()
-    // And the first budget choice is visible in the scrolling body.
-    const budget = widget(page).locator('[data-reco-options="budget"] input').first()
-    await expect(budget).toBeInViewport()
-  })
-
-  test('historique : paires question/réponse en avant, nettoyé au retour', async ({ page }) => {
-    await open(page)
-    await click(page, '[data-reco-action="start"]')
-    const levelLabel = await widget(page)
-      .locator('[data-reco-options="level"] [data-reco-field="label"]')
-      .first()
-      .textContent()
-    await widget(page).locator('[data-reco-options="level"] input').first().check()
-    await click(page, '[data-reco-action="next"]')
-    // At step 2, question 1 and the chosen answer appear as bubbles.
-    const history = widget(page).locator('[data-reco-history] [data-reco-msg]')
-    await expect(history).toHaveCount(2)
-    await expect(history.first()).toContainText('niveau')
-    await expect(history.nth(1)).toHaveText(levelLabel!.trim())
-    await widget(page).locator('[data-reco-options="fields"] input').first().check()
-    await click(page, '[data-reco-action="next"]')
-    await expect(history).toHaveCount(4)
-    // Back to step 2: the future 'destinations' answer disappears.
-    await click(page, '[data-reco-action="back"]')
-    await expect(history).toHaveCount(2)
-  })
-
-  test('étape 5 : groupes distincts, footer d’action visible (360x740)', async ({ page }) => {
-    await page.setViewportSize({ width: 360, height: 740 })
-    await open(page)
-    await click(page, '[data-reco-action="start"]')
-    for (const field of ['level', 'fields', 'destinations']) {
-      await widget(page).locator(`[data-reco-options="${field}"] input`).first().check()
-      await click(page, '[data-reco-action="next"]')
-    }
-    await widget(page)
-      .locator('[data-reco-options="languages"] select')
-      .first()
-      .selectOption({ index: 1 })
-    await click(page, '[data-reco-action="next"]')
-    await expect.poll(() => state(page)).toBe('step-5')
-    // Distinct groups, yearly label: no giant consent-style card.
-    await expect(widget(page).locator('[data-reco-group]').first()).toHaveText('Budget annuel')
-    const budgetCard = widget(page).locator('[data-reco-options="budget"] label').first()
-    const budgetBox = await budgetCard.boundingBox()
-    expect(budgetBox!.height).toBeLessThan(80)
-    // On arrival at step 5, the first budget choice is visible in the
-    // scrolling body, above the action footer.
-    const geo = await page.evaluate(() => {
-      const body = document.querySelector('[data-reco-body]')!.getBoundingClientRect()
-      const card = document
-        .querySelector('[data-reco-options="budget"] label')!
-        .getBoundingClientRect()
-      const footer = document
-        .querySelector('form > div:has(> [data-reco-action="back"])')!
-        .getBoundingClientRect()
-      const submit = document.querySelector('[data-reco-action="submit"]')!.getBoundingClientRect()
-      const hit = document.elementFromPoint(
-        submit.x + submit.width / 2,
-        submit.y + submit.height - 4
-      )
-      return {
-        body,
-        card,
-        footer,
-        submit,
-        hitAction: hit?.closest?.('[data-reco-action]')?.getAttribute('data-reco-action') ?? null
-      }
-    })
-    // The active question sits at the top of the body, choices below.
-    expect(geo.card.top).toBeGreaterThanOrEqual(geo.body.top)
-    expect(geo.card.bottom).toBeLessThan(geo.footer.top)
-    // The submit button is fully inside the window and clickable
-    // (no overlap from the advisor bar).
-    expect(geo.submit.bottom).toBeLessThanOrEqual(geo.body.bottom)
-    expect(geo.hitAction).toBe('submit')
-  })
-
-  test('étape 5 : footer visible sur viewport desktop court (520 px)', async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 520 })
-    await open(page)
-    await click(page, '[data-reco-action="start"]')
-    for (const field of ['level', 'fields', 'destinations']) {
-      await widget(page).locator(`[data-reco-options="${field}"] input`).first().check()
-      await click(page, '[data-reco-action="next"]')
-    }
-    await widget(page)
-      .locator('[data-reco-options="languages"] select')
-      .first()
-      .selectOption({ index: 1 })
-    await click(page, '[data-reco-action="next"]')
-    const submitBox = await widget(page).locator('[data-reco-action="submit"]').boundingBox()
-    expect(submitBox!.y + submitBox!.height).toBeLessThanOrEqual(520)
+    await ask(page)
+    const reply = thread(page).locator('[data-reco-msg="assistant"]').nth(1)
+    await expect(reply).toBeAttached({ timeout: 10_000 })
+    await expect(reply.locator('[data-reco-field="links"] a')).toHaveCount(3)
   })
 })

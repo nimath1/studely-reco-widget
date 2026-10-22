@@ -1,9 +1,13 @@
 # @studely/widget
 
 Widget de recommandation de parcours Studely, intégré au site Webflow.
-Bundle TypeScript sans framework, sans style propre : le visuel et les
-libellés vivent dans le composant Webflow `Reco / Widget`, le JS ne fait que
-cloner, remplir et basculer les états via les attributs `data-reco-*`.
+Bundle TypeScript sans framework, sans style propre : un **chat** à la
+Learn Up — fil de bulles utilisateur/assistant, saisie libre vers
+`POST /chat` (SSE) — piloté par les attributs `data-reco-*`.
+Le markup vit dans les SFC `src/template/*.vue` — rendues en HTML
+statique au build (SSR, aucun runtime Vue embarqué) et injectées dans le
+conteneur à l'init ; les libellés restent dans le bloc
+`[data-reco-labels]` de l'embed (Webflow Localization, §8.1).
 
 ## Commandes
 
@@ -11,7 +15,7 @@ cloner, remplir et basculer les états via les attributs `data-reco-*`.
 pnpm --filter @studely/widget dev               # page de dev (squelette §10.3) sur http://localhost:5173
 pnpm --filter @studely/widget build:staging     # dist/reco.js pointant l'API de staging
 pnpm --filter @studely/widget build:production  # dist/reco.js pointant l'API de production
-pnpm --filter @studely/widget build:vercel      # bundle reco.js + assets packagés dans dist-site/
+pnpm --filter @studely/widget build:vercel      # build + site de référence packagé dans dist-site/
 pnpm --filter @studely/widget test              # unitaires + intégration MSW (Vitest)
 pnpm --filter @studely/widget test:coverage     # seuils : 90 % lignes/fonctions/instructions
 pnpm --filter @studely/widget test:e2e:install  # navigateurs Playwright (1re fois)
@@ -46,12 +50,13 @@ bootstrap scanne le DOM à `DOMContentLoaded` et ne fait rien sans widget).
 
 ### Attributs du conteneur
 
-| Attribut                | Obligatoire | Rôle                                               |
-| ----------------------- | ----------- | -------------------------------------------------- |
-| `data-reco-widget`      | Oui         | Marque le conteneur                                |
-| `data-reco-origin`      | Oui*        | Slug du pays d'origine (`mexique`), envoyé à l'API |
-| `data-reco-advisor-url` | Oui*        | Cible du bouton « Parler à un conseiller »         |
-| `data-reco-locale`      | Non         | Locale si `<html lang>` est absent (repli `fr`)    |
+| Attribut                | Obligatoire | Rôle                                                                                                                                    |
+| ----------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `data-reco-widget`      | Oui         | Marque le conteneur                                                                                                                     |
+| `data-reco-origin`      | Oui*        | Slug du pays d'origine (`mexique`), envoyé à l'API                                                                                      |
+| `data-reco-advisor-url` | Oui*        | Page conseiller de repli (reçoit nom/e-mail en query)                                                                                   |
+| `data-reco-handoff-url` | Non         | Endpoint de mise en relation : le mini-formulaire y POST `{name, email, session_id, origin}` en JSON ; absent → repli sur `advisor-url` |
+| `data-reco-locale`      | Non         | Locale si `<html lang>` est absent (repli `fr`)                                                                                         |
 
 \* ou `<meta name="reco-origin" content="…">` /
 `<meta name="reco-advisor-url" content="…">` dans le `<head>` de la page :
@@ -74,31 +79,47 @@ R12) et un avertissement `[studely-reco]` est émis en console.
 
 ### Contrat DOM (résumé §10.2/10.3)
 
-- Panels `data-reco-panel` : `fallback`, `intro`, `steps`, `loading`,
-  `results`, `empty`, `error` — un seul porte `is-reco-active` à la fois ;
-  l'état courant est écrit dans `data-reco-state`.
-- `form` natif avec `novalidate`, 5 `fieldset data-reco-step="1..5"` et
-  leur `legend`. Aucune div cliquable : radios, cases, `select` natifs.
-- Conteneurs `data-reco-options` : `level`, `fields`, `destinations`,
-  `languages`, `budget`, `intake`.
-- `textarea data-reco-input="goal"` (300 car.), case
-  `data-reco-input="consent"`, bloc `data-reco-turnstile`, erreurs
-  `data-reco-error-for`, hint `data-reco-hint="goal"`.
-- Boutons `data-reco-action` : `start`, `next`, `back`, `submit`, `edit`,
-  `restart`, `retry` ; lien `data-reco-action="advisor"` disponible partout.
-- Templates `data-reco-template` : `reply` (bulle de réponse : champ
-  `text` + zone `links` remplie de liens-citations),
-  `option-radio`, `option-checkbox`, `option-language` ; bloc
-  `data-reco-labels` (une entrée `data-reco-label` par clé i18n) ;
-  `data-reco-results`, `data-reco-disclaimer`, `data-reco-error-message`,
-  `data-reco-live`, `data-reco-progress`, `data-reco-progress-bar`.
+- Fenêtre : `<dialog data-reco-widget>` **plein écran** (comme Learn Up),
+  ouverte en modal par le launcher ; `data-reco-state` reflète la phase
+  (`consent` → `chat`).
+- Fil : `data-reco-thread` (`role="log"`, région live) dans le viewport
+  `data-reco-body` ; les entrées `data-reco-msg="user|assistant"` sont
+  clonées depuis les templates — bulle utilisateur à droite, bulle
+  assistant avec texte, citations (liens `data-reco-field="links"`
+  filtrés https studely.com, R10) et actions (CTA « Parler à un
+  conseiller » sur `out_of_scope`/`handoff_proposed`).
+- Transitoires persistants : `data-reco-pending` (squelette + bouton
+  `data-reco-action="stop"`) et `data-reco-error` (carte + `retry` +
+  lien `advisor`), basculés par `hidden` en pied de fil.
+- Composer `form[data-reco-composer]` : case `data-reco-input="consent"`
+  (bloque tout envoi tant qu'elle n'est pas cochée), bloc
+  `data-reco-turnstile`, `textarea data-reco-input="message"` autosize
+  (Entrée envoie, Maj+Entrée = saut de ligne), bouton
+  `data-reco-action="send"`, ligne `data-reco-disclaimer`.
+- Templates `data-reco-template` : `msg-user`, `msg-assistant` (champs
+  `text`, `suggestions`, `links`, `actions`), `suggestion` (chip
+  `data-reco-send` — son libellé part comme message), `advisor-cta`,
+  `handoff-form` (mini-formulaire nom + e-mail, champs
+  `data-reco-input="handoff-name|email"`, `data-reco-action="handoff"`) ;
+  bloc `data-reco-labels` (une entrée `data-reco-label` par clé i18n) ;
+  `data-reco-live` (annonces), panel `fallback` (config invalide).
+- Boutons `data-reco-action` : `send`, `stop`, `retry`, `advisor`,
+  `handoff`.
+- Mise en relation : « Parler à un conseiller » (bulle de refus ou carte
+  d'indisponibilité) ajoute le mini-formulaire au fil ; validé, il POST
+  vers `data-reco-handoff-url` ou, à défaut, ouvre `advisor-url` avec
+  `?nom=&email=` — puis la carte devient une confirmation (jalon
+  `reco_handoff`).
+- Gabarit : le markup complet (header, fil, composer, templates,
+  launcher) vit dans `src/template/*.vue`, rendu en HTML statique au
+  build — `vite build`/`dev`/`test` génèrent `src/template.generated.txt`
+  (gitignoré) via `renderTemplateFile`/`recoTemplate` (vite.config.ts) —
+  puis injecté dans `[data-reco-widget]` si le bloc est vide de panels.
+  Un embed qui porte déjà son markup n'est pas rempli deux fois. Le
+  bloc `[data-reco-labels]` n'est **pas** dans le gabarit : il reste
+  posé par l'embed/page et doit être présent dans le conteneur.
 - Templates et labels : visibles dans le Designer, masqués en ligne par le
   CSS `[data-reco-template], [data-reco-labels] { display: none }`.
-- Historique optionnel : un conteneur `[data-reco-history]` posé dans le
-  `form` (avant les fieldsets) est repeint à chaque étape en paires de
-  bulles question/réponse (`data-reco-msg="assistant|user"`) pour les
-  étapes déjà validées — reconstruit à chaque navigation, sans étape
-  future. Absent du gabarit : no-op, aucun style ni texte embarqué.
 - Le JS n'utilise aucune classe de style : nommage BEM `reco-*` libre pour
   Webflow ; RTL via la feuille `[data-reco-widget][dir="rtl"]`.
 
@@ -108,6 +129,16 @@ volontairement sans style et n'embarque aucun CSS. Les assets statiques
 qu'il référence — `public/studely-brand.jpg` (logo du header) et
 `public/fonts/Montserrat-*.otf` (@font-face 400/600/700/800) — doivent
 être déployés avec la page : le bundle ne les inclut pas.
+
+Le gabarit peut aussi utiliser les utilitaires **Tailwind v4**
+(`src/widget.css`, liée en `<link>` dans `index.html`) : `theme` +
+`utilities` seuls, **sans preflight** — le reset global casserait la
+page Webflow hôte. Les jetons `--color-reco-*`/`--font-reco`/
+`--radius-reco*` (`bg-reco-primary`, `text-reco-ink`…) renvoient aux
+custom properties `--reco-*` du `:root` du gabarit. Dans l'embed
+Webflow, coller le CSS compilé (`dist-site/assets/index-*.css` après
+`build:vercel`) dans le `<style>` du bloc ; sur la page de dev et le
+site Vercel, le `<link>` suffit.
 
 ## API JS
 
@@ -124,24 +155,23 @@ Nombres et dates via `Intl` dans la locale active.
 
 ## RGPD, consentement, tracking
 
-- La case consentement n'est **jamais** pré-cochée — pas même après
-  rechargement du brouillon (R15) — et bloque l'envoi.
-- Aucun appel API tant que la case n'est pas cochée ; ni nom, email,
-  téléphone ni nationalité collectés. Le hint sous `goal` rappelle de ne
-  pas saisir de données personnelles ; `goal` est nettoyé
-  (`scrubPersonalData`) avant tout log/événement.
-- Tracking (§9.2) : chaque transition `studely:reco` est relayée dans
-  `window.dataLayer` en `reco_<name>` avec `reco_locale`, `reco_origin`,
-  `reco_version` ; `duration_ms` (envoi → affichage) et `result_count` sur
-  les états terminaux. Rien n'est poussé si la CMP refuse la mesure
-  d'audience (`Cookiebot.consent.statistics === false`, R15) — sans CMP
-  détectée, le relais n'est pas bloquant. Jamais de valeur de questionnaire
-  dans les événements (R16).
+- La case consentement n'est **jamais** pré-cochée (R15) et bloque tout
+  envoi : saisie et bouton sont `disabled` tant qu'elle n'est pas cochée.
+- Aucun appel API sans consentement ; le message saisi part tel quel au
+  bot et n'apparaît jamais dans les logs ni les événements (R16).
+- Tracking (§9.2) : chaque jalon `studely:reco` (`consent`, `send`,
+  `reply`, `empty`, `error`, `retry`, `stop`, `reset`, `advisor`) est
+  relayé dans `window.dataLayer` en `reco_<name>` avec `reco_locale`,
+  `reco_origin`, `reco_version` ; `duration_ms` (envoi → affichage) sur
+  `reply`/`empty`/`error` et `result_count` sur `reply`. Rien n'est poussé
+  si la CMP refuse la mesure d'audience (`Cookiebot.consent.statistics
+=== false`, R15) — sans CMP détectée, le relais n'est pas bloquant.
 - `CustomEvent('studely:reco', { detail: { name, from, to } })` est émis
-  sur le conteneur à chaque transition, pour la page ou la CMP.
-- Turnstile : script chargé uniquement à l'arrivée sur l'étape 5, défi rendu
-  dans `data-reco-turnstile`, jeton en `X-Turnstile-Token`. Sur 403 : le
-  défi est relancé une fois, puis `reco.error.captcha` au second échec.
+  sur le conteneur, pour la page ou la CMP.
+- Turnstile : script chargé uniquement quand le consentement est donné,
+  défi rendu dans `data-reco-turnstile`, jeton en `X-Turnstile-Token`.
+  Sur 403 : le défi est relancé et le message reposté une fois, puis
+  `reco.error.captcha` au second échec.
 
 ## Mock de l'API (dev local et CI)
 
@@ -172,10 +202,10 @@ timeout 20 s du widget), `bad-url` (URLs hors studely.com), `html-reason`
 
 - `pnpm test` : unitaires Vitest + intégration `src/index.msw.spec.ts` qui
   rejoue chaque scénario du mock via le serveur MSW node (`mock/node.ts`).
-- `pnpm test:e2e` : Playwright sur la page de dev + mock — parcours nominal,
-  consentement (R15), empty, 429, brouillon sans consentement, RTL arabe,
-  mobile 360 px — et audits axe-core (zéro violation sérieuse/critique par
-  état). `BASE_URL=https://<staging>` pour rejouer la suite hors mock.
+- `pnpm test:e2e` : Playwright sur la page de dev + mock — ouverture,
+  consentement (R15), envoi, réponse, 429, RTL arabe, mobile 360 px — et
+  audits axe-core. `BASE_URL=https://<staging>` pour rejouer la suite
+  hors mock.
 - En CI, le job `e2e` tourne sur chromium ; la phase 2 (staging Webflow)
   réutilise ces specs avec `BASE_URL` et sans `?recoMock=`.
 
@@ -191,14 +221,15 @@ timeout 20 s du widget), `bad-url` (URLs hors studely.com), `html-reason`
 
 - Le widget est branché sur l'API chatbot déployée (`POST /chat`, SSE
   `delta`/`final` ; `mode` non envoyé, défaut serveur `sav` — aucun autre
-  mode documenté dans l'OpenAPI actuel). Constaté sur session fraîche :
-  le backend répond `out_of_scope` aux demandes de parcours ; le widget
-  route alors vers le panel `empty` (texte de refus dans
-  `data-reco-empty-reason`, jamais compté en recommandations) plutôt que
-  `results`. Les recommandations proprement dites attendent l'évolution
-  du backend mobilité.
-- Les options du questionnaire sont statiques (`src/api/options.ts`) : à
-  resynchroniser si le catalogue produit évolue.
+  mode documenté dans l'OpenAPI actuel). La réponse est du texte libre +
+  métadonnées — pas de cartes structurées type Learn Up (`clarify`,
+  `recommend`) : les recommandations proprement dites attendent
+  l'évolution du backend mobilité. Un refus `out_of_scope` affiche la
+  bulle de refus + le CTA conseiller (jalon `reco_empty`, jamais compté
+  en recommandations).
+- L'édition d'un message déjà envoyé (Learn Up) n'existe pas : la session
+  serveur ne peut pas être tronquée — « Nouvelle recherche » repart d'une
+  session vierge.
 - La CMP reconnue est Cookiebot ; Didomi/Axeptio s'ajoutent dans
   `hasAnalyticsConsent` si le site les utilise.
 - Les URL `.env.staging`/`.env.production` suivent le pattern de dev ;

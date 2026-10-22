@@ -53,13 +53,13 @@ export interface TrackContext {
 }
 
 export interface TrackHooks {
-  /** Duration measured between profile send and rendered terminal state. */
+  /** Duration measured between message send and rendered reply. */
   getDurationMs?: () => number | undefined
-  /** Number of cards displayed, for the reco_results milestone. */
+  /** Number of links/pieces displayed, for the reco_reply milestone. */
   getResultCount?: () => number | undefined
 }
 
-const TIMED_STATES = new Set(['results', 'empty', 'error'])
+const TIMED_STATES = new Set(['reply', 'empty', 'error'])
 
 /**
  * Relays `studely:reco` transitions to window.dataLayer with the common
@@ -89,7 +89,7 @@ export function trackReco(
         const duration = hooks.getDurationMs?.()
         if (duration !== undefined) params.duration_ms = duration
       }
-      if (detail.name === 'results') {
+      if (detail.name === 'reply') {
         const count = hooks.getResultCount?.()
         if (count !== undefined) params.result_count = count
       }

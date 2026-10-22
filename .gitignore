@@ -56,3 +56,6 @@ lerna-debug.log*
 !/.vscode/settings.json
 /.husky/pre-push
 /scripts/agents.mjs
+
+# Gabarit compilé (src/template/*.vue → texte injecté par le bundle)
+*.generated.txt

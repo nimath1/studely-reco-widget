@@ -1,42 +1,7 @@
 /**
  * Types du contrat d'API réel (chatbot « AI Mobility Coach », OpenAPI
- * chatbot.dev.ml.studely.com) : POST /chat en SSE + structures du
- * questionnaire (options statiques, src/api/options.ts).
+ * chatbot.dev.ml.studely.com) : POST /chat en SSE.
  */
-
-/** Choix affiché dans le questionnaire : `id` technique, `label` affiché. */
-export interface RecoOption {
-  id: string
-  label: string
-}
-
-/** Options du questionnaire — issues du dictionnaire statique localisé. */
-export interface RecoOptions {
-  levels: RecoOption[]
-  fields: RecoOption[]
-  destinations: RecoOption[]
-  languages: RecoOption[]
-  /** Niveaux de langue proposés dans le select de chaque langue choisie. */
-  languageLevels: RecoOption[]
-  budgets: RecoOption[]
-  intakes: RecoOption[]
-}
-
-export interface LanguagePair {
-  language: string
-  level: string
-}
-
-/** Réponses du questionnaire (§5.1) — converties en message /chat. */
-export interface RecoProfile {
-  level: string
-  fields: string[]
-  destinations: string[]
-  languages: LanguagePair[]
-  budget: string
-  intake: string
-  goal?: string
-}
 
 /** POST /chat body: `mode` defaults to « sav » server-side (no other mode documented). */
 export interface ChatRequest {
@@ -54,7 +19,12 @@ export interface ChatDelta {
 /** Source citée par l'agent dans l'événement `final`. */
 export interface ChatCitation {
   title?: string
+  /** Legacy field kept for backward compatibility — prefer `source_url`. */
   url?: string
+  /** Marker correlating with the literal `[S3]` tags in the reply text. */
+  label?: string
+  source_url?: string
+  updated_at?: string
 }
 
 /** Événement `final` du flux SSE : métadonnées de la réponse. */
@@ -66,6 +36,8 @@ export interface ChatFinal {
   lang?: string
   topic?: string
   citations?: ChatCitation[]
+  /** Full retrieval list, carried by the `event: sources` block. */
+  sources?: ChatCitation[]
 }
 
 /** Réponse complète d'un appel /chat : texte reconstitué + métadonnées. */

@@ -36,21 +36,26 @@ export function currentScenario(): Scenario {
 
 const BASE = (): string => import.meta.env.VITE_RECO_API_URL as string
 
-/** Locale devinée depuis l'intro localisée du message profil (buildChatMessage). */
-function localeOf(message: string): Locale {
-  if (message.startsWith('I am looking')) return 'en'
-  if (message.startsWith('Busco')) return 'es'
-  if (message.startsWith('Ich suche')) return 'de'
-  if (message.startsWith('أبحث')) return 'ar'
-  return 'fr'
+/** Locale lue sur `<html lang>` — le chat envoie du texte libre. */
+function localeOf(): Locale {
+  const lang = document.documentElement.lang?.split('-')[0]
+  return (['fr', 'en', 'es', 'de', 'ar'] as const).includes(lang as Locale)
+    ? (lang as Locale)
+    : 'fr'
 }
 
-/** Flux SSE du contrat : chunks `delta` puis un `final` de métadonnées. */
+/**
+ * Flux SSE du contrat : `event: sources` (retrieval list) en premier,
+ * puis les chunks `delta` et un `final` de métadonnées — `sources` n'y
+ * est pas répété (événement dédié côté API réelle).
+ */
 function sse(reply: ChatReply): HttpResponse<string> {
   const chunks = reply.text.match(/.{1,80}/gs) ?? []
+  const { sources, ...meta } = reply.meta
   const body =
+    (sources?.length ? `event: sources\ndata: ${JSON.stringify({ sources })}\n\n` : '') +
     chunks.map((text) => `event: delta\ndata: ${JSON.stringify({ text })}\n\n`).join('') +
-    `event: final\ndata: ${JSON.stringify(reply.meta)}\n\n`
+    `event: final\ndata: ${JSON.stringify(meta)}\n\n`
   return new HttpResponse(body, { headers: { 'Content-Type': 'text/event-stream' } })
 }
 
@@ -58,7 +63,7 @@ export const handlers = [
   http.post(`${BASE()}/chat`, async ({ request }) => {
     const scenario = currentScenario()
     const body = (await request.json()) as { message?: string; session_id?: string | null }
-    const locale = localeOf(body.message ?? '')
+    const locale = localeOf()
 
     switch (scenario) {
       case 'timeout':
@@ -110,5 +115,19 @@ export const handlers = [
         return sse(reply)
       }
     }
-  })
+  }),
+
+  // Formulaire conseiller : identité puis ticket — formes du contrat réel.
+  http.put(`${BASE()}/users/:userId`, async ({ params, request }) => {
+    const profile = (await request.json()) as Record<string, unknown>
+    return HttpResponse.json({ user_id: params.userId, ...profile })
+  }),
+  http.post(`${BASE()}/conversations/:sessionId/handoff`, ({ params }) =>
+    HttpResponse.json({
+      status: 'requested',
+      ticket_id: 'mock-ticket-1',
+      session_id: params.sessionId,
+      updated_at: new Date().toISOString()
+    })
+  )
 ]
