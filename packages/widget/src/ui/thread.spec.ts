@@ -79,7 +79,10 @@ describe('appendUser / appendAssistant', () => {
       'https://support.studely.com/hc/fr/b',
       'https://support.studely.com/hc/fr/c'
     ])
-    expect(anchors[0]!.textContent).toBe('[S1] A')
+    expect(anchors[0]!.textContent).toBe('A')
+    // Marqueurs [Sn] retirés du texte, même sans citation correspondante.
+    expect(entry.textContent).toContain('Réponse détaillée')
+    expect(entry.textContent).not.toContain('[S2]')
   })
 
   it('out_of_scope : CTA conseiller sous la bulle', () => {

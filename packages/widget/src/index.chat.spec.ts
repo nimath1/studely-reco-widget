@@ -243,7 +243,7 @@ describe('envoi et réponse', () => {
     expect(reply.querySelector('img')).toBeNull()
   })
 
-  it('Markdown reply → DOM structure (bold + list), [S1] markers literal', async () => {
+  it('Markdown reply → DOM structure (bold + list), marqueur [S1] retiré', async () => {
     mockFetch(async () =>
       ok(SSE('Voici deux pistes :\n\n- **Via application** : dépose en ligne [S1]'))
     )
@@ -254,11 +254,12 @@ describe('envoi et réponse', () => {
     expect(scope.querySelector('p')!.textContent).toBe('Voici deux pistes :')
     const item = scope.querySelector('ul > li')!
     expect(item.querySelector('strong')!.textContent).toBe('Via application')
-    expect(item.textContent).toContain('[S1]')
+    expect(item.textContent).toContain('dépose en ligne')
+    expect(item.textContent).not.toContain('[S1]')
     expect(scope.querySelectorAll('a')).toHaveLength(0)
   })
 
-  it('event: sources + citations subset → 3 liens union, marqueur [S3] littéral', async () => {
+  it('event: sources + citations subset → 3 liens union, marqueur [S3] retiré', async () => {
     const sources = [
       {
         label: 'S1',
@@ -285,9 +286,10 @@ describe('envoi et réponse', () => {
     await type('x')
     await waitFor(() => expect(assistantEntries().length).toBeGreaterThanOrEqual(2))
     const reply = assistantEntries().at(-1)!
-    // The [S3] marker stays literal text: no anchor inside the text scope.
+    // The [S3] marker is stripped: no marker, no anchor inside the text.
     const scope = reply.querySelector('[data-reco-field="text"]')!
-    expect(scope.textContent).toContain('[S3]')
+    expect(scope.textContent).toContain('Une piste détaillée ici')
+    expect(scope.textContent).not.toContain('[S3]')
     expect(scope.querySelectorAll('a')).toHaveLength(0)
     const links = [...reply.querySelectorAll<HTMLAnchorElement>('[data-reco-field="links"] a')]
     expect(links).toHaveLength(3)
@@ -296,7 +298,7 @@ describe('envoi et réponse', () => {
       expect(link.target).toBe('_blank')
       expect(link.rel).toBe('noopener')
     }
-    expect(links[2]!.textContent).toBe('[S3] Piste Hambourg')
+    expect(links[2]!.textContent).toBe('Piste Hambourg')
   })
 
   it('out_of_scope → CTA conseiller + jalon empty', async () => {

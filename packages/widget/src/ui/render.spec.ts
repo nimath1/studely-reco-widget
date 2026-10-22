@@ -72,7 +72,7 @@ describe('fillAssistantEntry', () => {
     expect(links[0]!.rel).toBe('noopener')
   })
 
-  it('source_url + label → lien support.studely.com « [S3] Titre »', () => {
+  it('source_url + label → lien support.studely.com au titre seul', () => {
     const entry = card()
     const result = fillAssistantEntry(entry, 'Texte [S3]', [
       {
@@ -84,7 +84,7 @@ describe('fillAssistantEntry', () => {
     expect(result).toEqual({ pieces: 2, links: 1 })
     const link = entry.querySelector<HTMLAnchorElement>('[data-reco-field="links"] a')!
     expect(link.href).toBe('https://support.studely.com/hc/fr/articles/3-compte')
-    expect(link.textContent).toBe('[S3] Ouvrir un compte bloqué')
+    expect(link.textContent).toBe('Ouvrir un compte bloqué')
     expect(link.target).toBe('_blank')
     expect(link.rel).toBe('noopener')
   })
@@ -122,7 +122,7 @@ describe('fillAssistantEntry', () => {
 
   const body = (entry: HTMLElement) => entry.querySelector('[data-reco-field="text"]')!
 
-  it('paragraph + bold-label list; [S1] markers stay literal', () => {
+  it('paragraph + bold-label list; les marqueurs [Sn] sont retirés', () => {
     const entry = card()
     fillAssistantEntry(
       entry,
@@ -136,8 +136,10 @@ describe('fillAssistantEntry', () => {
     expect(items).toHaveLength(2)
     expect(items[0]!.querySelector('strong')!.textContent).toBe('Via application')
     expect(items[1]!.querySelector('strong')!.textContent).toBe('Via conseiller')
-    expect(items[0]!.textContent).toContain('[S1]')
-    expect(items[1]!.textContent).toContain('[S4][S5]')
+    expect(items[0]!.textContent).toContain('dépose en ligne')
+    expect(items[0]!.textContent).not.toContain('[S')
+    expect(items[1]!.textContent).toContain('rendez-vous')
+    expect(items[1]!.textContent).not.toContain('[S')
     // No inferred links on citation markers.
     expect(scope.querySelectorAll('a')).toHaveLength(0)
   })

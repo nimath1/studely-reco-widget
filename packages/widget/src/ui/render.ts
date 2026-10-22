@@ -73,15 +73,23 @@ function swapParagraphForDiv(body: Element): HTMLElement {
   return div
 }
 
-/** Builds one citation <a>. Labeled citations render as `[S3] Title`;
-    otherwise title, else URL. */
+/** Marqueurs littéraux `[S1]`… corrélés aux citations par leur `label`
+    — jamais affichés : la liste de liens sous la bulle porte l'accès.
+    ` [Sn]` (espace + marqueur) d'abord : « phrase [S1]. » → « phrase. »
+    sans toucher à l'espace française avant `:`/`!`/`?`. */
+function stripCitationMarkers(text: string): string {
+  let out = text
+  for (let n = 0; n <= 99; n += 1) {
+    out = out.replaceAll(` [S${n}]`, '').replaceAll(`[S${n}]`, '')
+  }
+  return out
+}
+
+/** Builds one citation <a>: title, else URL. */
 function citationAnchor(c: { citation: ChatCitation; href: string }): HTMLAnchorElement {
   const link = document.createElement('a')
   link.href = c.href
-  const label = c.citation.label?.trim()
-  link.textContent = label
-    ? `[${label}] ${c.citation.title?.trim() || c.href}`
-    : c.citation.title?.trim() || c.href
+  link.textContent = c.citation.title?.trim() || c.href
   link.target = '_blank'
   link.rel = 'noopener'
   return link
@@ -99,9 +107,10 @@ export function fillAssistantEntry(
   citations: ChatCitation[] | undefined
 ): { pieces: number; links: number } {
   const links = allowedCitations(citations)
-  if (!text.trim() && links.length === 0) return { pieces: 0, links: 0 }
+  const clean = stripCitationMarkers(text)
+  if (!clean.trim() && links.length === 0) return { pieces: 0, links: 0 }
   let body = card.querySelector('[data-reco-field="text"]') ?? card
-  const fragment = renderMarkdown(text.trim(), isAllowedUrl)
+  const fragment = renderMarkdown(clean.trim(), isAllowedUrl)
   if (body instanceof HTMLParagraphElement && fragment.childElementCount > 0) {
     body = swapParagraphForDiv(body)
   }
@@ -112,5 +121,5 @@ export function fillAssistantEntry(
     list.replaceChildren()
     for (const link of links) list.append(citationAnchor(link))
   }
-  return { pieces: links.length + (text.trim() ? 1 : 0), links: links.length }
+  return { pieces: links.length + (clean.trim() ? 1 : 0), links: links.length }
 }

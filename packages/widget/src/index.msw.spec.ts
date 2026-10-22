@@ -77,8 +77,9 @@ describe('parcours complet contre le mock MSW', () => {
       expect(link.target).toBe('_blank')
       expect(link.rel).toBe('noopener')
     }
-    // Labeled citations render their `[Sn]` marker before the title.
-    expect(links[0]!.textContent).toContain('[S1]')
+    // Citations : titre seul, jamais le marqueur `[Sn]`.
+    expect(links[0]!.textContent).toContain('Licence Informatique')
+    expect(links[0]!.textContent).not.toContain('[S')
     // dataLayer fed with the common parameters (§9.2).
     const events = (window.dataLayer ?? []).map((p) => p.event)
     expect(events).toContain('reco_reply')
