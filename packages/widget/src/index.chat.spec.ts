@@ -202,7 +202,7 @@ describe('envoi et réponse', () => {
     await waitFor(() => expect(assistantEntries().length).toBeGreaterThanOrEqual(2))
     const reply = assistantEntries().at(-1)!
     expect(reply.textContent).toContain('Voici des pistes')
-    expect(reply.querySelector('[data-reco-field="links"] a')!.textContent).toBe('Lyon')
+    expect(reply.querySelector('[data-reco-field="links"] button')!.textContent).toBe('Lyon')
     expect(pending().hidden).toBe(true)
     expect(textarea().value).toBe('')
   })
@@ -232,6 +232,20 @@ describe('envoi et réponse', () => {
     const body = JSON.parse((spy.mock.calls[0]![1] as { body: string }).body)
     expect(body.message).toBe('Bachelor en Europe')
     expect(userEntries().at(-1)!.textContent).toContain('Bachelor en Europe')
+  })
+
+  it('citation cliquée envoie son titre comme message', async () => {
+    await type('Je cherche un master')
+    await waitFor(() => expect(assistantEntries().length).toBeGreaterThanOrEqual(2))
+    const spy = mockFetch(async () => ok(SSE('r')))
+    assistantEntries()
+      .at(-1)!
+      .querySelector<HTMLElement>('[data-reco-field="links"] button')!
+      .click()
+    await waitFor(() => expect(spy).toHaveBeenCalled())
+    const body = JSON.parse((spy.mock.calls[0]![1] as { body: string }).body)
+    expect(body.message).toBe('Lyon')
+    expect(userEntries().at(-1)!.textContent).toContain('Lyon')
   })
 
   it('réponse HTML reste du texte brut (§7.4)', async () => {
@@ -291,13 +305,9 @@ describe('envoi et réponse', () => {
     expect(scope.textContent).toContain('Une piste détaillée ici')
     expect(scope.textContent).not.toContain('[S3]')
     expect(scope.querySelectorAll('a')).toHaveLength(0)
-    const links = [...reply.querySelectorAll<HTMLAnchorElement>('[data-reco-field="links"] a')]
+    const links = [...reply.querySelectorAll<HTMLButtonElement>('[data-reco-field="links"] button')]
     expect(links).toHaveLength(3)
-    expect(links.map((l) => l.href)).toEqual(sources.map((s) => s.source_url))
-    for (const link of links) {
-      expect(link.target).toBe('_blank')
-      expect(link.rel).toBe('noopener')
-    }
+    expect(links.map((l) => l.dataset.recoSend)).toEqual(sources.map((s) => s.title))
     expect(links[2]!.textContent).toBe('Piste Hambourg')
   })
 

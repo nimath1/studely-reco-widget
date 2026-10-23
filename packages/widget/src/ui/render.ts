@@ -85,11 +85,27 @@ function stripCitationMarkers(text: string): string {
   return out
 }
 
-/** Builds one citation <a>: title, else URL. */
-function citationAnchor(c: { citation: ChatCitation; href: string }): HTMLAnchorElement {
+/**
+ * Builds one citation entry. A titled citation becomes a button whose
+ * title is sent as the next user message (`data-reco-send`, handled by
+ * the delegated click like the greeting chips); without a title there
+ * is nothing to ask, so the URL stays an external <a>.
+ */
+function citationEntry(c: {
+  citation: ChatCitation
+  href: string
+}): HTMLAnchorElement | HTMLButtonElement {
+  const title = c.citation.title?.trim()
+  if (title) {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.textContent = title
+    button.dataset.recoSend = title
+    return button
+  }
   const link = document.createElement('a')
   link.href = c.href
-  link.textContent = c.citation.title?.trim() || c.href
+  link.textContent = c.href
   link.target = '_blank'
   link.rel = 'noopener'
   return link
@@ -119,7 +135,7 @@ export function fillAssistantEntry(
   const list = card.querySelector('[data-reco-field="links"]')
   if (list) {
     list.replaceChildren()
-    for (const link of links) list.append(citationAnchor(link))
+    for (const link of links) list.append(citationEntry(link))
   }
   return { pieces: links.length + (clean.trim() ? 1 : 0), links: links.length }
 }
