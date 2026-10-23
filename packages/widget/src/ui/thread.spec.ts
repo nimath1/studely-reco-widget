@@ -50,7 +50,7 @@ describe('appendUser / appendAssistant', () => {
     expect(links).toBe(1)
     const entry = entries().at(-1)!
     expect(entry.dataset.recoMsg).toBe('assistant')
-    expect(entry.querySelector('[data-reco-field="links"] a')!.textContent).toBe('Lyon')
+    expect(entry.querySelector('[data-reco-field="links"] button')!.textContent).toBe('Lyon')
   })
 
   it('sources + citations : union dédupliquée, sources d’abord', () => {
@@ -73,13 +73,11 @@ describe('appendUser / appendAssistant', () => {
     )
     expect(links).toBe(3)
     const entry = entries().at(-1)!
-    const anchors = [...entry.querySelectorAll<HTMLAnchorElement>('[data-reco-field="links"] a')]
-    expect(anchors.map((a) => a.href)).toEqual([
-      'https://support.studely.com/hc/fr/a',
-      'https://support.studely.com/hc/fr/b',
-      'https://support.studely.com/hc/fr/c'
-    ])
-    expect(anchors[0]!.textContent).toBe('A')
+    const buttons = [
+      ...entry.querySelectorAll<HTMLButtonElement>('[data-reco-field="links"] button')
+    ]
+    expect(buttons.map((b) => b.dataset.recoSend)).toEqual(['A', 'B', 'C'])
+    expect(buttons[0]!.textContent).toBe('A')
     // Marqueurs [Sn] retirés du texte, même sans citation correspondante.
     expect(entry.textContent).toContain('Réponse détaillée')
     expect(entry.textContent).not.toContain('[S2]')

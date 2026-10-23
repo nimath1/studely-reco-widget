@@ -70,13 +70,9 @@ describe('parcours complet contre le mock MSW', () => {
     await waitReply(el)
     const reply = assistantEntries(el).at(-1)!
     expect(reply.querySelector('[data-reco-field="text"]')?.textContent).toContain('pistes')
-    const links = [...reply.querySelectorAll<HTMLAnchorElement>('[data-reco-field="links"] a')]
+    const links = [...reply.querySelectorAll<HTMLButtonElement>('[data-reco-field="links"] button')]
     expect(links).toHaveLength(3)
-    for (const link of links) {
-      expect(link.href).toMatch(/^https:\/\/([\w-]+\.)*studely\.com/)
-      expect(link.target).toBe('_blank')
-      expect(link.rel).toBe('noopener')
-    }
+    for (const link of links) expect(link.dataset.recoSend).toBe(link.textContent)
     // Citations : titre seul, jamais le marqueur `[Sn]`.
     expect(links[0]!.textContent).toContain('Licence Informatique')
     expect(links[0]!.textContent).not.toContain('[S')
@@ -139,7 +135,7 @@ describe('parcours complet contre le mock MSW', () => {
     await play(el)
     await waitReply(el)
     const reply = assistantEntries(el).at(-1)!
-    expect(reply.querySelectorAll('[data-reco-field="links"] a')).toHaveLength(0)
+    expect(reply.querySelectorAll('[data-reco-field="links"] > *')).toHaveLength(0)
     expect(reply.textContent).toContain('Aucun parcours')
   })
 

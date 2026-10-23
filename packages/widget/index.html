@@ -579,20 +579,37 @@
       [data-reco-field='links']:empty {
         margin-top: 0;
       }
-      [data-reco-field='links'] a {
+      /* Titled citations are buttons (`data-reco-send`): a click asks
+         the title as the next message instead of leaving the page.
+         `[data-reco-widget] … [data-reco-send]` beats the generic pill
+         button rule (radius 999px, min-height) — same look as the <a>. */
+      [data-reco-field='links'] a,
+      [data-reco-widget] [data-reco-field='links'] [data-reco-send] {
         display: block;
+        width: 100%;
+        min-height: 0;
         padding: 10px 12px;
         border: 1.5px solid var(--reco-rule);
         border-radius: var(--reco-radius-card);
         background: var(--reco-paper);
+        font: inherit;
         font-size: 0.83rem;
         font-weight: 600;
+        line-height: 1.35;
+        text-align: start;
         color: var(--reco-primary-deep);
         text-decoration: none;
+        cursor: pointer;
         transition: border-color 0.15s;
       }
-      [data-reco-field='links'] a:hover {
+      [data-reco-field='links'] a:hover,
+      [data-reco-widget] [data-reco-field='links'] [data-reco-send]:hover {
         border-color: var(--reco-primary);
+      }
+      [data-reco-widget] [data-reco-field='links'] [data-reco-send]:disabled {
+        color: var(--reco-ink-subtle);
+        cursor: default;
+        opacity: 0.65;
       }
       /* Advisor CTA under refused/handoff replies. */
       [data-reco-field='actions']:empty {

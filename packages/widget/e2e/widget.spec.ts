@@ -29,11 +29,8 @@ test.describe('parcours widget (mock MSW)', () => {
     const reply = thread(page).locator('[data-reco-msg="assistant"]').nth(1)
     await expect(reply).toBeAttached({ timeout: 10_000 })
     await expect(reply.locator('[data-reco-field="text"]')).not.toBeEmpty()
-    const links = reply.locator('[data-reco-field="links"] a')
+    const links = reply.locator('[data-reco-field="links"] button[data-reco-send]')
     await expect(links).toHaveCount(3)
-    for (const link of await links.all()) {
-      await expect(link).toHaveAttribute('href', /https:\/\/([\w-]+\.)*studely\.com/)
-    }
     // L'envoi a valu consentement (continuation) : la phase chat est active.
     await expect(widget(page)).toHaveAttribute('data-reco-state', 'chat')
   })
@@ -92,7 +89,7 @@ test.describe('parcours widget (mock MSW)', () => {
     await ask(page)
     const reply = thread(page).locator('[data-reco-msg="assistant"]').nth(1)
     await expect(reply).toContainText('Aucun parcours', { timeout: 10_000 })
-    await expect(reply.locator('[data-reco-field="links"] a')).toHaveCount(0)
+    await expect(reply.locator('[data-reco-field="links"] > *')).toHaveCount(0)
     await expect(reply.locator('[data-reco-action="advisor"]')).toBeVisible()
   })
 
@@ -110,6 +107,6 @@ test.describe('parcours widget (mock MSW)', () => {
     await ask(page)
     const reply = thread(page).locator('[data-reco-msg="assistant"]').nth(1)
     await expect(reply).toBeAttached({ timeout: 10_000 })
-    await expect(reply.locator('[data-reco-field="links"] a')).toHaveCount(3)
+    await expect(reply.locator('[data-reco-field="links"] button')).toHaveCount(3)
   })
 })

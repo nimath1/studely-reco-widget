@@ -66,13 +66,12 @@ describe('fillAssistantEntry', () => {
     const entry = card()
     const result = fillAssistantEntry(entry, 'Texte', citations)
     expect(result).toEqual({ pieces: 3, links: 2 })
-    const links = [...entry.querySelectorAll<HTMLAnchorElement>('[data-reco-field="links"] a')]
-    expect(links.map((l) => l.href)).toEqual(['https://www.studely.com/a', 'https://studely.com/d'])
-    expect(links[0]!.target).toBe('_blank')
-    expect(links[0]!.rel).toBe('noopener')
+    const links = [...entry.querySelectorAll<HTMLButtonElement>('[data-reco-field="links"] button')]
+    expect(links.map((l) => l.dataset.recoSend)).toEqual(['A', 'D'])
+    expect(entry.querySelectorAll('[data-reco-field="links"] a')).toHaveLength(0)
   })
 
-  it('source_url + label → lien support.studely.com au titre seul', () => {
+  it('citation titrée → bouton qui envoie son titre (pas de lien externe)', () => {
     const entry = card()
     const result = fillAssistantEntry(entry, 'Texte [S3]', [
       {
@@ -82,11 +81,10 @@ describe('fillAssistantEntry', () => {
       }
     ])
     expect(result).toEqual({ pieces: 2, links: 1 })
-    const link = entry.querySelector<HTMLAnchorElement>('[data-reco-field="links"] a')!
-    expect(link.href).toBe('https://support.studely.com/hc/fr/articles/3-compte')
-    expect(link.textContent).toBe('Ouvrir un compte bloqué')
-    expect(link.target).toBe('_blank')
-    expect(link.rel).toBe('noopener')
+    const button = entry.querySelector<HTMLButtonElement>('[data-reco-field="links"] button')!
+    expect(button.type).toBe('button')
+    expect(button.textContent).toBe('Ouvrir un compte bloqué')
+    expect(button.dataset.recoSend).toBe('Ouvrir un compte bloqué')
   })
 
   it('dédoublonne sur l’URL résolue (url vs source_url) avant le cap', () => {
@@ -97,19 +95,18 @@ describe('fillAssistantEntry', () => {
       { label: 'S2', title: 'B', source_url: 'https://support.studely.com/hc/fr/articles/2-b' }
     ])
     expect(result).toEqual({ pieces: 3, links: 2 })
-    const links = [...entry.querySelectorAll<HTMLAnchorElement>('[data-reco-field="links"] a')]
-    expect(links.map((l) => l.href)).toEqual([
-      'https://www.studely.com/a',
-      'https://support.studely.com/hc/fr/articles/2-b'
-    ])
+    const links = [...entry.querySelectorAll<HTMLButtonElement>('[data-reco-field="links"] button')]
+    expect(links.map((l) => l.dataset.recoSend)).toEqual(['A', 'B'])
   })
 
-  it('titre absent → url comme libellé', () => {
+  it('titre absent → lien externe, url comme libellé', () => {
     const entry = card()
     fillAssistantEntry(entry, '', [{ url: 'https://www.studely.com/x' }])
-    expect(entry.querySelector('[data-reco-field="links"] a')!.textContent).toBe(
-      'https://www.studely.com/x'
-    )
+    const link = entry.querySelector<HTMLAnchorElement>('[data-reco-field="links"] a')!
+    expect(link.textContent).toBe('https://www.studely.com/x')
+    expect(link.href).toBe('https://www.studely.com/x')
+    expect(link.target).toBe('_blank')
+    expect(link.rel).toBe('noopener')
   })
 
   it('texte vide + toutes citations filtrées → 0 pièce', () => {
