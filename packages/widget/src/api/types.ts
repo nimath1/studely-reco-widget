@@ -30,6 +30,8 @@ export interface ChatCitation {
 /** Événement `final` du flux SSE : métadonnées de la réponse. */
 export interface ChatFinal {
   session_id?: string
+  /** Identifiant du tour côté API — requis par POST …/turns/{id}/feedback. */
+  turn_id?: string
   handoff_proposed?: boolean
   out_of_scope?: boolean
   intent?: string

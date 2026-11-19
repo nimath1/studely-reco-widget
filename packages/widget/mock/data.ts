@@ -123,6 +123,7 @@ export function chatReplyFor(locale: Locale): ChatReply {
     text: REPLY_TEXT[locale] ?? REPLY_TEXT.fr,
     meta: {
       session_id: 'mock-session-1',
+      turn_id: 'mock-turn-1',
       intent: 'reco',
       lang: locale,
       out_of_scope: false,

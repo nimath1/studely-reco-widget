@@ -61,7 +61,16 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
             <div data-reco-field="suggestions"></div>
             <div data-reco-field="links"></div>
             <div data-reco-field="actions"></div>
+            <div data-reco-field="feedback"></div>
           </div>
+        </div>
+        <div data-reco-template="turn-feedback" data-reco-feedback>
+          <button type="button" data-reco-action="feedback" data-reco-rating="up">
+            <span class="sr-only" data-reco-field="up-label"></span>
+          </button>
+          <button type="button" data-reco-action="feedback" data-reco-rating="down">
+            <span class="sr-only" data-reco-field="down-label"></span>
+          </button>
         </div>
         <button type="button" data-reco-template="suggestion" data-reco-send>
           <span data-reco-field="label"></span>
@@ -120,6 +129,13 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
         <span data-reco-label="reco.handoff.submit">Envoyer ma demande</span>
         <span data-reco-label="reco.handoff.confirm">C'est noté ! Un conseiller te contactera.</span>
         <span data-reco-label="reco.handoff.invalid">Nom et e-mail valides requis.</span>
+        <span data-reco-label="reco.feedback.up">Réponse utile</span>
+        <span data-reco-label="reco.feedback.down">Réponse inutile</span>
+        <span data-reco-label="reco.feedback.resolved">Votre question a-t-elle été résolue ?</span>
+        <span data-reco-label="reco.feedback.yes">Oui</span>
+        <span data-reco-label="reco.feedback.no">Non</span>
+        <span data-reco-label="reco.feedback.thanks">Merci pour votre retour !</span>
+        <span data-reco-label="reco.feedback.dismiss">Ignorer</span>
       </div>
     </section>`
   const el = document.querySelector<HTMLElement>('[data-reco-widget]')

@@ -115,6 +115,48 @@ export function parseSse(stream: string): ChatReply {
   return { text: state.text, meta: state.meta }
 }
 
+/**
+ * Reads an SSE response body incrementally: each complete `\n\n`-separated
+ * block updates the reply state and every text growth fires `onDelta` with
+ * the accumulated text — the UI renders while the model writes. A `\r`
+ * straddling two reads stays in the buffer: the next append completes its
+ * `\r\n` pair before the CRLF normalization runs.
+ */
+async function readSseStream(
+  body: ReadableStream<Uint8Array>,
+  onDelta?: (text: string) => void
+): Promise<ChatReply> {
+  const reader = body.getReader()
+  const decoder = new TextDecoder()
+  const state: SseState = { text: '', meta: {}, sources: undefined }
+  let buffer = ''
+  const consume = (block: string): void => {
+    const { event, data } = parseSseBlock(block)
+    if (!data) return
+    const before = state.text.length
+    applySseBlock(state, event, data)
+    if (state.text.length !== before) onDelta?.(state.text)
+  }
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer = (buffer + decoder.decode(value, { stream: true })).replaceAll('\r\n', '\n')
+      let sep: number
+      while ((sep = buffer.indexOf('\n\n')) !== -1) {
+        consume(buffer.slice(0, sep))
+        buffer = buffer.slice(sep + 2)
+      }
+    }
+    // Trailing block without its closing separator (stream cut mid-flight).
+    if (buffer.trim()) consume(buffer)
+  } finally {
+    reader.releaseLock()
+  }
+  if (state.sources) state.meta.sources = state.sources
+  return { text: state.text, meta: state.meta }
+}
+
 function storage(): Storage | null {
   try {
     return globalThis.sessionStorage ?? null
@@ -180,13 +222,15 @@ function abortError(): DOMException {
  * un 429 garde son Retry-After ; 400/422 → 'input' avec le champ fautif.
  * `signal` (bouton « Arrêter ») annule la requête : AbortError remonte
  * tel quel — l'appelant le distingue du timeout (network).
+ * `onDelta` reçoit le texte accumulé à chaque chunk : rendu progressif.
  */
 export async function postChat(
   message: string,
   sessionId: string | null,
   userId: string,
   turnstileToken?: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onDelta?: (text: string) => void
 ): Promise<ChatReply> {
   if (signal?.aborted) throw abortError()
   const headers: Record<string, string> = {
@@ -208,6 +252,7 @@ export async function postChat(
     if (!res.ok) throw await toApiError(res)
     // Le délai couvre en-têtes ET corps : une réponse SSE qui piétine
     // doit être coupée comme une réponse qui n'arrive jamais.
+    if (res.body) return await readSseStream(res.body, onDelta)
     return parseSse(await res.text())
   } catch (error) {
     if (error instanceof RecoApiError) throw error
@@ -270,6 +315,58 @@ export async function requestHandoff(sessionId: string): Promise<void> {
   try {
     await callApi(`/conversations/${encodeURIComponent(sessionId)}/handoff`, {
       method: 'POST'
+    })
+  } catch (error) {
+    if (error instanceof RecoApiError) throw error
+    throw new RecoApiError('network', 'API injoignable ou délai dépassé')
+  }
+}
+
+/** Corps du POST …/feedback conversation : « résolu » requis, score 0-10
+    et commentaire optionnels. */
+export interface ConversationFeedbackBody {
+  resolved: boolean
+  score?: number
+  comment?: string
+}
+
+/** Note d'un tour : « up » | « down », commentaire libre optionnel. */
+export type TurnRating = 'up' | 'down'
+
+/**
+ * POST /conversations/{session_id}/turns/{turn_id}/feedback : le pouce
+ * sous une bulle assistant. `turn_id` vient de l'événement `final` du
+ * flux /chat — absent (vieilles réponses), l'appelant saute ce pas.
+ */
+export async function postTurnFeedback(
+  sessionId: string,
+  turnId: string,
+  rating: TurnRating,
+  comment?: string
+): Promise<void> {
+  try {
+    await callApi(
+      `/conversations/${encodeURIComponent(sessionId)}/turns/${encodeURIComponent(turnId)}/feedback`,
+      { method: 'POST', body: JSON.stringify({ rating, comment: comment ?? null }) }
+    )
+  } catch (error) {
+    if (error instanceof RecoApiError) throw error
+    throw new RecoApiError('network', 'API injoignable ou délai dépassé')
+  }
+}
+
+/**
+ * POST /conversations/{session_id}/feedback : la question de fin « votre
+ * problème est-il résolu ? » (ADR 0010) — posée à la fermeture du widget.
+ */
+export async function postConversationFeedback(
+  sessionId: string,
+  feedback: ConversationFeedbackBody
+): Promise<void> {
+  try {
+    await callApi(`/conversations/${encodeURIComponent(sessionId)}/feedback`, {
+      method: 'POST',
+      body: JSON.stringify({ score: null, comment: null, ...feedback })
     })
   } catch (error) {
     if (error instanceof RecoApiError) throw error

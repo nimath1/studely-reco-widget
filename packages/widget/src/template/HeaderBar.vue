@@ -3,7 +3,7 @@
     <span aria-hidden="true"><img src="/studely-brand.jpg" width="44" height="44" alt="" /></span>
     <div>
       <strong id="reco-chat-title">Studely</strong>
-      <small>Assistant automatisé — recommandations de parcours</small>
+      <small>Recherche assistée</small>
     </div>
     <button type="button" data-reco-close aria-label="Fermer l'assistant">
       <svg

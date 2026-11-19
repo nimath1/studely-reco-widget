@@ -129,5 +129,32 @@ export const handlers = [
       session_id: params.sessionId,
       updated_at: new Date().toISOString()
     })
-  )
+  ),
+
+  // « Résolu ? » de fin de conversation.
+  http.post(`${BASE()}/conversations/:sessionId/feedback`, async ({ request }) => {
+    const body = (await request.json()) as {
+      resolved?: boolean
+      score?: number | null
+      comment?: string | null
+    }
+    return HttpResponse.json({
+      resolved: body.resolved ?? false,
+      score: body.score ?? null,
+      comment: body.comment ?? null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    })
+  }),
+
+  // Note d'un tour : la réponse ConversationFeedback du contrat.
+  http.post(`${BASE()}/conversations/:sessionId/turns/:turnId/feedback`, async ({ request }) => {
+    const body = (await request.json()) as { rating?: string; comment?: string | null }
+    return HttpResponse.json({
+      rating: body.rating ?? 'up',
+      comment: body.comment ?? null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    })
+  })
 ]
