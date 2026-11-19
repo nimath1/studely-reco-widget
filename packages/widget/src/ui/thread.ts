@@ -45,15 +45,15 @@ export function appendUser(el: HTMLElement, text: string): void {
 /**
  * Bulle assistant : texte + citations ; refus explicite (`out_of_scope`)
  * affiche le texte du bot ou le message `reco.empty`, et la sortie
- * conseiller reste à portée (CTA sous la bulle, §4).
+ * conseiller reste à portée (CTA sous la bulle, §4). Partagé entre la
+ * réponse complète et la fin d'une bulle streamée.
  */
-export function appendAssistant(
+function fillReply(
   el: HTMLElement,
+  card: HTMLElement,
   reply: ChatReply,
   t: Translate
 ): { pieces: number; links: number } {
-  const card = cloneTemplate(el, 'msg-assistant')
-  if (!card) return { pieces: 0, links: 0 }
   const rejected = reply.meta.out_of_scope === true || reply.meta.intent === 'out_of_scope'
   const text = rejected && !reply.text.trim() ? t('reco.empty') : reply.text
   const { pieces, links } = fillAssistantEntry(
@@ -77,8 +77,59 @@ export function appendAssistant(
       actions.append(cta)
     }
   }
-  append(el, card)
+  // Pouces 👍/👎 sous la bulle : le `turn_id` de l'événement `final` est
+  // requis pour noter le tour — absent, la ligne n'existe pas.
+  const slot = card.querySelector('[data-reco-field="feedback"]')
+  if (slot && reply.meta.turn_id) {
+    const row = cloneTemplate(el, 'turn-feedback')
+    if (row) {
+      row.dataset.recoTurnId = reply.meta.turn_id
+      fillField(row, 'up-label', t('reco.feedback.up'))
+      fillField(row, 'down-label', t('reco.feedback.down'))
+      slot.append(row)
+    }
+  }
   return { pieces, links }
+}
+
+/** Réponse déjà complète : bulle remplie d'un coup puis insérée au fil. */
+export function appendAssistant(
+  el: HTMLElement,
+  reply: ChatReply,
+  t: Translate
+): { pieces: number; links: number } {
+  const card = cloneTemplate(el, 'msg-assistant')
+  if (!card) return { pieces: 0, links: 0 }
+  const result = fillReply(el, card, reply, t)
+  append(el, card)
+  return result
+}
+
+/**
+ * Bulle assistant posée vide puis remplie au fil des deltas SSE :
+ * `update` re-rend le Markdown accumulé, `finish` applique la réponse
+ * finale (citations, refus out-of-scope, CTA) comme `appendAssistant`.
+ */
+export interface AssistantStream {
+  update: (text: string) => void
+  finish: (reply: ChatReply, t: Translate) => { pieces: number; links: number }
+}
+
+export function beginAssistantStream(el: HTMLElement): AssistantStream | null {
+  const card = cloneTemplate(el, 'msg-assistant')
+  if (!card) return null
+  append(el, card)
+  return {
+    update(text: string): void {
+      fillAssistantEntry(card, text, [])
+      scrollEnd(el)
+    },
+    finish(reply: ChatReply, t: Translate): { pieces: number; links: number } {
+      const result = fillReply(el, card, reply, t)
+      scrollEnd(el)
+      return result
+    }
+  }
 }
 
 /**

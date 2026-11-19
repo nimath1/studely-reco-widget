@@ -502,7 +502,7 @@
       }
       [data-reco-greeting]:only-child [data-reco-field='suggestions'] {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: 1fr;
         gap: 10px;
         width: 100%;
         max-width: 560px;
@@ -567,6 +567,104 @@
       }
       [data-reco-widget] [data-reco-field='suggestions'] [data-reco-send]:disabled::after {
         border-color: var(--reco-ink-subtle);
+      }
+      /* Turn rating: quiet thumbs under the reply — the chosen one stays
+         tinted via [data-reco-chosen], both lock once sent. */
+      [data-reco-field='feedback'] {
+        margin-top: 6px;
+      }
+      [data-reco-field='feedback']:empty {
+        margin-top: 0;
+      }
+      [data-reco-feedback] {
+        display: flex;
+        gap: 4px;
+      }
+      [data-reco-feedback] [data-reco-action='feedback'] {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        padding: 0;
+        border: none;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--reco-ink-subtle);
+        cursor: pointer;
+        transition:
+          background 0.15s,
+          color 0.15s;
+      }
+      [data-reco-feedback] [data-reco-action='feedback'] svg {
+        width: 15px;
+        height: 15px;
+      }
+      [data-reco-feedback] [data-reco-action='feedback']:hover:not(:disabled) {
+        background: rgb(21 24 43 / 6%);
+        color: var(--reco-ink);
+      }
+      [data-reco-feedback] [data-reco-action='feedback']:focus-visible {
+        outline: 3px solid var(--reco-primary);
+        outline-offset: 2px;
+      }
+      [data-reco-feedback] [data-reco-action='feedback']:disabled {
+        cursor: default;
+      }
+      [data-reco-feedback][data-reco-chosen='up'] [data-reco-rating='up'],
+      [data-reco-feedback][data-reco-chosen='down'] [data-reco-rating='down'] {
+        color: var(--reco-primary);
+      }
+      /* « Résolu ? » card: lives outside the dialog (sibling, like the
+         launcher) so it stays visible after close. */
+      [data-reco-conv-feedback] {
+        position: fixed;
+        inset-inline-end: 24px;
+        bottom: 96px;
+        z-index: 2147483000;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        max-width: 340px;
+        padding: 10px 14px;
+        border: 1px solid var(--reco-rule, #e2e4ee);
+        border-radius: 14px;
+        background: var(--reco-paper, #fff);
+        box-shadow: 0 8px 30px rgb(21 24 43 / 14%);
+        color: var(--reco-ink, #15182b);
+        font: inherit;
+        font-size: 0.85rem;
+      }
+      [data-reco-conv-feedback] p {
+        margin: 0;
+        font-weight: 600;
+      }
+      [data-reco-conv-feedback] [data-reco-resolved] {
+        padding: 6px 12px;
+        border: 1.5px solid var(--reco-rule, #e2e4ee);
+        border-radius: 999px;
+        background: var(--reco-paper, #fff);
+        color: var(--reco-ink, #15182b);
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      [data-reco-conv-feedback] [data-reco-resolved]:hover {
+        border-color: var(--reco-primary, #1d7edf);
+        color: var(--reco-primary, #1d7edf);
+      }
+      [data-reco-conv-feedback] [data-reco-dismiss] {
+        padding: 2px 6px;
+        border: none;
+        background: transparent;
+        color: var(--reco-ink-subtle, #6b7089);
+        font-size: 1.1rem;
+        line-height: 1;
+        cursor: pointer;
+      }
+      [data-reco-conv-feedback] button:focus-visible {
+        outline: 3px solid var(--reco-primary, #1d7edf);
+        outline-offset: 2px;
       }
       /* Citation links (R10 filtered) as small cards. */
       [data-reco-field='links'] {
@@ -1188,19 +1286,27 @@
       <div data-reco-labels hidden>
         <span data-reco-label="reco.greeting">Bonjour, comment puis-je vous aider ?</span>
         <span data-reco-label="reco.suggestion.1"
-          >Comment puis-je réinitialiser mon mot de passe Studely si je l'ai oublié ?</span
+          >Comment faire pour obtenir une AVI ou un compte bloqué ?</span
         >
         <span data-reco-label="reco.suggestion.2"
-          >Quelles sont les conditions pour bénéficier du prêt étudiant Studely ?</span
+          >Comment faire pour débloquer mon compte à l'arrivée et obtenir mes virements
+          mensuels ?</span
         >
         <span data-reco-label="reco.suggestion.3"
-          >Puis-je annuler ma commande de carte Studely après l'avoir commandée ?</span
+          >Comment faire pour obtenir un remboursement en cas de refus de visa ?</span
         >
         <span data-reco-label="reco.suggestion.4"
-          >Pourquoi l'application Studely affiche-t-elle "mot de passe incorrect" alors que je
-          sais que mon mot de passe est correct ?</span
+          >Je veux discuter avec un agent de Studely</span
         >
-        <span data-reco-label="reco.suggestion.5">Je veux parler à un conseiller</span>
+        <span data-reco-label="reco.feedback.up">Réponse utile</span>
+        <span data-reco-label="reco.feedback.down">Réponse inutile</span>
+        <span data-reco-label="reco.feedback.resolved"
+          >Votre question a-t-elle été résolue ?</span
+        >
+        <span data-reco-label="reco.feedback.yes">Oui</span>
+        <span data-reco-label="reco.feedback.no">Non</span>
+        <span data-reco-label="reco.feedback.thanks">Merci pour votre retour !</span>
+        <span data-reco-label="reco.feedback.dismiss">Ignorer</span>
         <span data-reco-label="reco.consent"
           >J'accepte que mes messages soient analysés automatiquement pour me proposer des
           parcours</span

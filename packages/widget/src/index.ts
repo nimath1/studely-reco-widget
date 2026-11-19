@@ -9,10 +9,13 @@ import {
   ensureUserId,
   loadChatSession,
   postChat,
+  postConversationFeedback,
+  postTurnFeedback,
   putProfile,
   RecoApiError,
   requestHandoff,
-  saveChatSession
+  saveChatSession,
+  type TurnRating
 } from './api/client'
 import type { ChatReply } from './api/types'
 import { readConfig, type WidgetConfig } from './config'
@@ -25,13 +28,15 @@ import {
   appendAssistant,
   appendHandoffForm,
   appendUser,
+  beginAssistantStream,
   clearThread,
   greet,
   hideError,
   hidePending,
   setChipsEnabled,
   showError,
-  showPending
+  showPending,
+  type AssistantStream
 } from './ui/thread'
 import { fillField } from './ui/render'
 import { mountView, nextTick } from './ui/view'
@@ -213,10 +218,10 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     })
   }
 
-  /** Réponse /chat affichée : bulle assistant, ou refus out-of-scope. */
-  function showReply(reply: ChatReply): void {
+  /** Réponse /chat affichée : bulle streamée finalisée, ou bulle complète. */
+  function showReply(reply: ChatReply, stream: AssistantStream | null): void {
     const rejected = reply.meta.out_of_scope === true || reply.meta.intent === 'out_of_scope'
-    const { pieces, links } = appendAssistant(el, reply, t)
+    const { pieces, links } = stream ? stream.finish(reply, t) : appendAssistant(el, reply, t)
     lastResultCount = links > 0 ? links : pieces
     if (rejected) {
       emitRecoEvent(el, 'empty')
@@ -240,8 +245,23 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     setChipsEnabled(el, false)
     showPending(el, t)
     sendAbort = new AbortController()
+    // Premier delta : la bulle naît et le squelette s'efface — l'utilisateur
+    // lit la réponse pendant que le modèle écrit encore.
+    let stream: AssistantStream | null = null
     try {
-      const reply = await postChat(message, sessionId, userId, turnstileToken(el), sendAbort.signal)
+      const reply = await postChat(
+        message,
+        sessionId,
+        userId,
+        turnstileToken(el),
+        sendAbort.signal,
+        (text) => {
+          if (signal.aborted || gen !== generation) return
+          hidePending(el)
+          stream ??= beginAssistantStream(el)
+          stream?.update(text)
+        }
+      )
       if (signal.aborted || gen !== generation) return
       captchaFailures = 0
       if (reply.meta.session_id) {
@@ -249,7 +269,7 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
         saveChatSession(config.origin, sessionId)
       }
       settleSend()
-      showReply(reply)
+      showReply(reply, stream)
     } catch (error) {
       if (signal.aborted || gen !== generation) return
       settleSend()
@@ -337,6 +357,9 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     lastMessage = ''
     sessionId = null
     clearChatSession(config.origin)
+    // Nouvelle session → la question « résolu ? » pourra reparaître.
+    convFeedbackDone = false
+    removeConvCard()
     view.state.pending = false
     emitRecoEvent(el, 'reset')
     greet(el, t)
@@ -431,8 +454,35 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     }
   }
 
+  /**
+   * Pouce sous une bulle : POST …/turns/{id}/feedback puis la ligne se
+   * fige sur le choix. Échec → boutons réactivés, pas de carte erreur
+   * (le retour n'est pas bloquant).
+   */
+  async function rateTurn(row: HTMLElement, rating: TurnRating, turnId: string): Promise<void> {
+    if (!sessionId) return
+    const buttons = [...row.querySelectorAll<HTMLButtonElement>('[data-reco-action="feedback"]')]
+    buttons.forEach((b) => (b.disabled = true))
+    try {
+      await postTurnFeedback(sessionId, turnId, rating)
+      row.dataset.recoChosen = rating
+      emitRecoEvent(el, 'feedback', { rating })
+    } catch (error) {
+      logger.warn('feedback non enregistré :', error)
+      buttons.forEach((b) => (b.disabled = false))
+    }
+  }
+
   function handleAction(action: string, trigger: HTMLElement): void {
     switch (action) {
+      case 'feedback': {
+        const row = trigger.closest<HTMLElement>('[data-reco-turn-id]')
+        const rating = trigger.dataset.recoRating
+        if (row?.dataset.recoTurnId && (rating === 'up' || rating === 'down')) {
+          void rateTurn(row, rating, row.dataset.recoTurnId)
+        }
+        break
+      }
       case 'send':
         send(composer?.value ?? '')
         if (composer) composer.value = ''
@@ -517,6 +567,75 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     },
     { signal }
   )
+
+  /**
+   * « Résolu ? » à la fermeture : la carte vit en sibling du conteneur —
+   * posée dans le dialog, elle disparaîtrait avec lui. Une fois par
+   * session, seulement si l'utilisateur a envoyé un message ; « Ignorer »
+   * ferme sans rien envoyer.
+   */
+  let convFeedbackDone = false
+  let convCard: HTMLElement | null = null
+
+  function removeConvCard(): void {
+    convCard?.remove()
+    convCard = null
+  }
+
+  function answerConvFeedback(resolved: boolean): void {
+    const card = convCard
+    if (!card || !sessionId) return
+    convFeedbackDone = true
+    emitRecoEvent(el, 'feedback', { resolved })
+    void postConversationFeedback(sessionId, { resolved }).catch((error: unknown) =>
+      logger.warn('feedback conversation non enregistré :', error)
+    )
+    const thanks = el.ownerDocument.createElement('p')
+    thanks.textContent = t('reco.feedback.thanks')
+    card.replaceChildren(thanks)
+    el.ownerDocument.defaultView?.setTimeout(removeConvCard, 2500)
+  }
+
+  function showConversationFeedback(): void {
+    if (convFeedbackDone || convCard || !sessionId) return
+    if (!el.querySelector('[data-reco-thread] [data-reco-msg="user"]')) return
+    const doc = el.ownerDocument
+    const card = doc.createElement('div')
+    card.setAttribute('data-reco-conv-feedback', '')
+    const question = doc.createElement('p')
+    question.textContent = t('reco.feedback.resolved')
+    const choice = (resolved: boolean): HTMLButtonElement => {
+      const button = doc.createElement('button')
+      button.type = 'button'
+      button.dataset.recoResolved = String(resolved)
+      button.textContent = t(resolved ? 'reco.feedback.yes' : 'reco.feedback.no')
+      button.addEventListener('click', () => answerConvFeedback(resolved))
+      return button
+    }
+    const dismiss = doc.createElement('button')
+    dismiss.type = 'button'
+    dismiss.setAttribute('data-reco-dismiss', '')
+    dismiss.setAttribute('aria-label', t('reco.feedback.dismiss'))
+    dismiss.textContent = '×'
+    dismiss.addEventListener('click', () => {
+      convFeedbackDone = true
+      removeConvCard()
+    })
+    card.append(question, choice(true), choice(false), dismiss)
+    convCard = card
+    el.insertAdjacentElement('afterend', card)
+  }
+
+  // Fermeture = retrait de `data-reco-open` par l'hôte (dialog close,
+  // Échap, reclic launcher) — l'observer couvre les trois.
+  const openObserver = new MutationObserver(() => {
+    if (!el.hasAttribute('data-reco-open')) showConversationFeedback()
+  })
+  openObserver.observe(el, { attributes: true, attributeFilter: ['data-reco-open'] })
+  signal.addEventListener('abort', () => {
+    openObserver.disconnect()
+    removeConvCard()
+  })
 
   // Phase initiale : un consentement pré-coché ouvre directement le chat.
   el.dataset.recoState = view.state.consent ? 'chat' : 'consent'
