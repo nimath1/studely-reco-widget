@@ -131,9 +131,10 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
         <span data-reco-label="reco.handoff.invalid">Nom et e-mail valides requis.</span>
         <span data-reco-label="reco.feedback.up">Réponse utile</span>
         <span data-reco-label="reco.feedback.down">Réponse inutile</span>
-        <span data-reco-label="reco.feedback.resolved">Votre question a-t-elle été résolue ?</span>
-        <span data-reco-label="reco.feedback.yes">Oui</span>
-        <span data-reco-label="reco.feedback.no">Non</span>
+        <span data-reco-label="reco.feedback.resolved">Comment s'est passée votre expérience ?</span>
+        <span data-reco-label="reco.feedback.stars">Notez de 1 à 5 étoiles</span>
+        <span data-reco-label="reco.feedback.comment">Un commentaire ? (optionnel)</span>
+        <span data-reco-label="reco.feedback.send">Envoyer</span>
         <span data-reco-label="reco.feedback.thanks">Merci pour votre retour !</span>
         <span data-reco-label="reco.feedback.dismiss">Ignorer</span>
       </div>

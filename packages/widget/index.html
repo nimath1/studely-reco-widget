@@ -620,18 +620,19 @@
       [data-reco-feedback][data-reco-chosen='down'] [data-reco-rating='down'] {
         color: var(--reco-primary);
       }
-      /* « Résolu ? » card: lives outside the dialog (sibling, like the
-         launcher) so it stays visible after close. */
+      /* « Notez votre expérience » card: lives outside the dialog
+         (sibling, like the launcher) so it stays visible after close. */
       [data-reco-conv-feedback] {
         position: fixed;
         inset-inline-end: 24px;
         bottom: 96px;
         z-index: 2147483000;
         display: flex;
-        align-items: center;
+        flex-direction: column;
+        align-items: flex-start;
         gap: 8px;
-        max-width: 340px;
-        padding: 10px 14px;
+        width: min(300px, calc(100vw - 48px));
+        padding: 14px 16px;
         border: 1px solid var(--reco-rule, #e2e4ee);
         border-radius: 14px;
         background: var(--reco-paper, #fff);
@@ -644,21 +645,59 @@
         margin: 0;
         font-weight: 600;
       }
-      [data-reco-conv-feedback] [data-reco-resolved] {
-        padding: 6px 12px;
+      [data-reco-conv-feedback] [data-reco-stars] {
+        display: flex;
+        gap: 2px;
+      }
+      [data-reco-conv-feedback] [data-reco-star] {
+        padding: 2px;
+        border: none;
+        background: transparent;
+        color: var(--reco-rule, #e2e4ee);
+        font-size: 1.4rem;
+        line-height: 1;
+        cursor: pointer;
+        transition: color 0.15s;
+      }
+      [data-reco-conv-feedback] [data-reco-star][data-reco-active='true'],
+      [data-reco-conv-feedback] [data-reco-star]:hover {
+        color: #f5a623;
+      }
+      [data-reco-conv-feedback] textarea {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 8px 10px;
         border: 1.5px solid var(--reco-rule, #e2e4ee);
-        border-radius: 999px;
+        border-radius: 10px;
         background: var(--reco-paper, #fff);
         color: var(--reco-ink, #15182b);
+        font: inherit;
+        font-size: 0.82rem;
+        resize: vertical;
+      }
+      [data-reco-conv-feedback] textarea:focus-visible {
+        outline: 3px solid var(--reco-primary, #1d7edf);
+        outline-offset: 1px;
+      }
+      [data-reco-conv-feedback] [data-reco-submit] {
+        align-self: flex-end;
+        padding: 6px 14px;
+        border: none;
+        border-radius: 999px;
+        background: var(--reco-primary, #1d7edf);
+        color: #fff;
         font: inherit;
         font-weight: 600;
         cursor: pointer;
       }
-      [data-reco-conv-feedback] [data-reco-resolved]:hover {
-        border-color: var(--reco-primary, #1d7edf);
-        color: var(--reco-primary, #1d7edf);
+      [data-reco-conv-feedback] [data-reco-submit]:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
       }
       [data-reco-conv-feedback] [data-reco-dismiss] {
+        position: absolute;
+        top: 6px;
+        inset-inline-end: 8px;
         padding: 2px 6px;
         border: none;
         background: transparent;
@@ -1306,10 +1345,13 @@
         <span data-reco-label="reco.feedback.up">Réponse utile</span>
         <span data-reco-label="reco.feedback.down">Réponse inutile</span>
         <span data-reco-label="reco.feedback.resolved"
-          >Votre question a-t-elle été résolue ?</span
+          >Comment s'est passée votre expérience ?</span
         >
-        <span data-reco-label="reco.feedback.yes">Oui</span>
-        <span data-reco-label="reco.feedback.no">Non</span>
+        <span data-reco-label="reco.feedback.stars">Notez de 1 à 5 étoiles</span>
+        <span data-reco-label="reco.feedback.comment"
+          >Un commentaire ? (optionnel)</span
+        >
+        <span data-reco-label="reco.feedback.send">Envoyer</span>
         <span data-reco-label="reco.feedback.thanks">Merci pour votre retour !</span>
         <span data-reco-label="reco.feedback.dismiss">Ignorer</span>
         <span data-reco-label="reco.consent"
