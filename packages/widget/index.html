@@ -134,9 +134,14 @@
         height: 26px;
         transition: transform 0.18s var(--reco-ease-out);
       }
-      /* Close icon shown while the window is open. */
+      /* Close icon shown while the window is open — and the launcher
+         flips to plain black so it reads as « fermer », not « nouveau ». */
       [data-reco-launcher] [data-reco-icon='close'] {
         display: none;
+      }
+      [data-reco-launcher][aria-expanded='true'] {
+        background: var(--reco-ink);
+        box-shadow: 0 12px 32px rgb(21 24 43 / 30%);
       }
       [data-reco-launcher][aria-expanded='true'] [data-reco-icon='chat'] {
         display: none;
