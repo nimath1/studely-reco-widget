@@ -289,13 +289,20 @@
         display: flex;
         flex-direction: column;
         gap: 16px;
-        min-height: 100%;
         padding-top: 28px;
         box-sizing: border-box;
       }
-      /* Pending sits outside the thread: cancel its own top padding and
-         the 4px difference so the gap reads like the 16px between bubbles. */
-      [data-reco-pending] {
+      /* Full-height thread only while the greeting is the sole entry —
+         its `margin-block: auto` centering needs the stretch. Afterwards
+         the thread hugs its content so pending/error stay flush. */
+      [data-reco-thread][data-reco-virgin] {
+        min-height: 100%;
+      }
+      /* Pending and error sit outside the thread: cancel their own top
+         padding and the 4px difference so the gap reads like the 16px
+         between bubbles. */
+      [data-reco-pending],
+      [data-reco-error] {
         padding-top: 0;
         margin-top: -4px;
       }

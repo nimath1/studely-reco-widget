@@ -39,6 +39,9 @@ export function appendUser(el: HTMLElement, text: string): void {
   const card = cloneTemplate(el, 'msg-user')
   if (!card) return
   fillField(card, 'text', text)
+  // Le fil n'est plus vierge : le min-height d'accueil tombe pour que le
+  // squelette « en cours » colle à la dernière bulle.
+  thread(el)?.removeAttribute('data-reco-virgin')
   append(el, card)
 }
 
@@ -187,6 +190,8 @@ export function greet(el: HTMLElement, t: Translate): void {
     if (!slot.hasChildNodes()) slot.remove()
   }
   append(el, card)
+  // L'accueil seul prend toute la hauteur (centrage `margin-block: auto`).
+  thread(el)?.setAttribute('data-reco-virgin', '')
 }
 
 /** Squelette « analyse en cours » (avec bouton Arrêter), puis scroll. */
