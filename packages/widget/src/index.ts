@@ -589,6 +589,7 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
    */
   let convFeedbackDone = false
   let convCard: HTMLElement | null = null
+  let convTimer: number | undefined
 
   function removeConvCard(): void {
     convCard?.remove()
@@ -673,13 +674,26 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
   }
 
   // Fermeture = retrait de `data-reco-open` par l'hôte (dialog close,
-  // Échap, reclic launcher) — l'observer couvre les trois.
+  // Échap, reclic launcher) — l'observer couvre les trois. La carte
+  // attend la fin de l'animation de fermeture ; une réouverture rapide
+  // l'annule ou la retire.
   const openObserver = new MutationObserver(() => {
-    if (!el.hasAttribute('data-reco-open')) showConversationFeedback()
+    const win = el.ownerDocument.defaultView
+    if (!el.hasAttribute('data-reco-open')) {
+      convTimer = win?.setTimeout(() => {
+        convTimer = undefined
+        showConversationFeedback()
+      }, 600)
+    } else {
+      win?.clearTimeout(convTimer)
+      convTimer = undefined
+      removeConvCard()
+    }
   })
   openObserver.observe(el, { attributes: true, attributeFilter: ['data-reco-open'] })
   signal.addEventListener('abort', () => {
     openObserver.disconnect()
+    el.ownerDocument.defaultView?.clearTimeout(convTimer)
     removeConvCard()
   })
 

@@ -635,11 +635,22 @@
       }
       /* « Notez votre expérience » card: lives outside the dialog
          (sibling, like the launcher) so it stays visible after close. */
+      @keyframes reco-fb-in {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
       [data-reco-conv-feedback] {
         position: fixed;
         inset-inline-end: 24px;
         bottom: 96px;
         z-index: 2147483000;
+        animation: reco-fb-in 0.3s var(--reco-ease-out, ease-out);
         display: flex;
         flex-direction: column;
         align-items: flex-start;
