@@ -437,7 +437,20 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     }
     try {
       await putProfile(userId, { lastname: name, email, lang: config.locale })
-      if (sessionId) await requestHandoff(sessionId)
+      if (sessionId) {
+        // HandoffForm requis : le nom saisi devient first/last_name ; le
+        // sujet résume la demande, la description reprend le dernier
+        // message — `origin` fait office de pays de départ faute de champ.
+        const [first, ...rest] = name.split(/\s+/)
+        await requestHandoff(sessionId, {
+          first_name: first ?? name,
+          last_name: rest.join(' ') || (first ?? name),
+          email,
+          departure_country: config.origin,
+          subject: 'Mise en relation conseiller — widget',
+          description: lastMessage || 'Demande de mise en relation depuis le widget.'
+        })
+      }
       return true
     } catch {
       return false

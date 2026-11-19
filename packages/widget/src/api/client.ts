@@ -306,15 +306,29 @@ export async function putProfile(userId: string, profile: ProfileUpsert): Promis
   }
 }
 
+/** Corps du POST …/handoff (HandoffForm, SAV-065) — Zendesk revalide l'email. */
+export interface HandoffBody {
+  first_name: string
+  last_name: string
+  email: string
+  phone?: string
+  departure_country: string
+  subject: string
+  description: string
+  upload_tokens?: string[]
+}
+
 /**
- * POST /conversations/{session_id}/handoff : « geste UI → ticket créé » —
- * aucun corps (le ticket naît de la session), la réponse porte ticket_id.
+ * POST /conversations/{session_id}/handoff : « geste UI → ticket créé ».
+ * Le HandoffForm complet est requis (422 `body` sinon) — nom, e-mail,
+ * pays de départ, sujet et description ; la réponse porte ticket_id.
  * Sans session (erreur avant la 1re réponse) l'appelant saute ce pas.
  */
-export async function requestHandoff(sessionId: string): Promise<void> {
+export async function requestHandoff(sessionId: string, body: HandoffBody): Promise<void> {
   try {
     await callApi(`/conversations/${encodeURIComponent(sessionId)}/handoff`, {
-      method: 'POST'
+      method: 'POST',
+      body: JSON.stringify(body)
     })
   } catch (error) {
     if (error instanceof RecoApiError) throw error

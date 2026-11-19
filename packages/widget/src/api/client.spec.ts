@@ -167,18 +167,35 @@ describe('handoff', () => {
     })
   })
 
-  it('POST /conversations/{id}/handoff : pas de corps', async () => {
+  it('POST /conversations/{id}/handoff : HandoffForm complet', async () => {
     const spy = mockFetch(async () => ok('{}'))
-    await requestHandoff('sess-1')
-    const [url, init] = spy.mock.calls[0]! as [string, { method: string; body?: string }]
+    const body = {
+      first_name: 'Awa',
+      last_name: 'Ndiaye',
+      email: 'awa@exemple.com',
+      departure_country: 'mexique',
+      subject: 'Mise en relation',
+      description: 'Demande depuis le widget.'
+    }
+    await requestHandoff('sess-1', body)
+    const [url, init] = spy.mock.calls[0]! as [string, { method: string; body: string }]
     expect(url).toBe(`${API_BASE_URL}/conversations/sess-1/handoff`)
     expect(init.method).toBe('POST')
-    expect(init.body).toBeUndefined()
+    expect(JSON.parse(init.body)).toEqual(body)
   })
 
   it('erreurs mappées : 429 → rate, réseau mort → network', async () => {
     mockFetch(async () => ({ ok: false, status: 429, headers: new Headers() }))
-    await expect(requestHandoff('s')).rejects.toMatchObject({ kind: 'rate' })
+    await expect(
+      requestHandoff('s', {
+        first_name: 'A',
+        last_name: 'B',
+        email: 'a@b.c',
+        departure_country: 'mexique',
+        subject: 's',
+        description: 'd'
+      })
+    ).rejects.toMatchObject({ kind: 'rate' })
     mockFetch(async () => {
       throw new TypeError('fetch failed')
     })
