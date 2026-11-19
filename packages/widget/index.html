@@ -293,6 +293,12 @@
         padding-top: 28px;
         box-sizing: border-box;
       }
+      /* Pending sits outside the thread: cancel its own top padding and
+         the 4px difference so the gap reads like the 16px between bubbles. */
+      [data-reco-pending] {
+        padding-top: 0;
+        margin-top: -4px;
+      }
       /* ── Entries: bubble rows ── */
       [data-reco-msg] {
         display: flex;
