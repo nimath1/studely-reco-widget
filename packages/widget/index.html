@@ -671,7 +671,15 @@
       }
       [data-reco-conv-feedback] [data-reco-stars] {
         display: flex;
+        align-items: center;
         gap: 2px;
+      }
+      /* Libellé de l'étoile survolée / de la note choisie. */
+      [data-reco-conv-feedback] [data-reco-star-label] {
+        margin-inline-start: 8px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: var(--reco-ink-muted, #5b5f73);
       }
       [data-reco-conv-feedback] [data-reco-star] {
         padding: 2px;
@@ -801,21 +809,30 @@
       [data-reco-field='actions'] [data-reco-action='advisor']:hover {
         border-color: var(--reco-primary);
       }
-      /* Handoff mini-form inside the thread (name + email). */
+      /* Handoff mini-form inside the thread (name + email). Its card takes
+         the full bubble width so it lines up with the replies above it,
+         instead of shrinking to its one-line intro. */
+      [data-reco-bubble]:has([data-reco-handoff]) {
+        width: 85%;
+      }
       [data-reco-handoff] {
         display: flex;
         flex-direction: column;
         gap: 8px;
         margin-top: 10px;
-        max-width: 320px;
+        max-width: 440px;
       }
       /* Wrapping labels keep the flex layout untouched. */
       [data-reco-handoff] > label {
         display: contents;
       }
+      /* border-box: no preflight here, so padding + border would
+         otherwise stack on top of the height. */
       [data-reco-handoff] input {
-        min-height: 40px;
-        padding: 8px 14px;
+        box-sizing: border-box;
+        width: 100%;
+        height: 38px;
+        padding: 0 14px;
         border: 1.5px solid var(--reco-rule);
         border-radius: var(--reco-radius-card);
         background: var(--reco-paper);
@@ -1372,6 +1389,11 @@
           >Comment s'est passée votre expérience ?</span
         >
         <span data-reco-label="reco.feedback.stars">Notez de 1 à 5 étoiles</span>
+        <span data-reco-label="reco.feedback.star.1">Très décevant</span>
+        <span data-reco-label="reco.feedback.star.2">Décevant</span>
+        <span data-reco-label="reco.feedback.star.3">Correct</span>
+        <span data-reco-label="reco.feedback.star.4">Satisfaisant</span>
+        <span data-reco-label="reco.feedback.star.5">Très bien</span>
         <span data-reco-label="reco.feedback.comment"
           >Un commentaire ? (optionnel)</span
         >

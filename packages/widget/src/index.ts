@@ -629,10 +629,24 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     stars.setAttribute('role', 'group')
     stars.setAttribute('aria-label', t('reco.feedback.stars'))
     let score = 0
+    // Libellé de l'étoile survolée/focalisée, sinon de la note choisie.
+    // Clé absente : le libellé retourné est la clé elle-même — rien.
+    const starLabel = (n: number): string => {
+      const key = `reco.feedback.star.${n}`
+      const label = t(key)
+      return label === key ? '' : label
+    }
+    const hint = doc.createElement('span')
+    hint.setAttribute('data-reco-star-label', '')
+    hint.setAttribute('aria-hidden', 'true')
+    const showHint = (n: number): void => {
+      hint.textContent = n > 0 ? starLabel(n) : ''
+    }
     const paint = (): void => {
       stars.querySelectorAll('button').forEach((star, i) => {
         ;(star as HTMLElement).dataset.recoActive = String(i < score)
       })
+      showHint(score)
     }
     const submit = doc.createElement('button')
     submit.type = 'button'
@@ -643,15 +657,21 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
       const star = doc.createElement('button')
       star.type = 'button'
       star.dataset.recoStar = String(i)
-      star.setAttribute('aria-label', `${i}/5`)
+      const label = starLabel(i)
+      star.setAttribute('aria-label', label ? `${label} (${i}/5)` : `${i}/5`)
       star.textContent = '★'
       star.addEventListener('click', () => {
         score = i
         paint()
         submit.disabled = false
       })
+      star.addEventListener('mouseenter', () => showHint(i))
+      star.addEventListener('focus', () => showHint(i))
+      star.addEventListener('blur', () => showHint(score))
       stars.append(star)
     }
+    stars.addEventListener('mouseleave', () => showHint(score))
+    stars.append(hint)
     const comment = doc.createElement('textarea')
     comment.rows = 2
     comment.placeholder = t('reco.feedback.comment')
