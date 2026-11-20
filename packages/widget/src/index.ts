@@ -437,7 +437,20 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     }
     try {
       await putProfile(userId, { lastname: name, email, lang: config.locale })
-      if (sessionId) await requestHandoff(sessionId)
+      if (sessionId) {
+        // HandoffForm requis : le nom saisi devient first/last_name ; le
+        // sujet résume la demande, la description reprend le dernier
+        // message — `origin` fait office de pays de départ faute de champ.
+        const [first, ...rest] = name.split(/\s+/)
+        await requestHandoff(sessionId, {
+          first_name: first ?? name,
+          last_name: rest.join(' ') || (first ?? name),
+          email,
+          departure_country: config.origin,
+          subject: 'Mise en relation conseiller — widget',
+          description: lastMessage || 'Demande de mise en relation depuis le widget.'
+        })
+      }
       return true
     } catch {
       return false
@@ -576,18 +589,20 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
    */
   let convFeedbackDone = false
   let convCard: HTMLElement | null = null
+  let convTimer: number | undefined
 
   function removeConvCard(): void {
     convCard?.remove()
     convCard = null
   }
 
-  function answerConvFeedback(resolved: boolean): void {
+  function answerConvFeedback(score: number, comment?: string): void {
     const card = convCard
     if (!card || !sessionId) return
     convFeedbackDone = true
-    emitRecoEvent(el, 'feedback', { resolved })
-    void postConversationFeedback(sessionId, { resolved }).catch((error: unknown) =>
+    const resolved = score >= 6
+    emitRecoEvent(el, 'feedback', { resolved, score })
+    void postConversationFeedback(sessionId, { resolved, score, comment }).catch((error: unknown) =>
       logger.warn('feedback conversation non enregistré :', error)
     )
     const thanks = el.ownerDocument.createElement('p')
@@ -596,6 +611,11 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     el.ownerDocument.defaultView?.setTimeout(removeConvCard, 2500)
   }
 
+  /**
+   * Carte de fin : 5 étoiles (chaque étoile vaut 2 points — score 0-10 du
+   * contrat), commentaire optionnel, Envoyer actif dès la 1re étoile.
+   * « Ignorer » ferme sans rien envoyer.
+   */
   function showConversationFeedback(): void {
     if (convFeedbackDone || convCard || !sessionId) return
     if (!el.querySelector('[data-reco-thread] [data-reco-msg="user"]')) return
@@ -604,14 +624,57 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     card.setAttribute('data-reco-conv-feedback', '')
     const question = doc.createElement('p')
     question.textContent = t('reco.feedback.resolved')
-    const choice = (resolved: boolean): HTMLButtonElement => {
-      const button = doc.createElement('button')
-      button.type = 'button'
-      button.dataset.recoResolved = String(resolved)
-      button.textContent = t(resolved ? 'reco.feedback.yes' : 'reco.feedback.no')
-      button.addEventListener('click', () => answerConvFeedback(resolved))
-      return button
+    const stars = doc.createElement('div')
+    stars.setAttribute('data-reco-stars', '')
+    stars.setAttribute('role', 'group')
+    stars.setAttribute('aria-label', t('reco.feedback.stars'))
+    let score = 0
+    // Libellé de l'étoile survolée/focalisée, sinon de la note choisie.
+    // Clé absente : le libellé retourné est la clé elle-même — rien.
+    const starLabel = (n: number): string => {
+      const key = `reco.feedback.star.${n}`
+      const label = t(key)
+      return label === key ? '' : label
     }
+    const hint = doc.createElement('span')
+    hint.setAttribute('data-reco-star-label', '')
+    hint.setAttribute('aria-hidden', 'true')
+    const showHint = (n: number): void => {
+      hint.textContent = n > 0 ? starLabel(n) : ''
+    }
+    const paint = (): void => {
+      stars.querySelectorAll('button').forEach((star, i) => {
+        ;(star as HTMLElement).dataset.recoActive = String(i < score)
+      })
+      showHint(score)
+    }
+    const submit = doc.createElement('button')
+    submit.type = 'button'
+    submit.setAttribute('data-reco-submit', '')
+    submit.textContent = t('reco.feedback.send')
+    submit.disabled = true
+    for (let i = 1; i <= 5; i += 1) {
+      const star = doc.createElement('button')
+      star.type = 'button'
+      star.dataset.recoStar = String(i)
+      const label = starLabel(i)
+      star.setAttribute('aria-label', label ? `${label} (${i}/5)` : `${i}/5`)
+      star.textContent = '★'
+      star.addEventListener('click', () => {
+        score = i
+        paint()
+        submit.disabled = false
+      })
+      star.addEventListener('mouseenter', () => showHint(i))
+      star.addEventListener('focus', () => showHint(i))
+      star.addEventListener('blur', () => showHint(score))
+      stars.append(star)
+    }
+    stars.addEventListener('mouseleave', () => showHint(score))
+    stars.append(hint)
+    const comment = doc.createElement('textarea')
+    comment.rows = 2
+    comment.placeholder = t('reco.feedback.comment')
     const dismiss = doc.createElement('button')
     dismiss.type = 'button'
     dismiss.setAttribute('data-reco-dismiss', '')
@@ -621,19 +684,36 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
       convFeedbackDone = true
       removeConvCard()
     })
-    card.append(question, choice(true), choice(false), dismiss)
+    submit.addEventListener('click', () => {
+      // 1 étoile = 2 points : le score API attend 0-10.
+      answerConvFeedback(score * 2, comment.value.trim() || undefined)
+    })
+    card.append(question, stars, comment, submit, dismiss)
     convCard = card
     el.insertAdjacentElement('afterend', card)
   }
 
   // Fermeture = retrait de `data-reco-open` par l'hôte (dialog close,
-  // Échap, reclic launcher) — l'observer couvre les trois.
+  // Échap, reclic launcher) — l'observer couvre les trois. La carte
+  // attend la fin de l'animation de fermeture ; une réouverture rapide
+  // l'annule ou la retire.
   const openObserver = new MutationObserver(() => {
-    if (!el.hasAttribute('data-reco-open')) showConversationFeedback()
+    const win = el.ownerDocument.defaultView
+    if (!el.hasAttribute('data-reco-open')) {
+      convTimer = win?.setTimeout(() => {
+        convTimer = undefined
+        showConversationFeedback()
+      }, 600)
+    } else {
+      win?.clearTimeout(convTimer)
+      convTimer = undefined
+      removeConvCard()
+    }
   })
   openObserver.observe(el, { attributes: true, attributeFilter: ['data-reco-open'] })
   signal.addEventListener('abort', () => {
     openObserver.disconnect()
+    el.ownerDocument.defaultView?.clearTimeout(convTimer)
     removeConvCard()
   })
 

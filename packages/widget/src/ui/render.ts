@@ -26,16 +26,20 @@ export function fillField(root: HTMLElement, name: string, value: string): void 
 
 /**
  * Une citation ne mène que vers une page du site : https sur studely.com
- * ou l'un de ses sous-domaines — ex. support.studely.com (R10).
- * `endsWith('.studely.com')` rejects look-alikes such as `evil-studely.com`.
+ * ou l'un de ses sous-domaines — ex. support.studely.com (R10). Le bot
+ * renvoie aussi ses formulaires HubSpot (share-eu1.hsforms.com) : ce
+ * domaine est admis, le reste reste écarté.
+ * `endsWith('.…')` rejects look-alikes such as `evil-studely.com`.
  */
+const ALLOWED_HOSTS = ['studely.com', 'hsforms.com'] as const
+
 export function isAllowedUrl(url: string | undefined): boolean {
   if (!url) return false
   try {
     const parsed = new URL(url)
-    return (
-      parsed.protocol === 'https:' &&
-      (parsed.hostname === 'studely.com' || parsed.hostname.endsWith('.studely.com'))
+    if (parsed.protocol !== 'https:') return false
+    return ALLOWED_HOSTS.some(
+      (host) => parsed.hostname === host || parsed.hostname.endsWith(`.${host}`)
     )
   } catch {
     return false

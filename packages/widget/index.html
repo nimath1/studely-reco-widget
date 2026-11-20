@@ -134,9 +134,14 @@
         height: 26px;
         transition: transform 0.18s var(--reco-ease-out);
       }
-      /* Close icon shown while the window is open. */
+      /* Close icon shown while the window is open — and the launcher
+         flips to plain black so it reads as « fermer », not « nouveau ». */
       [data-reco-launcher] [data-reco-icon='close'] {
         display: none;
+      }
+      [data-reco-launcher][aria-expanded='true'] {
+        background: var(--reco-ink);
+        box-shadow: 0 12px 32px rgb(21 24 43 / 30%);
       }
       [data-reco-launcher][aria-expanded='true'] [data-reco-icon='chat'] {
         display: none;
@@ -284,9 +289,22 @@
         display: flex;
         flex-direction: column;
         gap: 16px;
-        min-height: 100%;
         padding-top: 28px;
         box-sizing: border-box;
+      }
+      /* Full-height thread only while the greeting is the sole entry —
+         its `margin-block: auto` centering needs the stretch. Afterwards
+         the thread hugs its content so pending/error stay flush. */
+      [data-reco-thread][data-reco-virgin] {
+        min-height: 100%;
+      }
+      /* Pending and error sit outside the thread: cancel their own top
+         padding and the 4px difference so the gap reads like the 16px
+         between bubbles. */
+      [data-reco-pending],
+      [data-reco-error] {
+        padding-top: 0;
+        margin-top: -4px;
       }
       /* ── Entries: bubble rows ── */
       [data-reco-msg] {
@@ -615,18 +633,30 @@
       [data-reco-feedback][data-reco-chosen='down'] [data-reco-rating='down'] {
         color: var(--reco-primary);
       }
-      /* « Résolu ? » card: lives outside the dialog (sibling, like the
-         launcher) so it stays visible after close. */
+      /* « Notez votre expérience » card: lives outside the dialog
+         (sibling, like the launcher) so it stays visible after close. */
+      @keyframes reco-fb-in {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
       [data-reco-conv-feedback] {
         position: fixed;
         inset-inline-end: 24px;
         bottom: 96px;
         z-index: 2147483000;
+        animation: reco-fb-in 0.3s var(--reco-ease-out, ease-out);
         display: flex;
-        align-items: center;
+        flex-direction: column;
+        align-items: flex-start;
         gap: 8px;
-        max-width: 340px;
-        padding: 10px 14px;
+        width: min(300px, calc(100vw - 48px));
+        padding: 14px 16px;
         border: 1px solid var(--reco-rule, #e2e4ee);
         border-radius: 14px;
         background: var(--reco-paper, #fff);
@@ -639,21 +669,67 @@
         margin: 0;
         font-weight: 600;
       }
-      [data-reco-conv-feedback] [data-reco-resolved] {
-        padding: 6px 12px;
+      [data-reco-conv-feedback] [data-reco-stars] {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+      }
+      /* Libellé de l'étoile survolée / de la note choisie. */
+      [data-reco-conv-feedback] [data-reco-star-label] {
+        margin-inline-start: 8px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: var(--reco-ink-muted, #5b5f73);
+      }
+      [data-reco-conv-feedback] [data-reco-star] {
+        padding: 2px;
+        border: none;
+        background: transparent;
+        color: var(--reco-rule, #e2e4ee);
+        font-size: 1.4rem;
+        line-height: 1;
+        cursor: pointer;
+        transition: color 0.15s;
+      }
+      [data-reco-conv-feedback] [data-reco-star][data-reco-active='true'],
+      [data-reco-conv-feedback] [data-reco-star]:hover {
+        color: #f5a623;
+      }
+      [data-reco-conv-feedback] textarea {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 8px 10px;
         border: 1.5px solid var(--reco-rule, #e2e4ee);
-        border-radius: 999px;
+        border-radius: 10px;
         background: var(--reco-paper, #fff);
         color: var(--reco-ink, #15182b);
+        font: inherit;
+        font-size: 0.82rem;
+        resize: vertical;
+      }
+      [data-reco-conv-feedback] textarea:focus-visible {
+        outline: 3px solid var(--reco-primary, #1d7edf);
+        outline-offset: 1px;
+      }
+      [data-reco-conv-feedback] [data-reco-submit] {
+        align-self: flex-end;
+        padding: 6px 14px;
+        border: none;
+        border-radius: 999px;
+        background: var(--reco-primary, #1d7edf);
+        color: #fff;
         font: inherit;
         font-weight: 600;
         cursor: pointer;
       }
-      [data-reco-conv-feedback] [data-reco-resolved]:hover {
-        border-color: var(--reco-primary, #1d7edf);
-        color: var(--reco-primary, #1d7edf);
+      [data-reco-conv-feedback] [data-reco-submit]:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
       }
       [data-reco-conv-feedback] [data-reco-dismiss] {
+        position: absolute;
+        top: 6px;
+        inset-inline-end: 8px;
         padding: 2px 6px;
         border: none;
         background: transparent;
@@ -733,21 +809,30 @@
       [data-reco-field='actions'] [data-reco-action='advisor']:hover {
         border-color: var(--reco-primary);
       }
-      /* Handoff mini-form inside the thread (name + email). */
+      /* Handoff mini-form inside the thread (name + email). Its card takes
+         the full bubble width so it lines up with the replies above it,
+         instead of shrinking to its one-line intro. */
+      [data-reco-bubble]:has([data-reco-handoff]) {
+        width: 85%;
+      }
       [data-reco-handoff] {
         display: flex;
         flex-direction: column;
         gap: 8px;
         margin-top: 10px;
-        max-width: 320px;
+        max-width: 440px;
       }
       /* Wrapping labels keep the flex layout untouched. */
       [data-reco-handoff] > label {
         display: contents;
       }
+      /* border-box: no preflight here, so padding + border would
+         otherwise stack on top of the height. */
       [data-reco-handoff] input {
-        min-height: 40px;
-        padding: 8px 14px;
+        box-sizing: border-box;
+        width: 100%;
+        height: 38px;
+        padding: 0 14px;
         border: 1.5px solid var(--reco-rule);
         border-radius: var(--reco-radius-card);
         background: var(--reco-paper);
@@ -1301,10 +1386,18 @@
         <span data-reco-label="reco.feedback.up">Réponse utile</span>
         <span data-reco-label="reco.feedback.down">Réponse inutile</span>
         <span data-reco-label="reco.feedback.resolved"
-          >Votre question a-t-elle été résolue ?</span
+          >Comment s'est passée votre expérience ?</span
         >
-        <span data-reco-label="reco.feedback.yes">Oui</span>
-        <span data-reco-label="reco.feedback.no">Non</span>
+        <span data-reco-label="reco.feedback.stars">Notez de 1 à 5 étoiles</span>
+        <span data-reco-label="reco.feedback.star.1">Très décevant</span>
+        <span data-reco-label="reco.feedback.star.2">Décevant</span>
+        <span data-reco-label="reco.feedback.star.3">Correct</span>
+        <span data-reco-label="reco.feedback.star.4">Satisfaisant</span>
+        <span data-reco-label="reco.feedback.star.5">Très bien</span>
+        <span data-reco-label="reco.feedback.comment"
+          >Un commentaire ? (optionnel)</span
+        >
+        <span data-reco-label="reco.feedback.send">Envoyer</span>
         <span data-reco-label="reco.feedback.thanks">Merci pour votre retour !</span>
         <span data-reco-label="reco.feedback.dismiss">Ignorer</span>
         <span data-reco-label="reco.consent"
