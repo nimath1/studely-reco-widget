@@ -581,6 +581,7 @@ describe('mise en relation conseiller', () => {
       firstname: 'Awa',
       lastname: 'Diop',
       email: 'awa@exemple.com',
+      country: 'Sénégal',
       lang: 'fr'
     })
     const post = spy.mock.calls.find(([i]) => urlOf(i).endsWith('/conversations/sess-9/handoff'))!

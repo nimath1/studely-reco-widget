@@ -1372,15 +1372,21 @@
           display: none;
         }
       }
+      /* Fields ≥ 16 px at every width: below that, iOS zooms on focus
+         (including the 481–640 px full-screen range). */
+      [data-reco-input='message'],
+      [data-reco-handoff] :is(input, textarea) {
+        font-size: 16px;
+      }
       /* Narrow layout — phones AND the 460 px desktop panel: single-column
-         form, smaller greeting, ≥ 16 px inputs (iOS focus zoom). */
+         form, smaller greeting. */
       @media (max-width: 480px), (min-width: 641px) {
         [data-reco-greeting]:only-child [data-reco-field='suggestions'] {
           grid-template-columns: 1fr;
           max-width: none;
         }
         /* Handoff form: the card spans the whole thread width (the
-           bubble's 85 % cap lifted), ≥ 16 px fields (iOS focus zoom). */
+           bubble's 85 % cap lifted). */
         [data-reco-bubble]:has([data-reco-handoff]) {
           width: 100%;
           max-width: none;
@@ -1390,14 +1396,8 @@
         [data-reco-msg]:has([data-reco-handoff]) > [data-reco-avatar] {
           display: none;
         }
-        [data-reco-handoff] :is(input, textarea) {
-          font-size: 16px;
-        }
         [data-reco-greeting]:only-child [data-reco-field='text'] {
           font-size: 1.1rem;
-        }
-        [data-reco-input='message'] {
-          font-size: 16px;
         }
       }
       @media (max-width: 420px) {

@@ -476,6 +476,8 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
         firstname: body.first_name,
         lastname: body.last_name,
         email: body.email,
+        // Persisted so the next handoff form can prefill the country too.
+        country: body.departure_country,
         lang: config.locale
       })
       if (sessionId) await requestHandoff(sessionId, body)
