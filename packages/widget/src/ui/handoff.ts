@@ -5,31 +5,22 @@
  */
 import type { HandoffBody, HandoffDraft, ProfileContact } from '../api/client'
 
-export type HandoffField =
-  'subject' | 'description' | 'first' | 'last' | 'email' | 'phone' | 'country'
-
-export type HandoffValues = Record<HandoffField, string>
-
-const FIELDS: HandoffField[] = [
-  'subject',
-  'description',
-  'first',
-  'last',
-  'email',
-  'phone',
-  'country'
-]
-
-/** Champ du HandoffForm (loc d'un 422 FastAPI) → champ du formulaire. */
-const API_FIELDS: Record<string, HandoffField> = {
+/** Champ du HandoffForm de l'API → suffixe `handoff-*` du formulaire. */
+const API_FIELDS = {
+  subject: 'subject',
+  description: 'description',
   first_name: 'first',
   last_name: 'last',
   email: 'email',
   phone: 'phone',
-  departure_country: 'country',
-  subject: 'subject',
-  description: 'description'
-}
+  departure_country: 'country'
+} as const
+
+export type HandoffField = (typeof API_FIELDS)[keyof typeof API_FIELDS]
+
+export type HandoffValues = Record<HandoffField, string>
+
+export const HANDOFF_FIELDS = Object.values(API_FIELDS)
 
 /** Téléphone E.164 attendu par l'API ; espaces, points et tirets tolérés à la saisie. */
 const E164 = /^\+[1-9]\d{6,14}$/
@@ -44,7 +35,7 @@ function input(form: Element, field: HandoffField): HTMLInputElement | null {
 
 export function readHandoffForm(form: Element): HandoffValues {
   const values = {} as HandoffValues
-  for (const field of FIELDS) values[field] = input(form, field)?.value.trim() ?? ''
+  for (const field of HANDOFF_FIELDS) values[field] = input(form, field)?.value.trim() ?? ''
   return values
 }
 
@@ -54,7 +45,7 @@ export function readHandoffForm(form: Element): HandoffValues {
  */
 export function invalidHandoffFields(form: Element, values: HandoffValues): HandoffField[] {
   const invalid: HandoffField[] = []
-  for (const field of FIELDS) {
+  for (const field of HANDOFF_FIELDS) {
     const value = values[field]
     if (field === 'phone') {
       if (value && !E164.test(normalizePhone(value))) invalid.push(field)
@@ -69,14 +60,13 @@ export function invalidHandoffFields(form: Element, values: HandoffValues): Hand
   return invalid
 }
 
-/** Champ fautif d'un 422 de l'API, s'il correspond à un champ du formulaire. */
 export function handoffFieldFromApi(apiField: string | undefined): HandoffField | null {
-  return (apiField && API_FIELDS[apiField]) || null
+  return (apiField && API_FIELDS[apiField as keyof typeof API_FIELDS]) || null
 }
 
 /** `aria-invalid` sur les champs fautifs (et retiré des autres) ; focus au premier. */
 export function markInvalid(form: Element, invalid: HandoffField[]): void {
-  for (const field of FIELDS) {
+  for (const field of HANDOFF_FIELDS) {
     const node = input(form, field)
     if (!node) continue
     if (invalid.includes(field)) node.setAttribute('aria-invalid', 'true')
@@ -87,16 +77,12 @@ export function markInvalid(form: Element, invalid: HandoffField[]): void {
 
 /** Corps du POST …/handoff : téléphone normalisé, omis s'il est vide. */
 export function toHandoffBody(values: HandoffValues): HandoffBody {
-  const body: HandoffBody = {
-    first_name: values.first,
-    last_name: values.last,
-    email: values.email,
-    departure_country: values.country,
-    subject: values.subject,
-    description: values.description
+  const body = {} as Record<string, string>
+  for (const [api, field] of Object.entries(API_FIELDS)) {
+    if (values[field]) body[api] = values[field]
   }
-  if (values.phone) body.phone = normalizePhone(values.phone)
-  return body
+  if (body.phone) body.phone = normalizePhone(body.phone)
+  return body as unknown as HandoffBody
 }
 
 /** Le profil stocke un code ISO (`SN`) ; le formulaire veut le nom du pays. */

@@ -7,6 +7,7 @@
  */
 import type { ChatReply } from '../api/types'
 import type { Translate } from '../i18n/labels'
+import { HANDOFF_FIELDS } from './handoff'
 import { cloneTemplate, fillAssistantEntry, fillField } from './render'
 
 /** Nombre de chips « amorce » proposées sous le message d'accueil. */
@@ -139,18 +140,6 @@ export function beginAssistantStream(el: HTMLElement): AssistantStream | null {
   }
 }
 
-/** Champs du formulaire conseiller : suffixe `handoff-*` → clé i18n du libellé. */
-const HANDOFF_LABELS: [field: string, key: string][] = [
-  ['subject', 'reco.handoff.subject'],
-  ['description', 'reco.handoff.description'],
-  ['first', 'reco.handoff.first'],
-  ['last', 'reco.handoff.last'],
-  ['email', 'reco.handoff.email'],
-  ['phone', 'reco.handoff.phone'],
-  ['country', 'reco.handoff.country']
-]
-
-/** Premier champ vide du formulaire, sinon le premier tout court. */
 function firstEmptyInput(form: Element): HTMLElement | null {
   const inputs = [...form.querySelectorAll<HTMLInputElement>('[data-reco-input]')]
   return inputs.find((i) => !i.value.trim()) ?? inputs[0] ?? null
@@ -184,7 +173,7 @@ export function appendHandoffForm(
   }
   fill('text', 'reco.handoff.intro')
   fill('handoff-submit', 'reco.handoff.submit')
-  for (const [field, key] of HANDOFF_LABELS) fill(`handoff-${field}-label`, key)
+  for (const field of HANDOFF_FIELDS) fill(`handoff-${field}-label`, `reco.handoff.${field}`)
   append(el, card)
   if (focus) firstEmptyInput(card)?.focus()
   return { card, created: true }

@@ -91,13 +91,12 @@ function stripCitationMarkers(text: string): string {
 
 /** `updated_at` (ISO) → date courte de la locale (« 15/04/2026 » en fr) ; invalide → absente. */
 function citationDate(value: string | undefined, locale: string): string | null {
-  if (!value) return null
-  const date = new Date(value)
+  const date = new Date(value ?? NaN)
   if (Number.isNaN(date.getTime())) return null
   try {
-    return new Intl.DateTimeFormat(locale, { dateStyle: 'short' }).format(date)
+    return date.toLocaleDateString(locale, { dateStyle: 'short' })
   } catch {
-    return new Intl.DateTimeFormat('fr', { dateStyle: 'short' }).format(date)
+    return null
   }
 }
 

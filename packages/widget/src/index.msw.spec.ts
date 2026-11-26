@@ -80,7 +80,6 @@ describe('parcours complet contre le mock MSW', () => {
     expect(reply.querySelector('[data-reco-field="text"]')?.textContent).toContain('pistes')
     const links = [...reply.querySelectorAll<HTMLAnchorElement>('[data-reco-field="links"] a')]
     expect(links).toHaveLength(3)
-    // Citations = liens externes vers la page source (nouvel onglet).
     for (const link of links) {
       expect(link.href).toMatch(/^https:\/\/support\.studely\.com\//)
       expect(link.target).toBe('_blank')

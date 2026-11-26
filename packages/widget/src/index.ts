@@ -383,13 +383,9 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
   }
 
   /**
-   * Mise en relation : valide le formulaire complet (schéma HandoffForm)
-   * puis transmet — POST JSON vers `data-reco-handoff-url` quand un
-   * endpoint maison est configuré, sinon contrat réel : PUT /users/{user_id}
-   * attache l'identité déclarée puis POST /conversations/{session_id}/handoff
-   * crée le ticket (sauté sans session, ex. erreur avant la première
-   * réponse — le profil suffit). La carte se transforme en confirmation ;
-   * 422 → champ fautif marqué, échec réseau → message, saisie réactivée.
+   * Mise en relation : valide le formulaire (schéma HandoffForm) puis
+   * transmet. Succès → la carte devient une confirmation ; 422 → champ
+   * fautif marqué ; échec réseau → message, saisie réactivée.
    */
   async function submitHandoff(form: HTMLFormElement): Promise<void> {
     const values = readHandoffForm(form)
@@ -443,8 +439,9 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
    * Envoi effectif : endpoint maison (`data-reco-handoff-url`, POST JSON
    * du formulaire + session ; `name` conservé pour les endpoints existants)
    * ou contrat réel — PUT /users/{user_id} pour l'identité puis
-   * POST /conversations/{id}/handoff pour le ticket. Un 400/422 renvoie
-   * le champ fautif ; le reste vaut erreur réseau.
+   * POST /conversations/{id}/handoff pour le ticket (sauté sans session :
+   * le profil suffit). Un 400/422 renvoie le champ fautif ; le reste vaut
+   * erreur réseau.
    */
   async function deliverHandoff(
     values: HandoffValues

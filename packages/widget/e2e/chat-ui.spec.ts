@@ -130,7 +130,6 @@ test.describe('chat UI (mock MSW)', () => {
     await open(page)
     const greeting = widget(page).locator('[data-reco-greeting]')
     await expect(greeting).toHaveCount(1)
-    // Autant de chips que de libellés reco.suggestion.N déclarés par la page.
     const declared = await widget(page)
       .locator('[data-reco-labels] [data-reco-label^="reco.suggestion."]')
       .count()
