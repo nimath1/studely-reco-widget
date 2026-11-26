@@ -50,10 +50,10 @@ describe('appendUser / appendAssistant', () => {
     expect(links).toBe(1)
     const entry = entries().at(-1)!
     expect(entry.dataset.recoMsg).toBe('assistant')
-    expect(entry.querySelector('[data-reco-field="links"] button')!.textContent).toBe('Lyon')
+    expect(entry.querySelector('[data-reco-field="links"] a')!.textContent).toBe('Lyon')
   })
 
-  it('sources + citations : union dédupliquée, sources d’abord', () => {
+  it('seules les citations retenues sont affichées, pas toutes les sources', () => {
     const { links } = appendAssistant(
       el,
       {
@@ -71,13 +71,11 @@ describe('appendUser / appendAssistant', () => {
       },
       t
     )
-    expect(links).toBe(3)
+    expect(links).toBe(1)
     const entry = entries().at(-1)!
-    const buttons = [
-      ...entry.querySelectorAll<HTMLButtonElement>('[data-reco-field="links"] button')
-    ]
-    expect(buttons.map((b) => b.dataset.recoSend)).toEqual(['A', 'B', 'C'])
-    expect(buttons[0]!.textContent).toBe('A')
+    const anchors = [...entry.querySelectorAll<HTMLAnchorElement>('[data-reco-field="links"] a')]
+    expect(anchors.map((a) => a.textContent)).toEqual(['B'])
+    expect(anchors[0]!.href).toBe('https://support.studely.com/hc/fr/b')
     // Marqueurs [Sn] retirés du texte, même sans citation correspondante.
     expect(entry.textContent).toContain('Réponse détaillée')
     expect(entry.textContent).not.toContain('[S2]')
@@ -103,13 +101,17 @@ describe('appendUser / appendAssistant', () => {
 })
 
 describe('appendHandoffForm', () => {
-  it('carte formulaire nom + e-mail dans le fil, une seule à la fois', () => {
-    const card = appendHandoffForm(el, t)!
+  const FIELDS = ['subject', 'description', 'first', 'last', 'email', 'phone', 'country']
+
+  it('carte formulaire complet dans le fil, une seule à la fois', () => {
+    const { card, created } = appendHandoffForm(el, t)!
+    expect(created).toBe(true)
     expect(card.dataset.recoMsg).toBe('assistant')
-    expect(card.querySelector('[data-reco-input="handoff-name"]')).not.toBeNull()
-    expect(card.querySelector('[data-reco-input="handoff-email"]')).not.toBeNull()
+    for (const f of FIELDS) {
+      expect(card.querySelector(`[data-reco-input="handoff-${f}"]`)).not.toBeNull()
+    }
     expect(card.textContent).toContain('mise en relation')
-    appendHandoffForm(el, t)
+    expect(appendHandoffForm(el, t)!.created).toBe(false)
     expect(el.querySelectorAll('[data-reco-thread] [data-reco-handoff]')).toHaveLength(1)
   })
 
@@ -119,29 +121,39 @@ describe('appendHandoffForm', () => {
   }
 
   it('each field is wrapped in a label with the translated text', () => {
-    const card = appendHandoffForm(el, t)!
-    expect(labelsOf(card, 'handoff-name')[0]?.textContent).toContain('Ton nom')
+    const { card } = appendHandoffForm(el, t)!
+    expect(labelsOf(card, 'handoff-first')[0]?.textContent).toContain('Ton prénom')
+    expect(labelsOf(card, 'handoff-last')[0]?.textContent).toContain('Ton nom')
     expect(labelsOf(card, 'handoff-email')[0]?.textContent).toContain('Ton adresse e-mail')
     // Implicit association only: no id/for coupling to duplicate.
-    expect(card.querySelector('[data-reco-input="handoff-name"]')!.id).toBe('')
-    expect(card.querySelector('[data-reco-input="handoff-email"]')!.id).toBe('')
+    for (const f of FIELDS) {
+      expect(card.querySelector(`[data-reco-input="handoff-${f}"]`)!.id).toBe('')
+    }
   })
 
-  it('a second invocation reuses the form and keeps label associations', () => {
-    const first = appendHandoffForm(el, t)!
-    const again = appendHandoffForm(el, t)
-    expect(again).toBe(first.closest('[data-reco-msg]'))
-    expect(labelsOf(first, 'handoff-name')[0]?.textContent).toContain('Ton nom')
-    expect(labelsOf(first, 'handoff-email')).toHaveLength(1)
+  it('a missing label key keeps the template text', () => {
+    const bare = mountWidget()
+    bare.querySelector('[data-reco-label="reco.handoff.country"]')!.remove()
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const { card } = appendHandoffForm(bare, readLabels(bare))!
+    expect(labelsOf(card, 'handoff-country')[0]?.textContent).toContain('Pays de départ')
+    bare.remove()
+  })
+
+  it('focus on the first empty field, none when opened automatically', () => {
+    appendHandoffForm(el, t, false)
+    expect(el.contains(document.activeElement)).toBe(false)
+    const { card } = appendHandoffForm(el, t)!
+    expect(document.activeElement).toBe(card.querySelector('[data-reco-input="handoff-subject"]'))
   })
 
   it('two widget instances keep independent implicit labels', () => {
     const other = mountWidget()
-    const cardA = appendHandoffForm(el, t)!
-    const cardB = appendHandoffForm(other, readLabels(other))!
-    expect(labelsOf(cardA, 'handoff-name')).toHaveLength(1)
-    expect(labelsOf(cardB, 'handoff-name')).toHaveLength(1)
-    expect(labelsOf(cardA, 'handoff-name')[0]).not.toBe(labelsOf(cardB, 'handoff-name')[0])
+    const { card: cardA } = appendHandoffForm(el, t)!
+    const { card: cardB } = appendHandoffForm(other, readLabels(other))!
+    expect(labelsOf(cardA, 'handoff-first')).toHaveLength(1)
+    expect(labelsOf(cardB, 'handoff-first')).toHaveLength(1)
+    expect(labelsOf(cardA, 'handoff-first')[0]).not.toBe(labelsOf(cardB, 'handoff-first')[0])
     other.remove()
   })
 })

@@ -126,11 +126,16 @@ test.describe('chat UI (mock MSW)', () => {
     await axe(page, 'après arrêt')
   })
 
-  test('accueil : carte marquée + cinq suggestions, axe initial', async ({ page }) => {
+  test('accueil : carte marquée + une chip par suggestion, axe initial', async ({ page }) => {
     await open(page)
     const greeting = widget(page).locator('[data-reco-greeting]')
     await expect(greeting).toHaveCount(1)
-    await expect(thread(page).locator('[data-reco-send]')).toHaveCount(5)
+    // Autant de chips que de libellés reco.suggestion.N déclarés par la page.
+    const declared = await widget(page)
+      .locator('[data-reco-labels] [data-reco-label^="reco.suggestion."]')
+      .count()
+    expect(declared).toBeGreaterThan(0)
+    await expect(thread(page).locator('[data-reco-send]')).toHaveCount(declared)
     await axe(page, 'état initial (continuation)')
   })
 

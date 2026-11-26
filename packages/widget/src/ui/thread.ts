@@ -62,9 +62,13 @@ function fillReply(
   const { pieces, links } = fillAssistantEntry(
     card,
     rejected ? text : reply.text,
-    // `event: sources` lists every retrieved source; `final.citations`
-    // only those actually cited — union (URL dedupe happens downstream).
-    [...(reply.meta.sources ?? []), ...(reply.meta.citations ?? [])]
+    // Only `final.citations` — the sources the bot actually used (« retenue »).
+    // `event: sources` is the whole retrieval list, uncited entries included:
+    // never shown, they would point the user to off-topic pages.
+    reply.meta.citations ?? [],
+    // Citation dates in the page language (same resolution as the config:
+    // <html lang>, then data-reco-locale).
+    el.closest('[lang]')?.getAttribute('lang') || el.dataset.recoLocale || 'fr'
   )
   if (pieces === 0) {
     // Réponse vide : la bulle garde au moins le message « aucun parcours ».
@@ -135,31 +139,55 @@ export function beginAssistantStream(el: HTMLElement): AssistantStream | null {
   }
 }
 
+/** Champs du formulaire conseiller : suffixe `handoff-*` → clé i18n du libellé. */
+const HANDOFF_LABELS: [field: string, key: string][] = [
+  ['subject', 'reco.handoff.subject'],
+  ['description', 'reco.handoff.description'],
+  ['first', 'reco.handoff.first'],
+  ['last', 'reco.handoff.last'],
+  ['email', 'reco.handoff.email'],
+  ['phone', 'reco.handoff.phone'],
+  ['country', 'reco.handoff.country']
+]
+
+/** Premier champ vide du formulaire, sinon le premier tout court. */
+function firstEmptyInput(form: Element): HTMLElement | null {
+  const inputs = [...form.querySelectorAll<HTMLInputElement>('[data-reco-input]')]
+  return inputs.find((i) => !i.value.trim()) ?? inputs[0] ?? null
+}
+
 /**
  * Mise en relation : une seule carte formulaire à la fois — un second
  * déclencheur refocalise la carte existante plutôt que d'empiler.
+ * `focus: false` (ouverture automatique sur `handoff_proposed`) laisse le
+ * focus au composer. `created` dit si la carte vient d'être posée — seule
+ * une nouvelle carte est pré-remplie.
  */
-export function appendHandoffForm(el: HTMLElement, t: Translate): HTMLElement | null {
+export function appendHandoffForm(
+  el: HTMLElement,
+  t: Translate,
+  focus = true
+): { card: HTMLElement; created: boolean } | null {
   const existing = el.querySelector<HTMLElement>('[data-reco-thread] [data-reco-handoff]')
   if (existing) {
-    existing.querySelector<HTMLElement>('[data-reco-input]')?.focus()
+    if (focus) firstEmptyInput(existing)?.focus()
     scrollEnd(el)
-    return existing.closest('[data-reco-msg]')
+    const card = existing.closest<HTMLElement>('[data-reco-msg]')
+    return card ? { card, created: false } : null
   }
   const card = cloneTemplate(el, 'handoff-form')
   if (!card) return null
-  fillField(card, 'text', t('reco.handoff.intro'))
-  fillField(card, 'handoff-submit', t('reco.handoff.submit'))
-  // Implicit wrapping labels may carry their own translated text spans.
-  fillField(card, 'handoff-name-label', t('reco.handoff.name'))
-  fillField(card, 'handoff-email-label', t('reco.handoff.email'))
-  const name = card.querySelector<HTMLInputElement>('[data-reco-input="handoff-name"]')
-  const email = card.querySelector<HTMLInputElement>('[data-reco-input="handoff-email"]')
-  if (name) name.placeholder = t('reco.handoff.name')
-  if (email) email.placeholder = t('reco.handoff.email')
+  // Clé absente : le texte FR du gabarit reste (jamais la clé affichée).
+  const fill = (field: string, key: string) => {
+    const label = t(key)
+    if (label !== key) fillField(card, field, label)
+  }
+  fill('text', 'reco.handoff.intro')
+  fill('handoff-submit', 'reco.handoff.submit')
+  for (const [field, key] of HANDOFF_LABELS) fill(`handoff-${field}-label`, key)
   append(el, card)
-  name?.focus()
-  return card
+  if (focus) firstEmptyInput(card)?.focus()
+  return { card, created: true }
 }
 
 /**

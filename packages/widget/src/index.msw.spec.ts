@@ -9,6 +9,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { server } from '../mock/node'
 import type { Scenario } from '../mock/handlers'
 import * as StudelyReco from './index'
+import { bridgeFetchSignal } from './testing/fetch-signal-bridge'
 import { mountWidget } from './testing/widget.fixture'
 
 const entries = (el: HTMLElement) => [
@@ -44,7 +45,11 @@ async function waitError(el: HTMLElement): Promise<void> {
 }
 
 describe('parcours complet contre le mock MSW', () => {
-  beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
+  beforeAll(() => {
+    server.listen({ onUnhandledRequest: 'error' })
+    // Après listen : le pont enveloppe le fetch déjà intercepté par MSW.
+    bridgeFetchSignal()
+  })
   afterEach(() => {
     server.resetHandlers()
     localStorage.clear()
@@ -54,7 +59,10 @@ describe('parcours complet contre le mock MSW', () => {
     document.body.innerHTML = ''
     document.documentElement.lang = 'fr'
   })
-  afterAll(() => server.close())
+  afterAll(() => {
+    vi.unstubAllGlobals()
+    server.close()
+  })
 
   function mount(scenario: Scenario): HTMLElement {
     document.documentElement.lang = 'fr'
@@ -70,9 +78,13 @@ describe('parcours complet contre le mock MSW', () => {
     await waitReply(el)
     const reply = assistantEntries(el).at(-1)!
     expect(reply.querySelector('[data-reco-field="text"]')?.textContent).toContain('pistes')
-    const links = [...reply.querySelectorAll<HTMLButtonElement>('[data-reco-field="links"] button')]
+    const links = [...reply.querySelectorAll<HTMLAnchorElement>('[data-reco-field="links"] a')]
     expect(links).toHaveLength(3)
-    for (const link of links) expect(link.dataset.recoSend).toBe(link.textContent)
+    // Citations = liens externes vers la page source (nouvel onglet).
+    for (const link of links) {
+      expect(link.href).toMatch(/^https:\/\/support\.studely\.com\//)
+      expect(link.target).toBe('_blank')
+    }
     // Citations : titre seul, jamais le marqueur `[Sn]`.
     expect(links[0]!.textContent).toContain('Licence Informatique')
     expect(links[0]!.textContent).not.toContain('[S')

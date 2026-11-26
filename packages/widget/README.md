@@ -90,13 +90,13 @@ page — la feuille `[data-reco-widget][dir="rtl"]` prend le relais.
 
 ### Attributs du conteneur
 
-| Attribut                | Obligatoire | Rôle                                                                                                                                    |
-| ----------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `data-reco-widget`      | Oui         | Marque le conteneur                                                                                                                     |
-| `data-reco-origin`      | Oui*        | Slug du pays d'origine (`mexique`), envoyé à l'API                                                                                      |
-| `data-reco-advisor-url` | Oui*        | Page conseiller de repli (reçoit nom/e-mail en query)                                                                                   |
-| `data-reco-handoff-url` | Non         | Endpoint de mise en relation : le mini-formulaire y POST `{name, email, session_id, origin}` en JSON ; absent → repli sur `advisor-url` |
-| `data-reco-locale`      | Non         | Locale si `<html lang>` est absent (repli `fr`)                                                                                         |
+| Attribut                | Obligatoire | Rôle                                                                                                                                                                                                                                                                                    |
+| ----------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `data-reco-widget`      | Oui         | Marque le conteneur                                                                                                                                                                                                                                                                     |
+| `data-reco-origin`      | Oui*        | Slug du pays d'origine (`mexique`), envoyé à l'API                                                                                                                                                                                                                                      |
+| `data-reco-advisor-url` | Oui*        | Page conseiller de repli (reçoit nom/e-mail en query)                                                                                                                                                                                                                                   |
+| `data-reco-handoff-url` | Non         | Endpoint de mise en relation : le formulaire y POST le HandoffForm (`first_name`, `last_name`, `email`, `phone?`, `departure_country`, `subject`, `description`) + `name`, `session_id`, `origin` en JSON ; absent → contrat API (`PUT /users` puis `POST /conversations/{id}/handoff`) |
+| `data-reco-locale`      | Non         | Locale si `<html lang>` est absent (repli `fr`)                                                                                                                                                                                                                                         |
 
 \* ou `<meta name="reco-origin" content="…">` /
 `<meta name="reco-advisor-url" content="…">` dans le `<head>` de la page :
@@ -139,17 +139,25 @@ R12) et un avertissement `[studely-reco]` est émis en console.
 - Templates `data-reco-template` : `msg-user`, `msg-assistant` (champs
   `text`, `suggestions`, `links`, `actions`), `suggestion` (chip
   `data-reco-send` — son libellé part comme message), `advisor-cta`,
-  `handoff-form` (mini-formulaire nom + e-mail, champs
-  `data-reco-input="handoff-name|email"`, `data-reco-action="handoff"`) ;
+  `handoff-form` (formulaire complet de l'API, champs
+  `data-reco-input="handoff-subject|description|first|last|email|phone|country"`,
+  `data-reco-action="handoff"`) ;
   bloc `data-reco-labels` (une entrée `data-reco-label` par clé i18n) ;
   `data-reco-live` (annonces), panel `fallback` (config invalide).
 - Boutons `data-reco-action` : `send`, `stop`, `retry`, `advisor`,
   `handoff`.
-- Mise en relation : « Parler à un conseiller » (bulle de refus ou carte
-  d'indisponibilité) ajoute le mini-formulaire au fil ; validé, il POST
-  vers `data-reco-handoff-url` ou, à défaut, ouvre `advisor-url` avec
-  `?nom=&email=` — puis la carte devient une confirmation (jalon
-  `reco_handoff`).
+- Mise en relation : quand le bot répond `handoff_proposed` (ex. « je
+  veux parler à un humain »), le formulaire complet s'ouvre seul sous sa
+  réponse ; « Parler à un conseiller » (CTA de bulle ou carte
+  d'indisponibilité) l'ouvre aussi. Sujet + description sont pré-remplis
+  par `POST /conversations/{id}/handoff/draft`, prénom/nom/e-mail/pays par
+  `GET /users/{user_id}` (jamais par-dessus une saisie). Validé selon le
+  schéma HandoffForm (téléphone facultatif, E.164), il part vers
+  `data-reco-handoff-url` ou, à défaut, `PUT /users` puis
+  `POST /conversations/{id}/handoff` ; un 422 marque le champ fautif
+  (`aria-invalid`). La carte devient ensuite une confirmation (jalon
+  `reco_handoff`). Clés i18n : `reco.handoff.intro|subject|description|
+first|last|email|phone|country|submit|confirm|invalid`.
 - Gabarit : le markup complet (header, fil, composer, templates,
   launcher) vit dans `src/template/*.vue`, rendu en HTML statique au
   build — `vite build`/`dev`/`test` génèrent `src/template.generated.txt`
@@ -236,7 +244,8 @@ Scénarios (`?recoMock=`) : `nominal`, `empty`, `field-error` (400 avec
 `field`), `forbidden` (403 CAPTCHA_FAILED), `rate` (429 + Retry-After 30 s),
 `server` (500), `unavailable` (503), `timeout` (réponse jamais reçue,
 timeout 20 s du widget), `bad-url` (URLs hors studely.com), `html-reason`
-(HTML injecté dans `reason`). Les réponses sont fournies dans les 5 locales.
+(HTML injecté dans `reason`), `handoff` (`handoff_proposed` → formulaire
+conseiller complet pré-rempli). Les réponses sont fournies dans les 5 locales.
 
 ## Tests
 

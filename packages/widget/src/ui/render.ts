@@ -89,29 +89,42 @@ function stripCitationMarkers(text: string): string {
   return out
 }
 
-/**
- * Builds one citation entry. A titled citation becomes a button whose
- * title is sent as the next user message (`data-reco-send`, handled by
- * the delegated click like the greeting chips); without a title there
- * is nothing to ask, so the URL stays an external <a>.
- */
-function citationEntry(c: {
-  citation: ChatCitation
-  href: string
-}): HTMLAnchorElement | HTMLButtonElement {
-  const title = c.citation.title?.trim()
-  if (title) {
-    const button = document.createElement('button')
-    button.type = 'button'
-    button.textContent = title
-    button.dataset.recoSend = title
-    return button
+/** `updated_at` (ISO) → date courte de la locale (« 15/04/2026 » en fr) ; invalide → absente. */
+function citationDate(value: string | undefined, locale: string): string | null {
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  try {
+    return new Intl.DateTimeFormat(locale, { dateStyle: 'short' }).format(date)
+  } catch {
+    return new Intl.DateTimeFormat('fr', { dateStyle: 'short' }).format(date)
   }
+}
+
+/**
+ * Builds one citation entry: a link pill « Titre · date » that opens the
+ * source page in a new tab (the URL already passed the R10 filter). No
+ * title → the URL itself is the label.
+ */
+function citationEntry(
+  c: { citation: ChatCitation; href: string },
+  locale: string
+): HTMLAnchorElement {
   const link = document.createElement('a')
   link.href = c.href
-  link.textContent = c.href
   link.target = '_blank'
   link.rel = 'noopener'
+  const title = document.createElement('span')
+  title.dataset.recoCitationTitle = ''
+  title.textContent = c.citation.title?.trim() || c.href
+  link.append(title)
+  const date = citationDate(c.citation.updated_at, locale)
+  if (date) {
+    const stamp = document.createElement('span')
+    stamp.dataset.recoCitationDate = ''
+    stamp.textContent = ` · ${date}`
+    link.append(stamp)
+  }
   return link
 }
 
@@ -124,7 +137,8 @@ function citationEntry(c: {
 export function fillAssistantEntry(
   card: HTMLElement,
   text: string,
-  citations: ChatCitation[] | undefined
+  citations: ChatCitation[] | undefined,
+  locale = 'fr'
 ): { pieces: number; links: number } {
   const links = allowedCitations(citations)
   const clean = stripCitationMarkers(text)
@@ -139,7 +153,7 @@ export function fillAssistantEntry(
   const list = card.querySelector('[data-reco-field="links"]')
   if (list) {
     list.replaceChildren()
-    for (const link of links) list.append(citationEntry(link))
+    for (const link of links) list.append(citationEntry(link, locale))
   }
   return { pieces: links.length + (clean.trim() ? 1 : 0), links: links.length }
 }
