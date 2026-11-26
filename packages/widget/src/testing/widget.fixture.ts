@@ -22,7 +22,6 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
                 <div data-reco-dots aria-hidden="true"><i></i><i></i><i></i></div>
                 <p data-reco-field="pending-text"></p>
               </div>
-              <button type="button" data-reco-action="stop"></button>
             </div>
           </div>
         </div>
@@ -48,6 +47,7 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
           <label for="reco-message"><span data-reco-field="input-label"></span></label>
           <textarea id="reco-message" data-reco-input="message" rows="1"></textarea>
           <button type="submit" data-reco-action="send"></button>
+          <button type="button" data-reco-action="stop" hidden></button>
         </div>
         <p data-reco-disclaimer></p>
       </form>

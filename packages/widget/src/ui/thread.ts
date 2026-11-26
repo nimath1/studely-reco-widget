@@ -208,19 +208,11 @@ export function greet(el: HTMLElement, t: Translate): void {
   thread(el)?.setAttribute('data-reco-virgin', '')
 }
 
-/** Squelette « analyse en cours » (avec bouton Arrêter), puis scroll. */
+/** Squelette « analyse en cours », puis scroll. */
 export function showPending(el: HTMLElement, t: Translate): void {
   const node = el.querySelector<HTMLElement>('[data-reco-pending]')
   if (!node) return
   fillField(node, 'pending-text', t('reco.pending'))
-  // Icon-only stop button: the translated label is its accessible name
-  // and tooltip (template FR kept when the key is missing).
-  const stop = node.querySelector('[data-reco-action="stop"]')
-  const label = t('reco.stop')
-  if (stop && label !== 'reco.stop') {
-    stop.setAttribute('aria-label', label)
-    stop.setAttribute('title', label)
-  }
   node.hidden = false
   scrollEnd(el)
 }

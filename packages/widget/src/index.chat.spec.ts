@@ -412,10 +412,19 @@ describe('erreurs, retry, stop, reset', () => {
           signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
         })
     )
+    const send = el.querySelector<HTMLButtonElement>('[data-reco-action="send"]')!
+    const stop = el.querySelector<HTMLButtonElement>('[data-reco-action="stop"]')!
+    expect(stop.hidden).toBe(true)
+    expect(stop.getAttribute('aria-label')).toBe('Arrêter')
     await type('master')
     await waitFor(() => expect(pending().hidden).toBe(false))
-    el.querySelector<HTMLElement>('[data-reco-action="stop"]')!.click()
+    // Pendant la réponse, « Arrêter » prend la place d'« Envoyer » dans le composer.
+    await waitFor(() => expect(stop.hidden).toBe(false))
+    expect(send.hidden).toBe(true)
+    stop.click()
     await waitFor(() => expect(pending().hidden).toBe(true))
+    await waitFor(() => expect(send.hidden).toBe(false))
+    expect(stop.hidden).toBe(true)
     expect(errorCard().hidden).toBe(true)
     expect(assistantEntries()).toHaveLength(1) // accueil seul
     expect(userEntries()).toHaveLength(1)

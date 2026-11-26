@@ -139,6 +139,13 @@ function applyStaticLabels(el: HTMLElement, t: Translate): HTMLTextAreaElement |
     const label = t('reco.send')
     if (label !== 'reco.send') sendButton.setAttribute('aria-label', label)
   }
+  // Icon-only stop button: translated label = accessible name + tooltip.
+  const stopButton = el.querySelector<HTMLElement>('[data-reco-action="stop"]')
+  const stopLabel = t('reco.stop')
+  if (stopButton && stopLabel !== 'reco.stop') {
+    stopButton.setAttribute('aria-label', stopLabel)
+    stopButton.setAttribute('title', stopLabel)
+  }
   const disclaimer = el.querySelector<HTMLElement>('[data-reco-disclaimer]')
   if (disclaimer) disclaimer.textContent = t('reco.disclaimer')
   return composer

@@ -185,11 +185,6 @@ describe('pending / error / clear', () => {
     showPending(el, t)
     expect(node.hidden).toBe(false)
     expect(node.querySelector('[data-reco-field="pending-text"]')!.textContent).toBe('Analyse…')
-    // Bouton d'arrêt en icône : libellé traduit en nom accessible + infobulle.
-    const stop = node.querySelector('[data-reco-action="stop"]')!
-    expect(stop.getAttribute('aria-label')).toBe('Arrêter')
-    expect(stop.getAttribute('title')).toBe('Arrêter')
-    expect(stop.textContent).toBe('')
     hidePending(el)
     expect(node.hidden).toBe(true)
   })

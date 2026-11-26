@@ -25,6 +25,18 @@
           <path d="M12 19V5M5 12l7-7 7 7" />
         </svg>
       </button>
+      <!-- Remplace « Envoyer » tant qu'une réponse est en cours (pending). -->
+      <button
+        type="button"
+        data-reco-action="stop"
+        aria-label="Arrêter la réponse"
+        title="Arrêter la réponse"
+        hidden
+      >
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <rect x="6" y="6" width="12" height="12" rx="2.5" />
+        </svg>
+      </button>
     </div>
     <p data-reco-consent="continuation" data-reco-field="consent-label">
       En continuant, vous acceptez l’analyse automatique de vos messages pour vous proposer des

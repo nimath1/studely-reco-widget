@@ -97,7 +97,9 @@ test.describe('chat UI (mock MSW)', () => {
     })
   })
 
-  test('en cours : statut compact puis Arrêter rend la main sans erreur', async ({ page }) => {
+  test('en cours : statut compact, Arrêter remplace Envoyer puis rend la main', async ({
+    page
+  }) => {
     // Scénario « timeout » : la réponse n'arrive jamais, le squelette reste.
     await open(page, 'fr', 'timeout')
     await thread(page).locator('[data-reco-send]').first().click()
@@ -109,16 +111,14 @@ test.describe('chat UI (mock MSW)', () => {
     await expect(region.locator('[data-reco-field="pending-text"]')).toHaveText(
       'Analyse de ta demande…'
     )
-    const stop = status.locator('[data-reco-action="stop"]')
+    const composer = widget(page).locator('[data-reco-composer]')
+    const stop = composer.locator('[data-reco-action="stop"]')
     await expect(stop).toBeVisible()
-    // Points et bouton dans la même ligne, sans chevauchement.
-    const dotsBox = await region.locator('[data-reco-dots]').boundingBox()
-    const stopBox = await stop.boundingBox()
-    expect(dotsBox).not.toBeNull()
-    expect(stopBox).not.toBeNull()
-    expect(dotsBox!.x + dotsBox!.width).toBeLessThanOrEqual(stopBox!.x + 1)
+    await expect(stop).toHaveAccessibleName('Arrêter la réponse')
+    await expect(composer.locator('[data-reco-action="send"]')).toBeHidden()
 
     await stop.click()
+    await expect(stop).toBeHidden()
     await expect(pending(page)).toBeHidden()
     await expect(widget(page).locator('[data-reco-error]')).toBeHidden()
     await expect(widget(page).locator('[data-reco-input="message"]')).toBeEnabled()

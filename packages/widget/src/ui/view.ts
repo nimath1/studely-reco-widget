@@ -48,6 +48,9 @@ const DELIMITERS: [string, string] = ['[[studely-reco:', ']]']
 const BINDINGS: [selector: string, directive: string, expression: string][] = [
   ['[data-reco-input="message"]', ':disabled', 'pending || (!consent && !continuation)'],
   ['[data-reco-action="send"]', ':disabled', 'pending || (!consent && !continuation)'],
+  // Pendant une réponse, « Arrêter » prend la place d'« Envoyer ».
+  ['[data-reco-action="send"]', ':hidden', 'pending'],
+  ['[data-reco-action="stop"]', ':hidden', '!pending'],
   ['[data-reco-action="retry"]', ':disabled', 'retryLocked'],
   ['[data-reco-live]', 'v-text', 'live']
 ]

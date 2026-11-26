@@ -951,31 +951,6 @@
           transform: translateY(-3px);
         }
       }
-      /* Stop: bare square icon, no frame; name via aria-label. The
-         36 px box only keeps a comfortable click target. */
-      [data-reco-widget] [data-reco-pending] [data-reco-action='stop'] {
-        display: inline-grid;
-        place-items: center;
-        margin: 0;
-        margin-inline-start: auto;
-        width: 36px;
-        height: 36px;
-        min-height: 0;
-        padding: 0;
-        border: none;
-        border-radius: 8px;
-        background: transparent;
-        color: var(--reco-ink);
-        cursor: pointer;
-        flex-shrink: 0;
-      }
-      [data-reco-pending] [data-reco-action='stop'] svg {
-        width: 20px;
-        height: 20px;
-      }
-      [data-reco-pending] [data-reco-action='stop']:hover {
-        color: var(--reco-primary);
-      }
       [data-reco-error-card] {
         display: flex;
         flex-direction: column;
@@ -1121,7 +1096,8 @@
         cursor: not-allowed;
         opacity: 0.7;
       }
-      [data-reco-action='send'] {
+      /* Send, and Stop which takes its place while a reply is pending. */
+      :is([data-reco-action='send'], [data-reco-action='stop']) {
         display: grid;
         place-items: center;
         width: var(--reco-control);
@@ -1135,13 +1111,17 @@
         flex-shrink: 0;
         transition: box-shadow 0.15s;
       }
-      [data-reco-action='send'] svg {
+      :is([data-reco-action='send'], [data-reco-action='stop']) svg {
         width: 18px;
         height: 18px;
       }
+      [data-reco-action='stop'] svg {
+        width: 16px;
+        height: 16px;
+      }
       /* Brand blue in every state: hover lifts with a shadow instead of
          switching to the deep blue. */
-      [data-reco-action='send']:hover {
+      :is([data-reco-action='send'], [data-reco-action='stop']):hover {
         box-shadow: 0 4px 12px rgb(18 100 183 / 35%);
       }
       [data-reco-disclaimer] {
@@ -1418,11 +1398,6 @@
         }
         [data-reco-input='message'] {
           font-size: 16px;
-        }
-        /* Comfortable touch target once the status row wraps. */
-        [data-reco-widget] [data-reco-pending] [data-reco-action='stop'] {
-          width: 44px;
-          height: 44px;
         }
       }
       @media (max-width: 420px) {
