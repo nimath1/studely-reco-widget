@@ -6,6 +6,8 @@
 import { version as pkgVersion } from '../package.json'
 import {
   clearChatSession,
+  clearUserId,
+  deleteProfile,
   draftHandoff,
   ensureUserId,
   getConversationState,
@@ -96,7 +98,8 @@ const ERROR_KEYS: Record<RecoApiError['kind'], string> = {
 /** Textes statiques du gabarit passés par le bloc de libellés traduit. */
 const STATIC_LABELS: [field: string, key: string][] = [
   ['input-label', 'reco.input.label'],
-  ['header-subtitle', 'reco.header.subtitle']
+  ['header-subtitle', 'reco.header.subtitle'],
+  ['erase-label', 'reco.privacy.delete']
 ]
 
 /**
@@ -177,8 +180,9 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
 
   /** La session /chat continue d'un envoi à l'autre (retry compris). */
   let sessionId = loadChatSession(config.origin)
-  /** `user_id` stable : relie conversation, profil déclaré et ticket handoff. */
-  const userId = ensureUserId(config.origin)
+  /** `user_id` stable : relie conversation, profil déclaré et ticket handoff.
+      Régénéré après un effacement — sans lien avec l'ancien. */
+  let userId = ensureUserId(config.origin)
   let retryLockUntil = 0
   /** Échecs captcha consécutifs : relance du défi au 1er, erreur au 2e (§9.1). */
   let captchaFailures = 0
@@ -412,6 +416,49 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
   }
 
   /**
+   * « Supprimer mes données » en deux temps : le premier clic arme le
+   * bouton (libellé « Confirmer la suppression ? », retour automatique
+   * après 4 s), le second exécute. DELETE /users/{user_id} puis effacement
+   * local : session oubliée, fil reparti à l'accueil, `user_id` régénéré
+   * — le nouvel identifiant ne peut pas être relié à l'ancien profil.
+   */
+  function askErase(trigger: HTMLButtonElement): void {
+    if (trigger.dataset.recoConfirm === 'true') {
+      void eraseData(trigger)
+      return
+    }
+    trigger.dataset.recoConfirm = 'true'
+    trigger.textContent = t('reco.privacy.confirm')
+    el.ownerDocument.defaultView?.setTimeout(() => {
+      if (!trigger.isConnected) return
+      delete trigger.dataset.recoConfirm
+      trigger.textContent = t('reco.privacy.delete')
+    }, 4000)
+  }
+
+  async function eraseData(trigger: HTMLButtonElement): Promise<void> {
+    trigger.disabled = true
+    try {
+      await deleteProfile(userId)
+    } catch {
+      trigger.disabled = false
+      delete trigger.dataset.recoConfirm
+      trigger.textContent = t('reco.privacy.delete')
+      announce(t('reco.error.network'))
+      return
+    }
+    clearUserId(config.origin)
+    userId = ensureUserId(config.origin)
+    emitRecoEvent(el, 'erase')
+    trigger.disabled = false
+    delete trigger.dataset.recoConfirm
+    trigger.textContent = t('reco.privacy.delete')
+    // restart vide le fil, oublie la session et re-poser l'accueil.
+    restart()
+    announce(t('reco.privacy.done'))
+  }
+
+  /**
    * Mise en relation : valide le formulaire (schéma HandoffForm) puis
    * transmet. Succès → la carte devient une confirmation ; 422 → champ
    * fautif marqué ; échec réseau → message, saisie réactivée.
@@ -594,6 +641,10 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
         break
       case 'reset':
         restart()
+        break
+      case 'erase':
+        // Seul un <button> porte cette action (gabarit composer).
+        if (trigger instanceof HTMLButtonElement) askErase(trigger)
         break
       case 'advisor':
         proposeHandoff()

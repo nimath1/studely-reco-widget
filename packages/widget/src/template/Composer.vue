@@ -43,5 +43,8 @@
       parcours.
     </p>
     <p data-reco-disclaimer>Recommandations indicatives générées automatiquement.</p>
+    <button type="button" data-reco-action="erase" data-reco-field="erase-label" data-reco-erase>
+      Supprimer mes données
+    </button>
   </form>
 </template>

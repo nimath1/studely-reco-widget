@@ -136,6 +136,8 @@ export const handlers = [
   http.get(`${BASE()}/users/:userId`, ({ params }) =>
     HttpResponse.json({ user_id: params.userId })
   ),
+  // Effacement du profil déclaré (droit à l'oubli) : 204 sans corps.
+  http.delete(`${BASE()}/users/:userId`, () => new HttpResponse(null, { status: 204 })),
   // Brouillon du formulaire conseiller (sujet + description rédigés côté API).
   http.post(`${BASE()}/conversations/:sessionId/handoff/draft`, async () => {
     await delay(300)

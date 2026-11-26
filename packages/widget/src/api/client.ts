@@ -211,6 +211,18 @@ export function ensureUserId(origin: string): string {
   }
 }
 
+/**
+ * Oubli du `user_id` local (après DELETE du profil) : le prochain
+ * `ensureUserId` en régénère un neuf, sans lien avec l'ancien.
+ */
+export function clearUserId(origin: string): void {
+  try {
+    globalThis.localStorage?.removeItem(`${USER_KEY_PREFIX}${origin}`)
+  } catch {
+    // Sans importance : un nouvel identifiant sera écrit par-dessus.
+  }
+}
+
 /** Rejette comme un `AbortError` DOM — la promesse retournée par fetch. */
 function abortError(): DOMException {
   return new DOMException('Aborted', 'AbortError')
@@ -300,6 +312,20 @@ export async function putProfile(userId: string, profile: ProfileUpsert): Promis
       method: 'PUT',
       body: JSON.stringify(profile)
     })
+  } catch (error) {
+    if (error instanceof RecoApiError) throw error
+    throw new RecoApiError('network', 'API injoignable ou délai dépassé')
+  }
+}
+
+/**
+ * DELETE /users/{user_id} : effacement du profil déclaré (droit à
+ * l'oubli). 204 sans corps ; l'appelant nettoie ensuite l'ancien
+ * identifiant local et la conversation.
+ */
+export async function deleteProfile(userId: string): Promise<void> {
+  try {
+    await callApi(`/users/${encodeURIComponent(userId)}`, { method: 'DELETE' })
   } catch (error) {
     if (error instanceof RecoApiError) throw error
     throw new RecoApiError('network', 'API injoignable ou délai dépassé')

@@ -50,6 +50,7 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
           <button type="button" data-reco-action="stop" hidden></button>
         </div>
         <p data-reco-disclaimer></p>
+        <button type="button" data-reco-action="erase" data-reco-field="erase-label" data-reco-erase></button>
       </form>
       <div data-reco-templates hidden>
         <div data-reco-template="msg-user" data-reco-msg="user">
@@ -160,6 +161,9 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
         <span data-reco-label="reco.handoff.submit">Envoyer ma demande</span>
         <span data-reco-label="reco.handoff.confirm">C'est noté ! Un conseiller te contactera.</span>
         <span data-reco-label="reco.handoff.invalid">Champs requis invalides.</span>
+        <span data-reco-label="reco.privacy.delete">Supprimer mes données</span>
+        <span data-reco-label="reco.privacy.confirm">Confirmer la suppression ?</span>
+        <span data-reco-label="reco.privacy.done">Tes données ont été supprimées.</span>
         <span data-reco-label="reco.feedback.up">Réponse utile</span>
         <span data-reco-label="reco.feedback.down">Réponse inutile</span>
         <span data-reco-label="reco.feedback.resolved">Votre problème est-il résolu ?</span>

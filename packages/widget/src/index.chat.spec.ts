@@ -1057,3 +1057,66 @@ describe('restauration de session au rechargement', () => {
     expect(userEntries()[0]!.textContent).toContain('urgent')
   })
 })
+
+describe("effacement des données (droit à l'oubli)", () => {
+  const urlOf = (input: unknown) => (typeof input === 'string' ? input : (input as Request).url)
+  const erase = () => el.querySelector<HTMLButtonElement>('[data-reco-action="erase"]')!
+
+  it('deux clics : DELETE /users, fil réinitialisé, user_id régénéré', async () => {
+    const spy = mockFetch(async (input: unknown) => {
+      const url = urlOf(input)
+      if (url.includes('/users/')) return { ok: true, status: 204, json: async () => null }
+      return ok(SSE('Réponse', { session_id: 'sess-del' }))
+    })
+    await grant()
+    await type('bonjour')
+    await waitFor(() => expect(userEntries()).toHaveLength(1))
+    const firstUserId = localStorage.getItem('studely.reco.user.mexique')
+    expect(firstUserId).not.toBeNull()
+    expect(sessionStorage.getItem('studely.reco.session.mexique')).toBe('sess-del')
+
+    // Premier clic : armement seul, aucun appel API.
+    erase().click()
+    expect(erase().textContent).toBe('Confirmer la suppression ?')
+    expect(spy.mock.calls.some(([i]) => urlOf(i).includes('/users/'))).toBe(false)
+
+    // Second clic : DELETE puis effacement local.
+    erase().click()
+    await waitFor(() =>
+      expect(
+        spy.mock.calls.some(
+          ([i, init]) =>
+            urlOf(i).includes('/users/') && (init as { method?: string }).method === 'DELETE'
+        )
+      ).toBe(true)
+    )
+    await waitFor(() => expect(el.querySelector('[data-reco-greeting]')).not.toBeNull())
+    expect(userEntries()).toHaveLength(0)
+    expect(sessionStorage.getItem('studely.reco.session.mexique')).toBeNull()
+    const newUserId = localStorage.getItem('studely.reco.user.mexique')
+    expect(newUserId).not.toBe(firstUserId)
+    // Bouton restauré.
+    expect(erase().textContent).toBe('Supprimer mes données')
+    expect(erase().disabled).toBe(false)
+  })
+
+  it('échec du DELETE : annonce réseau, fil conservé, bouton restauré', async () => {
+    mockFetch(async (input: unknown) => {
+      const url = urlOf(input)
+      if (url.includes('/users/')) return { ok: false, status: 500, headers: new Headers() }
+      return ok(SSE('Réponse', { session_id: 'sess-del2' }))
+    })
+    await grant()
+    await type('bonjour')
+    await waitFor(() => expect(userEntries()).toHaveLength(1))
+    erase().click()
+    erase().click()
+    await waitFor(() =>
+      expect(el.querySelector('[data-reco-live]')!.textContent).toContain('Réseau')
+    )
+    expect(userEntries()).toHaveLength(1)
+    expect(sessionStorage.getItem('studely.reco.session.mexique')).toBe('sess-del2')
+    expect(erase().disabled).toBe(false)
+    expect(erase().textContent).toBe('Supprimer mes données')
+  })
+})

@@ -1150,6 +1150,33 @@
         color: var(--reco-ink-subtle);
         text-align: center;
       }
+      /* « Supprimer mes données » : lien discret en pied du composer —
+         visible sans peser ; l'état de confirmation passe en couleur
+         erreur. */
+      [data-reco-erase] {
+        display: block;
+        margin: 6px auto 0;
+        padding: 2px 6px;
+        border: none;
+        background: transparent;
+        color: var(--reco-ink-subtle);
+        font: inherit;
+        font-size: 0.7rem;
+        text-decoration: underline;
+        text-underline-offset: 2px;
+        cursor: pointer;
+      }
+      [data-reco-erase]:hover {
+        color: var(--reco-ink);
+      }
+      [data-reco-erase][data-reco-confirm] {
+        color: var(--reco-error);
+        font-weight: 600;
+      }
+      [data-reco-erase]:disabled {
+        opacity: 0.6;
+        cursor: wait;
+      }
       /* ── Fallback panel (config invalide) ── */
       [data-reco-panel='fallback'] {
         text-align: center;
@@ -1505,6 +1532,9 @@
         <span data-reco-label="reco.error.captcha"
           >La vérification anti-robot a échoué. Réessaie.</span
         >
+        <span data-reco-label="reco.privacy.delete">Supprimer mes données</span>
+        <span data-reco-label="reco.privacy.confirm">Confirmer la suppression ?</span>
+        <span data-reco-label="reco.privacy.done">Tes données ont été supprimées.</span>
         <span data-reco-label="reco.disclaimer"
           >Recommandations indicatives générées automatiquement.</span
         >
