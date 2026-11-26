@@ -107,17 +107,40 @@ describe('API publique', () => {
     expect(abort).toHaveBeenCalledTimes(2)
   })
 
+  it('header subtitle comes from the translated labels block, FR text kept otherwise', async () => {
+    const { init } = await load()
+    const [el] = mount(`<section data-reco-widget ${VALID}>
+      <div data-reco-labels hidden>
+        <span data-reco-label="reco.header.subtitle">Studely Support</span>
+      </div>
+    </section>`)
+    init(el!)
+    expect(el!.querySelector('[data-reco-field="header-subtitle"]')!.textContent).toBe(
+      'Studely Support'
+    )
+
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const [bare] = mount(`<section data-reco-widget ${VALID}></section>`)
+    init(bare!)
+    expect(bare!.querySelector('[data-reco-field="header-subtitle"]')!.textContent).toBe(
+      'Assistance Studely'
+    )
+  })
+
   it('generated template nests each handoff input in its own label', async () => {
     const { init } = await load()
     const [el] = mount(`<section data-reco-widget ${VALID}></section>`)
     init(el!)
     const form = el!.querySelector('[data-reco-template="handoff-form"]')!
-    expect(
-      form.querySelector('[data-reco-input="handoff-name"]')!.closest('label')!.textContent
-    ).toContain('Nom complet')
-    expect(
-      form.querySelector('[data-reco-input="handoff-email"]')!.closest('label')!.textContent
-    ).toContain('E-mail')
+    const labelOf = (name: string) =>
+      form.querySelector(`[data-reco-input="handoff-${name}"]`)!.closest('label')!.textContent
+    expect(labelOf('subject')).toContain('Sujet')
+    expect(labelOf('description')).toContain('Description')
+    expect(labelOf('first')).toContain('Prénom')
+    expect(labelOf('last')).toContain('Nom')
+    expect(labelOf('email')).toContain('E-mail')
+    expect(labelOf('phone')).toContain('Téléphone')
+    expect(labelOf('country')).toContain('Pays de départ')
   })
 
   it('retire aussi les écouteurs si la nouvelle config est invalide', async () => {

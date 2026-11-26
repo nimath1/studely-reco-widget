@@ -6,7 +6,9 @@
 import { version as pkgVersion } from '../package.json'
 import {
   clearChatSession,
+  draftHandoff,
   ensureUserId,
+  getProfileContact,
   loadChatSession,
   postChat,
   postConversationFeedback,
@@ -38,6 +40,15 @@ import {
   showPending,
   type AssistantStream
 } from './ui/thread'
+import {
+  handoffFieldFromApi,
+  invalidHandoffFields,
+  markInvalid,
+  prefillHandoff,
+  readHandoffForm,
+  toHandoffBody,
+  type HandoffValues
+} from './ui/handoff'
 import { fillField } from './ui/render'
 import { mountView, nextTick } from './ui/view'
 
@@ -79,7 +90,10 @@ const ERROR_KEYS: Record<RecoApiError['kind'], string> = {
 }
 
 /** Textes statiques du gabarit passés par le bloc de libellés traduit. */
-const STATIC_LABELS: [field: string, key: string][] = [['input-label', 'reco.input.label']]
+const STATIC_LABELS: [field: string, key: string][] = [
+  ['input-label', 'reco.input.label'],
+  ['header-subtitle', 'reco.header.subtitle']
+]
 
 /**
  * Consent labels of both templates: the legacy checkbox keeps the
@@ -124,6 +138,13 @@ function applyStaticLabels(el: HTMLElement, t: Translate): HTMLTextAreaElement |
   if (sendButton) {
     const label = t('reco.send')
     if (label !== 'reco.send') sendButton.setAttribute('aria-label', label)
+  }
+  // Icon-only stop button: translated label = accessible name + tooltip.
+  const stopButton = el.querySelector<HTMLElement>('[data-reco-action="stop"]')
+  const stopLabel = t('reco.stop')
+  if (stopButton && stopLabel !== 'reco.stop') {
+    stopButton.setAttribute('aria-label', stopLabel)
+    stopButton.setAttribute('title', stopLabel)
   }
   const disclaimer = el.querySelector<HTMLElement>('[data-reco-disclaimer]')
   if (disclaimer) disclaimer.textContent = t('reco.disclaimer')
@@ -230,6 +251,9 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
       emitRecoEvent(el, 'reply', { count: lastResultCount })
       announce(t('reco.results.count', { count: lastResultCount }))
     }
+    // « Je veux parler à un humain » : le bot propose la mise en relation,
+    // le formulaire complet s'ouvre aussitôt sous sa réponse.
+    if (reply.meta.handoff_proposed === true) proposeHandoff(true)
   }
 
   /**
@@ -366,40 +390,41 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
   }
 
   /**
-   * Mise en relation : valide nom + e-mail puis transmet — POST JSON vers
-   * `data-reco-handoff-url` quand un endpoint maison est configuré, sinon
-   * contrat réel : PUT /users/{user_id} attache l'identité déclarée puis
-   * POST /conversations/{session_id}/handoff crée le ticket (sauté sans
-   * session, ex. erreur avant la première réponse — le profil suffit).
-   * La carte se transforme en confirmation ; échec réseau → message dans
-   * la carte et saisie réactivée.
+   * Mise en relation : valide le formulaire (schéma HandoffForm) puis
+   * transmet. Succès → la carte devient une confirmation ; 422 → champ
+   * fautif marqué ; échec réseau → message, saisie réactivée.
    */
   async function submitHandoff(form: HTMLFormElement): Promise<void> {
-    const nameInput = form.querySelector<HTMLInputElement>('[data-reco-input="handoff-name"]')
-    const emailInput = form.querySelector<HTMLInputElement>('[data-reco-input="handoff-email"]')
-    const name = nameInput?.value.trim() ?? ''
-    const email = emailInput?.value.trim() ?? ''
-    const invalid = !name || !email || (emailInput ? !emailInput.checkValidity() : true)
+    const values = readHandoffForm(form)
     const errorField = form.parentElement?.querySelector<HTMLElement>(
       '[data-reco-field="handoff-error"]'
     )
-    if (invalid) {
+    const fail = (key: string) => {
       if (errorField) {
-        errorField.textContent = t('reco.handoff.invalid')
+        errorField.textContent = t(key)
         errorField.hidden = false
       }
-      announce(t('reco.handoff.invalid'))
+      announce(t(key))
+    }
+    const invalid = invalidHandoffFields(form, values)
+    markInvalid(form, invalid)
+    if (invalid.length > 0) {
+      fail('reco.handoff.invalid')
       return
     }
-    const controls = form.querySelectorAll('input, button')
-    controls.forEach((control) => ((control as HTMLButtonElement).disabled = true))
-    if (!(await deliverHandoff(name, email))) {
-      controls.forEach((control) => ((control as HTMLButtonElement).disabled = false))
-      if (errorField) {
-        errorField.textContent = t('reco.error.network')
-        errorField.hidden = false
+    if (errorField) errorField.hidden = true
+    const controls = form.querySelectorAll<HTMLButtonElement>('input, textarea, button')
+    controls.forEach((control) => (control.disabled = true))
+    const outcome = await deliverHandoff(values)
+    if (outcome !== 'ok') {
+      controls.forEach((control) => (control.disabled = false))
+      if (outcome === 'network') {
+        fail('reco.error.network')
+      } else {
+        const field = handoffFieldFromApi(outcome.field)
+        if (field) markInvalid(form, [field])
+        fail('reco.handoff.invalid')
       }
-      announce(t('reco.error.network'))
       return
     }
     const card = form.closest<HTMLElement>('[data-reco-msg]')
@@ -418,70 +443,101 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
   }
 
   /**
-   * Envoie effectif : endpoint maison (`data-reco-handoff-url`, POST JSON
-   * nom + e-mail + session) ou contrat réel — PUT /users/{user_id} pour
-   * l'identité puis POST /conversations/{id}/handoff pour le ticket.
+   * Envoi effectif : endpoint maison (`data-reco-handoff-url`, POST JSON
+   * du formulaire + session ; `name` conservé pour les endpoints existants)
+   * ou contrat réel — PUT /users/{user_id} pour l'identité puis
+   * POST /conversations/{id}/handoff pour le ticket (sauté sans session :
+   * le profil suffit). Un 400/422 renvoie le champ fautif ; le reste vaut
+   * erreur réseau.
    */
-  async function deliverHandoff(name: string, email: string): Promise<boolean> {
+  async function deliverHandoff(
+    values: HandoffValues
+  ): Promise<'ok' | 'network' | { field?: string }> {
+    const body = toHandoffBody(values)
     if (config.handoffUrl) {
       try {
         const response = await fetch(config.handoffUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, email, session_id: sessionId, origin: config.origin })
+          body: JSON.stringify({
+            ...body,
+            name: `${body.first_name} ${body.last_name}`,
+            session_id: sessionId,
+            origin: config.origin
+          })
         })
-        return response.ok
+        return response.ok ? 'ok' : 'network'
       } catch {
-        return false
+        return 'network'
       }
     }
     try {
-      await putProfile(userId, { lastname: name, email, lang: config.locale })
-      if (sessionId) {
-        // HandoffForm requis : le nom saisi devient first/last_name ; le
-        // sujet résume la demande, la description reprend le dernier
-        // message — `origin` fait office de pays de départ faute de champ.
-        const [first, ...rest] = name.split(/\s+/)
-        await requestHandoff(sessionId, {
-          first_name: first ?? name,
-          last_name: rest.join(' ') || (first ?? name),
-          email,
-          departure_country: config.origin,
-          subject: 'Mise en relation conseiller — widget',
-          description: lastMessage || 'Demande de mise en relation depuis le widget.'
-        })
-      }
-      return true
-    } catch {
-      return false
-    }
-  }
-
-  /** « Parler à un conseiller » : le mini-formulaire rejoint le fil. */
-  function proposeHandoff(): void {
-    emitRecoEvent(el, 'advisor', { from: phase })
-    const card = appendHandoffForm(el, t)
-    if (!card) {
-      // Gabarit sans le template : repli sur le lien direct.
-      el.ownerDocument.defaultView?.open(config.advisorUrl, '_blank', 'noopener')
+      await putProfile(userId, {
+        firstname: body.first_name,
+        lastname: body.last_name,
+        email: body.email,
+        // Persisted so the next handoff form can prefill the country too.
+        country: body.departure_country,
+        lang: config.locale
+      })
+      if (sessionId) await requestHandoff(sessionId, body)
+      return 'ok'
+    } catch (error) {
+      if (error instanceof RecoApiError && error.kind === 'input') return { field: error.field }
+      return 'network'
     }
   }
 
   /**
-   * Pouce sous une bulle : POST …/turns/{id}/feedback puis la ligne se
-   * fige sur le choix. Échec → boutons réactivés, pas de carte erreur
+   * Formulaire conseiller dans le fil. `auto` : le bot vient de proposer
+   * la mise en relation (`handoff_proposed`) — la carte s'ouvre sans voler
+   * le focus du composer. Une nouvelle carte est pré-remplie : sujet et
+   * description par POST /handoff/draft (si session), identité par le
+   * profil déclaré ; l'échec de l'un ou l'autre laisse les champs vides.
+   */
+  function proposeHandoff(auto = false): void {
+    if (!auto) emitRecoEvent(el, 'advisor', { from: phase })
+    const opened = appendHandoffForm(el, t, !auto)
+    if (!opened) {
+      // Gabarit sans le template : repli sur le lien direct.
+      if (!auto) el.ownerDocument.defaultView?.open(config.advisorUrl, '_blank', 'noopener')
+      return
+    }
+    const form = opened.card.querySelector<HTMLFormElement>('[data-reco-handoff]')
+    if (!opened.created || !form) return
+    form.setAttribute('aria-busy', 'true')
+    void Promise.all([
+      sessionId ? draftHandoff(sessionId) : Promise.resolve(null),
+      getProfileContact(userId)
+    ]).then(([draft, contact]) => {
+      form.removeAttribute('aria-busy')
+      // « Nouvelle recherche » entre-temps : la carte n'est plus au fil.
+      if (signal.aborted || !form.isConnected) return
+      prefillHandoff(form, draft, contact, config.locale)
+    })
+  }
+
+  /**
+   * Pouce sous une bulle : POST …/turns/{id}/feedback (l'API met à jour
+   * la note du tour). Les boutons ne sont bloqués que pendant l'envoi :
+   * on peut ensuite changer d'avis ; re-cliquer le choix actuel ne
+   * renvoie rien. Échec → choix précédent conservé, pas de carte erreur
    * (le retour n'est pas bloquant).
    */
   async function rateTurn(row: HTMLElement, rating: TurnRating, turnId: string): Promise<void> {
-    if (!sessionId) return
+    if (!sessionId || row.dataset.recoChosen === rating) return
     const buttons = [...row.querySelectorAll<HTMLButtonElement>('[data-reco-action="feedback"]')]
     buttons.forEach((b) => (b.disabled = true))
     try {
       await postTurnFeedback(sessionId, turnId, rating)
       row.dataset.recoChosen = rating
+      buttons.forEach((b) =>
+        b.setAttribute('aria-pressed', String(b.dataset.recoRating === rating))
+      )
       emitRecoEvent(el, 'feedback', { rating })
     } catch (error) {
       logger.warn('feedback non enregistré :', error)
+    } finally {
       buttons.forEach((b) => (b.disabled = false))
     }
   }
@@ -596,11 +652,10 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     convCard = null
   }
 
-  function answerConvFeedback(score: number, comment?: string): void {
+  function answerConvFeedback(resolved: boolean, score?: number, comment?: string): void {
     const card = convCard
     if (!card || !sessionId) return
     convFeedbackDone = true
-    const resolved = score >= 6
     emitRecoEvent(el, 'feedback', { resolved, score })
     void postConversationFeedback(sessionId, { resolved, score, comment }).catch((error: unknown) =>
       logger.warn('feedback conversation non enregistré :', error)
@@ -612,9 +667,10 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
   }
 
   /**
-   * Carte de fin : 5 étoiles (chaque étoile vaut 2 points — score 0-10 du
-   * contrat), commentaire optionnel, Envoyer actif dès la 1re étoile.
-   * « Ignorer » ferme sans rien envoyer.
+   * Carte de fin : « résolu ? » explicite (Oui/Non — seul champ requis du
+   * contrat), puis 5 étoiles facultatives (chaque étoile vaut 2 points —
+   * score 0-10) et commentaire optionnel. Envoyer actif dès le choix
+   * résolu ; « Ignorer » ferme sans rien envoyer.
    */
   function showConversationFeedback(): void {
     if (convFeedbackDone || convCard || !sessionId) return
@@ -624,6 +680,36 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     card.setAttribute('data-reco-conv-feedback', '')
     const question = doc.createElement('p')
     question.textContent = t('reco.feedback.resolved')
+    const submit = doc.createElement('button')
+    submit.type = 'button'
+    submit.setAttribute('data-reco-submit', '')
+    submit.textContent = t('reco.feedback.send')
+    submit.disabled = true
+    // « Votre problème est-il résolu ? » : le booléen requis du contrat
+    // est un choix déclaré, jamais déduit de la note (3 étoiles ≠ résolu).
+    let resolvedChoice: boolean | null = null
+    const resolvedRow = doc.createElement('div')
+    resolvedRow.setAttribute('data-reco-resolved-row', '')
+    const resolvedButtons: HTMLButtonElement[] = []
+    for (const [value, labelKey] of [
+      [true, 'reco.feedback.yes'],
+      [false, 'reco.feedback.no']
+    ] as const) {
+      const choice = doc.createElement('button')
+      choice.type = 'button'
+      choice.dataset.recoResolved = String(value)
+      choice.setAttribute('aria-pressed', 'false')
+      choice.textContent = t(labelKey)
+      choice.addEventListener('click', () => {
+        resolvedChoice = value
+        resolvedButtons.forEach((other) =>
+          other.setAttribute('aria-pressed', String(other === choice))
+        )
+        submit.disabled = false
+      })
+      resolvedButtons.push(choice)
+      resolvedRow.append(choice)
+    }
     const stars = doc.createElement('div')
     stars.setAttribute('data-reco-stars', '')
     stars.setAttribute('role', 'group')
@@ -648,11 +734,6 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
       })
       showHint(score)
     }
-    const submit = doc.createElement('button')
-    submit.type = 'button'
-    submit.setAttribute('data-reco-submit', '')
-    submit.textContent = t('reco.feedback.send')
-    submit.disabled = true
     for (let i = 1; i <= 5; i += 1) {
       const star = doc.createElement('button')
       star.type = 'button'
@@ -663,7 +744,6 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
       star.addEventListener('click', () => {
         score = i
         paint()
-        submit.disabled = false
       })
       star.addEventListener('mouseenter', () => showHint(i))
       star.addEventListener('focus', () => showHint(i))
@@ -685,10 +765,16 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
       removeConvCard()
     })
     submit.addEventListener('click', () => {
-      // 1 étoile = 2 points : le score API attend 0-10.
-      answerConvFeedback(score * 2, comment.value.trim() || undefined)
+      if (resolvedChoice === null) return
+      // 1 étoile = 2 points : le score API attend 0-10 ; sans étoile
+      // choisie le score est omis (optionnel dans le contrat).
+      answerConvFeedback(
+        resolvedChoice,
+        score > 0 ? score * 2 : undefined,
+        comment.value.trim() || undefined
+      )
     })
-    card.append(question, stars, comment, submit, dismiss)
+    card.append(question, resolvedRow, stars, comment, submit, dismiss)
     convCard = card
     el.insertAdjacentElement('afterend', card)
   }

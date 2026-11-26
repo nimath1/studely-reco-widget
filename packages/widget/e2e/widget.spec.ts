@@ -29,13 +29,14 @@ test.describe('parcours widget (mock MSW)', () => {
     const reply = thread(page).locator('[data-reco-msg="assistant"]').nth(1)
     await expect(reply).toBeAttached({ timeout: 10_000 })
     await expect(reply.locator('[data-reco-field="text"]')).not.toBeEmpty()
-    const links = reply.locator('[data-reco-field="links"] button[data-reco-send]')
+    const links = reply.locator('[data-reco-field="links"] a[target="_blank"]')
     await expect(links).toHaveCount(3)
+    await expect(links.first()).toHaveAttribute('href', /^https:\/\/support\.studely\.com\//)
     // L'envoi a valu consentement (continuation) : la phase chat est active.
     await expect(widget(page)).toHaveAttribute('data-reco-state', 'chat')
   })
 
-  test('empty : aucun parcours, CTA conseiller et mini-formulaire', async ({ page }) => {
+  test('empty : aucun parcours, CTA conseiller et formulaire complet', async ({ page }) => {
     await open(page, 'empty')
     await ask(page)
     const reply = thread(page).locator('[data-reco-msg="assistant"]').nth(1)
@@ -44,15 +45,22 @@ test.describe('parcours widget (mock MSW)', () => {
     await reply.locator('[data-reco-action="advisor"]').click()
     const handoff = thread(page).locator('[data-reco-handoff]')
     await expect(handoff).toBeVisible()
-    await expect(handoff.locator('[data-reco-input="handoff-name"]')).toBeFocused()
+    const field = (name: string) => handoff.locator(`[data-reco-input="handoff-${name}"]`)
+    // Focus au premier champ vide ; brouillon (mock /handoff/draft) chargé.
+    await expect(field('subject')).toBeFocused()
+    await expect(handoff).not.toHaveAttribute('aria-busy', 'true')
+    await expect(field('subject')).not.toHaveValue('')
+    await expect(field('description')).not.toHaveValue('')
     // La demande part vraiment : PUT profil + POST handoff (mock MSW) puis
     // la carte affiche la confirmation.
     const requests: string[] = []
     page.on('request', (req) => {
       if (req.method() !== 'GET') requests.push(`${req.method()} ${req.url()}`)
     })
-    await handoff.locator('[data-reco-input="handoff-name"]').fill('Awa')
-    await handoff.locator('[data-reco-input="handoff-email"]').fill('awa@exemple.com')
+    await field('first').fill('Awa')
+    await field('last').fill('Diop')
+    await field('email').fill('awa@exemple.com')
+    await field('country').fill('Sénégal')
     await handoff.locator('[data-reco-action="handoff"]').click()
     await expect(thread(page).locator('[data-reco-msg="assistant"]').last()).toContainText(
       'conseiller te contactera',
@@ -107,6 +115,6 @@ test.describe('parcours widget (mock MSW)', () => {
     await ask(page)
     const reply = thread(page).locator('[data-reco-msg="assistant"]').nth(1)
     await expect(reply).toBeAttached({ timeout: 10_000 })
-    await expect(reply.locator('[data-reco-field="links"] button')).toHaveCount(3)
+    await expect(reply.locator('[data-reco-field="links"] a')).toHaveCount(3)
   })
 })

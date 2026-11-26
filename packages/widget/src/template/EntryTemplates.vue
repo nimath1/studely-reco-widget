@@ -45,8 +45,9 @@
     <button type="button" data-reco-template="advisor-cta" data-reco-action="advisor">
       <span data-reco-field="label">Parler à un conseiller</span>
     </button>
-    <!-- Mise en relation : le conseiller est contacté via un mini-formulaire
-         dans le fil (nom + e-mail), pas une navigation externe. -->
+    <!-- Mise en relation : formulaire complet de l'API (HandoffForm,
+         SAV-065) dans le fil — sujet + description pré-remplis par
+         POST /handoff/draft, identité par GET /users/{id}. -->
     <div data-reco-template="handoff-form" data-reco-msg="assistant">
       <span data-reco-avatar aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="currentColor">
@@ -61,25 +62,76 @@
           <!-- Implicit wrapping labels: no duplicate ids across cloned
                templates or multiple widget instances. -->
           <label>
-            <span class="sr-only" data-reco-field="handoff-name-label">Nom complet</span>
-            <input
-              type="text"
-              data-reco-input="handoff-name"
-              autocomplete="name"
-              data-reco-field="handoff-name"
-            />
+            <span data-reco-field="handoff-subject-label">Sujet</span>
+            <input type="text" data-reco-input="handoff-subject" maxlength="150" required />
           </label>
           <label>
-            <span class="sr-only" data-reco-field="handoff-email-label">E-mail</span>
+            <span data-reco-field="handoff-description-label">Description</span>
+            <textarea
+              data-reco-input="handoff-description"
+              rows="5"
+              maxlength="5000"
+              required
+            ></textarea>
+          </label>
+          <div data-reco-handoff-row>
+            <label>
+              <span data-reco-field="handoff-first-label">Prénom</span>
+              <input
+                type="text"
+                data-reco-input="handoff-first"
+                autocomplete="given-name"
+                maxlength="100"
+                required
+              />
+            </label>
+            <label>
+              <span data-reco-field="handoff-last-label">Nom</span>
+              <input
+                type="text"
+                data-reco-input="handoff-last"
+                autocomplete="family-name"
+                maxlength="100"
+                required
+              />
+            </label>
+          </div>
+          <label>
+            <span data-reco-field="handoff-email-label">E-mail</span>
             <input
               type="email"
               data-reco-input="handoff-email"
               autocomplete="email"
               inputmode="email"
-              data-reco-field="handoff-email"
+              maxlength="254"
+              required
             />
           </label>
-          <button type="submit" data-reco-action="handoff" data-reco-field="handoff-submit"></button>
+          <div data-reco-handoff-row>
+            <label>
+              <span data-reco-field="handoff-phone-label">Téléphone (optionnel)</span>
+              <input
+                type="tel"
+                data-reco-input="handoff-phone"
+                autocomplete="tel"
+                inputmode="tel"
+                placeholder="+33612345678"
+              />
+            </label>
+            <label>
+              <span data-reco-field="handoff-country-label">Pays de départ</span>
+              <input
+                type="text"
+                data-reco-input="handoff-country"
+                autocomplete="country-name"
+                maxlength="100"
+                required
+              />
+            </label>
+          </div>
+          <button type="submit" data-reco-action="handoff" data-reco-field="handoff-submit">
+            Envoyer ma demande
+          </button>
         </form>
         <p data-reco-field="handoff-error" role="alert" hidden></p>
       </div>

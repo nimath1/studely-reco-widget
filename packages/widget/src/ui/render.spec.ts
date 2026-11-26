@@ -66,25 +66,28 @@ describe('fillAssistantEntry', () => {
     const entry = card()
     const result = fillAssistantEntry(entry, 'Texte', citations)
     expect(result).toEqual({ pieces: 3, links: 2 })
-    const links = [...entry.querySelectorAll<HTMLButtonElement>('[data-reco-field="links"] button')]
-    expect(links.map((l) => l.dataset.recoSend)).toEqual(['A', 'D'])
-    expect(entry.querySelectorAll('[data-reco-field="links"] a')).toHaveLength(0)
+    const links = [...entry.querySelectorAll<HTMLAnchorElement>('[data-reco-field="links"] a')]
+    expect(links.map((l) => l.textContent)).toEqual(['A', 'D'])
+    expect(entry.querySelectorAll('[data-reco-field="links"] button')).toHaveLength(0)
   })
 
-  it('citation titrée → bouton qui envoie son titre (pas de lien externe)', () => {
+  it('citation → lien titré, sans date, qui ouvre la page dans un nouvel onglet', () => {
     const entry = card()
     const result = fillAssistantEntry(entry, 'Texte [S3]', [
       {
         label: 'S3',
         title: 'Ouvrir un compte bloqué',
-        source_url: 'https://support.studely.com/hc/fr/articles/3-compte'
+        source_url: 'https://support.studely.com/hc/fr/articles/3-compte',
+        updated_at: '2026-04-15T09:30:00Z'
       }
     ])
     expect(result).toEqual({ pieces: 2, links: 1 })
-    const button = entry.querySelector<HTMLButtonElement>('[data-reco-field="links"] button')!
-    expect(button.type).toBe('button')
-    expect(button.textContent).toBe('Ouvrir un compte bloqué')
-    expect(button.dataset.recoSend).toBe('Ouvrir un compte bloqué')
+    const link = entry.querySelector<HTMLAnchorElement>('[data-reco-field="links"] a')!
+    expect(link.href).toBe('https://support.studely.com/hc/fr/articles/3-compte')
+    expect(link.target).toBe('_blank')
+    expect(link.rel).toBe('noopener')
+    expect(link.hasAttribute('data-reco-send')).toBe(false)
+    expect(link.textContent).toBe('Ouvrir un compte bloqué')
   })
 
   it('dédoublonne sur l’URL résolue (url vs source_url) avant le cap', () => {
@@ -95,8 +98,8 @@ describe('fillAssistantEntry', () => {
       { label: 'S2', title: 'B', source_url: 'https://support.studely.com/hc/fr/articles/2-b' }
     ])
     expect(result).toEqual({ pieces: 3, links: 2 })
-    const links = [...entry.querySelectorAll<HTMLButtonElement>('[data-reco-field="links"] button')]
-    expect(links.map((l) => l.dataset.recoSend)).toEqual(['A', 'B'])
+    const links = [...entry.querySelectorAll<HTMLAnchorElement>('[data-reco-field="links"] a')]
+    expect(links.map((l) => l.textContent)).toEqual(['A', 'B'])
   })
 
   it('titre absent → lien externe, url comme libellé', () => {

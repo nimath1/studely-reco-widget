@@ -17,9 +17,6 @@
             <div data-reco-dots aria-hidden="true"><i></i><i></i><i></i></div>
             <p data-reco-field="pending-text">Analyse de ta demande…</p>
           </div>
-          <button type="button" data-reco-action="stop" data-reco-field="stop-label">
-            Arrêter la réponse
-          </button>
         </div>
       </div>
     </div>

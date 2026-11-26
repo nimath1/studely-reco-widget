@@ -202,7 +202,7 @@ describe('envoi et réponse', () => {
     await waitFor(() => expect(assistantEntries().length).toBeGreaterThanOrEqual(2))
     const reply = assistantEntries().at(-1)!
     expect(reply.textContent).toContain('Voici des pistes')
-    expect(reply.querySelector('[data-reco-field="links"] button')!.textContent).toBe('Lyon')
+    expect(reply.querySelector('[data-reco-field="links"] a')!.textContent).toBe('Lyon')
     expect(pending().hidden).toBe(true)
     expect(textarea().value).toBe('')
   })
@@ -234,18 +234,48 @@ describe('envoi et réponse', () => {
     expect(userEntries().at(-1)!.textContent).toContain('Bachelor en Europe')
   })
 
-  it('citation cliquée envoie son titre comme message', async () => {
+  it('pouces : le choix peut être changé, re-cliquer le même ne reposte pas', async () => {
+    mockFetch(async () => ok(SSE('r', { session_id: 's1', turn_id: 't1' })))
+    await type('Je cherche un master')
+    await waitFor(() => expect(el.querySelector('[data-reco-turn-id="t1"]')).not.toBeNull())
+    const row = el.querySelector<HTMLElement>('[data-reco-turn-id="t1"]')!
+    const button = (r: string) => row.querySelector<HTMLButtonElement>(`[data-reco-rating="${r}"]`)!
+    const spy = mockFetch(async () => ({
+      ok: true,
+      json: async () => ({}),
+      text: async () => '{}'
+    }))
+
+    button('up').click()
+    await waitFor(() => expect(row.dataset.recoChosen).toBe('up'))
+    await waitFor(() => expect(button('down').disabled).toBe(false))
+    expect(button('up').getAttribute('aria-pressed')).toBe('true')
+
+    button('up').click()
+    expect(spy).toHaveBeenCalledTimes(1)
+
+    button('down').click()
+    await waitFor(() => expect(row.dataset.recoChosen).toBe('down'))
+    expect(spy).toHaveBeenCalledTimes(2)
+    expect(JSON.parse((spy.mock.calls[1]![1] as { body: string }).body).rating).toBe('down')
+    expect(button('up').getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('citation = lien externe : un clic n’envoie aucun message', async () => {
     await type('Je cherche un master')
     await waitFor(() => expect(assistantEntries().length).toBeGreaterThanOrEqual(2))
     const spy = mockFetch(async () => ok(SSE('r')))
-    assistantEntries()
+    const link = assistantEntries()
       .at(-1)!
-      .querySelector<HTMLElement>('[data-reco-field="links"] button')!
-      .click()
-    await waitFor(() => expect(spy).toHaveBeenCalled())
-    const body = JSON.parse((spy.mock.calls[0]![1] as { body: string }).body)
-    expect(body.message).toBe('Lyon')
-    expect(userEntries().at(-1)!.textContent).toContain('Lyon')
+      .querySelector<HTMLAnchorElement>('[data-reco-field="links"] a')!
+    expect(link.href).toBe('https://www.studely.com/lyon')
+    expect(link.target).toBe('_blank')
+    // jsdom ne navigue pas : on vérifie seulement qu'aucune question ne part.
+    link.addEventListener('click', (e) => e.preventDefault())
+    link.click()
+    await new Promise((r) => setTimeout(r, 50))
+    expect(spy).not.toHaveBeenCalled()
+    expect(userEntries()).toHaveLength(1)
   })
 
   it('réponse HTML reste du texte brut (§7.4)', async () => {
@@ -273,7 +303,7 @@ describe('envoi et réponse', () => {
     expect(scope.querySelectorAll('a')).toHaveLength(0)
   })
 
-  it('event: sources + citations subset → 3 liens union, marqueur [S3] retiré', async () => {
+  it('event: sources + citations subset → seule la citation retenue, marqueur [S3] retiré', async () => {
     const sources = [
       {
         label: 'S1',
@@ -305,10 +335,10 @@ describe('envoi et réponse', () => {
     expect(scope.textContent).toContain('Une piste détaillée ici')
     expect(scope.textContent).not.toContain('[S3]')
     expect(scope.querySelectorAll('a')).toHaveLength(0)
-    const links = [...reply.querySelectorAll<HTMLButtonElement>('[data-reco-field="links"] button')]
-    expect(links).toHaveLength(3)
-    expect(links.map((l) => l.dataset.recoSend)).toEqual(sources.map((s) => s.title))
-    expect(links[2]!.textContent).toBe('Piste Hambourg')
+    const links = [...reply.querySelectorAll<HTMLAnchorElement>('[data-reco-field="links"] a')]
+    expect(links).toHaveLength(1)
+    expect(links[0]!.textContent).toBe('Piste Hambourg')
+    expect(links[0]!.href).toBe('https://support.studely.com/hc/fr/articles/3-hambourg')
   })
 
   it('out_of_scope → CTA conseiller + jalon empty', async () => {
@@ -382,10 +412,19 @@ describe('erreurs, retry, stop, reset', () => {
           signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
         })
     )
+    const send = el.querySelector<HTMLButtonElement>('[data-reco-action="send"]')!
+    const stop = el.querySelector<HTMLButtonElement>('[data-reco-action="stop"]')!
+    expect(stop.hidden).toBe(true)
+    expect(stop.getAttribute('aria-label')).toBe('Arrêter')
     await type('master')
     await waitFor(() => expect(pending().hidden).toBe(false))
-    el.querySelector<HTMLElement>('[data-reco-action="stop"]')!.click()
+    // Pendant la réponse, « Arrêter » prend la place d'« Envoyer » dans le composer.
+    await waitFor(() => expect(stop.hidden).toBe(false))
+    expect(send.hidden).toBe(true)
+    stop.click()
     await waitFor(() => expect(pending().hidden).toBe(true))
+    await waitFor(() => expect(send.hidden).toBe(false))
+    expect(stop.hidden).toBe(true)
     expect(errorCard().hidden).toBe(true)
     expect(assistantEntries()).toHaveLength(1) // accueil seul
     expect(userEntries()).toHaveLength(1)
@@ -413,73 +452,148 @@ describe('erreurs, retry, stop, reset', () => {
 })
 
 describe('mise en relation conseiller', () => {
-  const handoffForm = () => el.querySelector<HTMLFormElement>('[data-reco-handoff]')
+  const handoffForm = () =>
+    el.querySelector<HTMLFormElement>('[data-reco-thread] [data-reco-handoff]')
+  const urlOf = (input: unknown) => (typeof input === 'string' ? input : (input as Request).url)
+  const json = (body: unknown): Partial<Response> => ({
+    ok: true,
+    json: async () => body,
+    text: async () => JSON.stringify(body)
+  })
+  /** Formulaire ouvert et pré-remplissage terminé (aria-busy retiré). */
+  const formReady = (form = handoffForm) =>
+    waitFor(() => {
+      expect(form()).not.toBeNull()
+      expect(form()!.hasAttribute('aria-busy')).toBe(false)
+    })
+  function fillValid(form: HTMLFormElement): void {
+    const values: Record<string, string> = {
+      subject: 'Mise en relation',
+      description: 'Je souhaite parler à un conseiller.',
+      first: 'Awa',
+      last: 'Diop',
+      email: 'awa@exemple.com',
+      phone: '+221 77 123 45 67',
+      country: 'Sénégal'
+    }
+    for (const [name, value] of Object.entries(values)) {
+      form.querySelector<HTMLInputElement>(`[data-reco-input="handoff-${name}"]`)!.value = value
+    }
+  }
+  async function openViaAdvisor(): Promise<void> {
+    await waitFor(() =>
+      expect(
+        assistantEntries().at(-1)!.querySelector('[data-reco-action="advisor"]')
+      ).not.toBeNull()
+    )
+    assistantEntries().at(-1)!.querySelector<HTMLElement>('[data-reco-action="advisor"]')!.click()
+    await formReady()
+  }
 
   beforeEach(async () => {
     await grant()
   })
 
-  it('« Parler à un conseiller » ajoute le mini-formulaire au fil', async () => {
+  it('« Parler à un conseiller » ajoute le formulaire complet au fil', async () => {
     mockFetch(async () => ok(SSE('Hors périmètre', { out_of_scope: true })))
     await type('météo ?')
-    await waitFor(() =>
-      expect(
-        assistantEntries().at(-1)!.querySelector('[data-reco-action="advisor"]')
-      ).not.toBeNull()
-    )
-    assistantEntries().at(-1)!.querySelector<HTMLElement>('[data-reco-action="advisor"]')!.click()
-    expect(handoffForm()).not.toBeNull()
+    await openViaAdvisor()
+    for (const f of ['subject', 'description', 'first', 'last', 'email', 'phone', 'country']) {
+      expect(handoffForm()!.querySelector(`[data-reco-input="handoff-${f}"]`)).not.toBeNull()
+    }
     const events = (window.dataLayer ?? []).map((p) => p.event)
     expect(events).toContain('reco_advisor')
   })
 
-  it('formulaire invalide : erreur affichée, rien n’est posté', async () => {
-    const spy = mockFetch(async () => ok(SSE('r')))
-    mockFetch(async () => ok(SSE('Hors périmètre', { out_of_scope: true })))
+  it('handoff_proposed : formulaire ouvert seul, pré-rempli par le brouillon et le profil', async () => {
+    const spy = mockFetch(async (input: unknown) => {
+      const url = urlOf(input)
+      if (url.includes('/handoff/draft')) {
+        return json({ subject: 'Sujet IA', description: 'Description IA', lang: 'fr' })
+      }
+      if (url.includes('/users/')) {
+        return json({
+          user_id: 'u',
+          firstname: { value: 'Awa' },
+          email: { value: 'awa@exemple.com' },
+          country: { value: 'SN' }
+        })
+      }
+      return ok(SSE('Je te mets en relation.', { session_id: 'sess-7', handoff_proposed: true }))
+    })
+    textarea().focus()
+    await type('Je veux discuter avec un humain')
+    await formReady()
+    const field = (n: string) =>
+      handoffForm()!.querySelector<HTMLInputElement>(`[data-reco-input="handoff-${n}"]`)!.value
+    expect(field('subject')).toBe('Sujet IA')
+    expect(field('description')).toBe('Description IA')
+    expect(field('first')).toBe('Awa')
+    expect(field('last')).toBe('')
+    expect(field('email')).toBe('awa@exemple.com')
+    expect(field('country')).toBe('Sénégal')
+    expect(
+      spy.mock.calls.some(([i]) => urlOf(i).endsWith('/conversations/sess-7/handoff/draft'))
+    ).toBe(true)
+    // Le CTA reste disponible sous la réponse ; le focus reste au composer.
+    expect(assistantEntries().at(-2)!.querySelector('[data-reco-action="advisor"]')).not.toBeNull()
+    await waitFor(() => expect(document.activeElement).toBe(textarea()))
+    // Ouverture automatique : pas de jalon « advisor » (aucun clic).
+    expect((window.dataLayer ?? []).map((p) => p.event)).not.toContain('reco_advisor')
+  })
+
+  it('formulaire invalide : erreur affichée, champs marqués, rien n’est posté', async () => {
+    const spy = mockFetch(async () => ok(SSE('Hors périmètre', { out_of_scope: true })))
     await type('x')
-    await waitFor(() =>
-      expect(
-        assistantEntries().at(-1)!.querySelector('[data-reco-action="advisor"]')
-      ).not.toBeNull()
-    )
-    assistantEntries().at(-1)!.querySelector<HTMLElement>('[data-reco-action="advisor"]')!.click()
+    await openViaAdvisor()
     const callsBefore = spy.mock.calls.length
     handoffForm()!.requestSubmit()
     await waitFor(() =>
       expect(el.querySelector<HTMLElement>('[data-reco-field="handoff-error"]')!.hidden).toBe(false)
     )
+    expect(
+      handoffForm()!
+        .querySelector('[data-reco-input="handoff-subject"]')!
+        .getAttribute('aria-invalid')
+    ).toBe('true')
     expect(spy.mock.calls).toHaveLength(callsBefore)
   })
 
-  it('sans handoff-url : PUT profil puis POST handoff sur la session, bulle confirm', async () => {
+  it('sans handoff-url : PUT profil puis POST handoff complet, bulle confirm', async () => {
     const spy = mockFetch(async (input: unknown) => {
-      const url = typeof input === 'string' ? input : (input as Request).url
+      const url = urlOf(input)
       if (url.includes('/users/') || url.includes('/handoff')) return ok('{}')
       return ok(SSE('Hors périmètre', { out_of_scope: true, session_id: 'sess-9' }))
     })
     await type('x')
-    await waitFor(() =>
-      expect(
-        assistantEntries().at(-1)!.querySelector('[data-reco-action="advisor"]')
-      ).not.toBeNull()
-    )
-    assistantEntries().at(-1)!.querySelector<HTMLElement>('[data-reco-action="advisor"]')!.click()
-    handoffForm()!.querySelector<HTMLInputElement>('[data-reco-input="handoff-name"]')!.value =
-      'Awa'
-    handoffForm()!.querySelector<HTMLInputElement>('[data-reco-input="handoff-email"]')!.value =
-      'awa@exemple.com'
+    await openViaAdvisor()
+    fillValid(handoffForm()!)
     handoffForm()!.requestSubmit()
-    const calls = () =>
-      spy.mock.calls.map(([i]) => (typeof i === 'string' ? i : (i as Request).url))
-    await waitFor(() => expect(calls().some((u) => u.includes('/users/'))).toBe(true))
     await waitFor(() =>
-      expect(calls().some((u) => u.includes('/conversations/sess-9/handoff'))).toBe(true)
+      expect(spy.mock.calls.some(([i]) => urlOf(i).endsWith('/conversations/sess-9/handoff'))).toBe(
+        true
+      )
     )
-    const put = spy.mock.calls.find(([i]) =>
-      (typeof i === 'string' ? i : (i as Request).url).includes('/users/')
+    const put = spy.mock.calls.find(
+      ([i, init]) => urlOf(i).includes('/users/') && (init as { method?: string }).method === 'PUT'
     )!
-    const body = JSON.parse((put[1] as { body: string }).body)
-    expect(body).toMatchObject({ lastname: 'Awa', email: 'awa@exemple.com', lang: 'fr' })
+    expect(JSON.parse((put[1] as { body: string }).body)).toEqual({
+      firstname: 'Awa',
+      lastname: 'Diop',
+      email: 'awa@exemple.com',
+      country: 'Sénégal',
+      lang: 'fr'
+    })
+    const post = spy.mock.calls.find(([i]) => urlOf(i).endsWith('/conversations/sess-9/handoff'))!
+    expect(JSON.parse((post[1] as { body: string }).body)).toEqual({
+      first_name: 'Awa',
+      last_name: 'Diop',
+      email: 'awa@exemple.com',
+      phone: '+221771234567',
+      departure_country: 'Sénégal',
+      subject: 'Mise en relation',
+      description: 'Je souhaite parler à un conseiller.'
+    })
     await waitFor(() =>
       expect(assistantEntries().at(-1)!.textContent).toContain('conseiller te contactera')
     )
@@ -487,32 +601,55 @@ describe('mise en relation conseiller', () => {
     expect(events).toContain('reco_handoff')
   })
 
-  it('sans session : le profil part quand même, le POST handoff est sauté', async () => {
+  it('422 de l’API : le champ fautif est marqué, la saisie reste possible', async () => {
+    mockFetch(async (input: unknown, init?: unknown) => {
+      const url = urlOf(input)
+      if (url.endsWith('/handoff')) {
+        return {
+          ok: false,
+          status: 422,
+          headers: new Headers(),
+          json: async () => ({ detail: [{ loc: ['body', 'phone'], msg: 'invalid' }] })
+        }
+      }
+      if (url.includes('/users/') && (init as { method?: string }).method === 'PUT') return ok('{}')
+      if (url.includes('/users/') || url.includes('/draft')) return json(null)
+      return ok(SSE('Hors périmètre', { out_of_scope: true, session_id: 'sess-4' }))
+    })
+    await type('x')
+    await openViaAdvisor()
+    fillValid(handoffForm()!)
+    handoffForm()!.requestSubmit()
+    const phone = () =>
+      handoffForm()!.querySelector<HTMLInputElement>('[data-reco-input="handoff-phone"]')!
+    await waitFor(() => expect(phone().getAttribute('aria-invalid')).toBe('true'))
+    expect(phone().disabled).toBe(false)
+    expect(el.querySelector<HTMLElement>('[data-reco-field="handoff-error"]')!.textContent).toBe(
+      'Champs requis invalides.'
+    )
+  })
+
+  it('sans session : le profil part quand même, aucun appel handoff', async () => {
     // Erreur 500 avant toute réponse → pas de session_id ; le CTA erreur
     // ouvre quand même le formulaire et PUT /users livre les coordonnées.
     const spy = mockFetch(async (input: unknown) => {
-      const url = typeof input === 'string' ? input : (input as Request).url
+      const url = urlOf(input)
       if (url.includes('/users/')) return ok('{}')
       return { ok: false, status: 500, json: async () => null }
     })
     await type('x')
     await waitFor(() => expect(errorCard().hidden).toBe(false))
     errorCard().querySelector<HTMLElement>('[data-reco-action="advisor"]')!.click()
-    handoffForm()!.querySelector<HTMLInputElement>('[data-reco-input="handoff-name"]')!.value =
-      'Awa'
-    handoffForm()!.querySelector<HTMLInputElement>('[data-reco-input="handoff-email"]')!.value =
-      'awa@exemple.com'
+    await formReady()
+    fillValid(handoffForm()!)
     handoffForm()!.requestSubmit()
-    const calls = () =>
-      spy.mock.calls.map(([i]) => (typeof i === 'string' ? i : (i as Request).url))
-    await waitFor(() => expect(calls().some((u) => u.includes('/users/'))).toBe(true))
-    expect(calls().some((u) => u.includes('/handoff'))).toBe(false)
     await waitFor(() =>
       expect(assistantEntries().at(-1)!.textContent).toContain('conseiller te contactera')
     )
+    expect(spy.mock.calls.some(([i]) => urlOf(i).includes('/handoff'))).toBe(false)
   })
 
-  it('avec handoff-url : POST JSON nom + e-mail puis confirmation', async () => {
+  it('avec handoff-url : POST JSON du formulaire complet puis confirmation', async () => {
     const extra = mountWidget(
       `${VALID_ATTRS} data-reco-handoff-url="https://api.studely.com/handoff"`
     )
@@ -521,7 +658,7 @@ describe('mise en relation conseiller', () => {
     consent2.checked = true
     consent2.dispatchEvent(new Event('change', { bubbles: true }))
     const spy = mockFetch(async (input: unknown) => {
-      const url = typeof input === 'string' ? input : (input as Request).url
+      const url = urlOf(input)
       if (url === 'https://api.studely.com/handoff') return ok('{}')
       return ok(SSE('Hors périmètre', { out_of_scope: true }))
     })
@@ -540,25 +677,144 @@ describe('mise en relation conseiller', () => {
       expect(extraEntries().at(-1)!.querySelector('[data-reco-action="advisor"]')).not.toBeNull()
     )
     extraEntries().at(-1)!.querySelector<HTMLElement>('[data-reco-action="advisor"]')!.click()
-    const form = extra.querySelector<HTMLFormElement>('[data-reco-handoff]')!
-    form.querySelector<HTMLInputElement>('[data-reco-input="handoff-name"]')!.value = 'Awa'
-    form.querySelector<HTMLInputElement>('[data-reco-input="handoff-email"]')!.value =
-      'awa@exemple.com'
-    form.requestSubmit()
+    const form = () =>
+      extra.querySelector<HTMLFormElement>('[data-reco-thread] [data-reco-handoff]')
+    await formReady(form)
+    fillValid(form()!)
+    form()!.requestSubmit()
     await waitFor(() =>
-      expect(
-        spy.mock.calls.some(([input]) =>
-          (typeof input === 'string' ? input : (input as Request).url).includes('/handoff')
-        )
-      ).toBe(true)
+      expect(spy.mock.calls.some(([i]) => urlOf(i) === 'https://api.studely.com/handoff')).toBe(
+        true
+      )
     )
-    const post = spy.mock.calls.find(([input]) =>
-      (typeof input === 'string' ? input : (input as Request).url).includes('/handoff')
-    )!
-    const body = JSON.parse((post[1] as { body: string }).body)
-    expect(body).toMatchObject({ name: 'Awa', email: 'awa@exemple.com', origin: 'mexique' })
+    const post = spy.mock.calls.find(([i]) => urlOf(i) === 'https://api.studely.com/handoff')!
+    expect(JSON.parse((post[1] as { body: string }).body)).toMatchObject({
+      name: 'Awa Diop',
+      first_name: 'Awa',
+      last_name: 'Diop',
+      email: 'awa@exemple.com',
+      departure_country: 'Sénégal',
+      subject: 'Mise en relation',
+      origin: 'mexique'
+    })
     await waitFor(() =>
       expect(extraEntries().at(-1)!.textContent).toContain('conseiller te contactera')
     )
+  })
+})
+
+describe('question de fin de conversation', () => {
+  const card = () => document.querySelector<HTMLElement>('[data-reco-conv-feedback]')
+  const urlOf = (input: unknown) => (typeof input === 'string' ? input : (input as Request).url)
+
+  /** Un échange avec session, puis fermeture (retrait de data-reco-open). */
+  async function converseThenClose(): Promise<ReturnType<typeof mockFetch>> {
+    const spy = mockFetch(async (input: unknown) =>
+      urlOf(input).endsWith('/feedback') ? ok('{}') : ok(SSE('Réponse', { session_id: 's1' }))
+    )
+    await grant()
+    el.setAttribute('data-reco-open', '')
+    await type('Je cherche un master')
+    await waitFor(() => expect(assistantEntries().length).toBeGreaterThanOrEqual(2))
+    el.removeAttribute('data-reco-open')
+    return spy
+  }
+
+  it('après fermeture : résolu explicite + étoiles → POST feedback puis remerciement', async () => {
+    const spy = await converseThenClose()
+    await vi.waitFor(() => expect(card()).not.toBeNull(), { timeout: 2000 })
+    const submit = card()!.querySelector<HTMLButtonElement>('[data-reco-submit]')!
+    expect(submit.disabled).toBe(true)
+    const stars = [...card()!.querySelectorAll<HTMLButtonElement>('[data-reco-star]')]
+    expect(stars).toHaveLength(5)
+    expect(stars[3]!.getAttribute('aria-label')).toBe('Satisfaisant (4/5)')
+    // Survol : libellé de l'étoile ; sortie : retour à la note choisie.
+    stars[0]!.dispatchEvent(new Event('mouseenter'))
+    expect(card()!.querySelector('[data-reco-star-label]')!.textContent).toBe('Très décevant')
+    stars[3]!.click()
+    stars[3]!.dispatchEvent(new Event('focus'))
+    stars[3]!.dispatchEvent(new Event('blur'))
+    card()!.querySelector('[data-reco-stars]')!.dispatchEvent(new Event('mouseleave'))
+    expect(card()!.querySelector('[data-reco-star-label]')!.textContent).toBe('Satisfaisant')
+    expect(stars.map((s) => s.dataset.recoActive)).toEqual([
+      'true',
+      'true',
+      'true',
+      'true',
+      'false'
+    ])
+    // Les étoiles seules ne déverrouillent pas l'envoi : « résolu ? » est requis.
+    expect(submit.disabled).toBe(true)
+    const yes = card()!.querySelector<HTMLButtonElement>('[data-reco-resolved="true"]')!
+    const no = card()!.querySelector<HTMLButtonElement>('[data-reco-resolved="false"]')!
+    expect(yes.textContent).toBe('Oui')
+    yes.click()
+    expect(yes.getAttribute('aria-pressed')).toBe('true')
+    expect(no.getAttribute('aria-pressed')).toBe('false')
+    expect(submit.disabled).toBe(false)
+    card()!.querySelector('textarea')!.value = '  Très clair  '
+    submit.click()
+    const post = spy.mock.calls.find(([i]) => urlOf(i).endsWith('/conversations/s1/feedback'))!
+    expect(JSON.parse((post[1] as { body: string }).body)).toEqual({
+      resolved: true,
+      score: 8,
+      comment: 'Très clair'
+    })
+    expect(card()!.textContent).toBe('Merci pour votre retour !')
+    expect((window.dataLayer ?? []).map((p) => p.event)).toContain('reco_feedback')
+    // Une seule question par session : refermer ne la repose pas.
+    el.setAttribute('data-reco-open', '')
+    el.removeAttribute('data-reco-open')
+    await new Promise((r) => setTimeout(r, 700))
+    expect(card()?.querySelector('[data-reco-star]') ?? null).toBeNull()
+  })
+
+  it('« Ignorer » ferme sans rien envoyer', async () => {
+    const spy = await converseThenClose()
+    await vi.waitFor(() => expect(card()).not.toBeNull(), { timeout: 2000 })
+    card()!.querySelector<HTMLButtonElement>('[data-reco-dismiss]')!.click()
+    expect(card()).toBeNull()
+    expect(spy.mock.calls.some(([i]) => urlOf(i).endsWith('/s1/feedback'))).toBe(false)
+  })
+
+  it('réouverture rapide : la question n’apparaît pas', async () => {
+    await converseThenClose()
+    el.setAttribute('data-reco-open', '')
+    await new Promise((r) => setTimeout(r, 700))
+    expect(card()).toBeNull()
+  })
+
+  it('échec de l’envoi : remerciement quand même, avertissement console', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    mockFetch(async (input: unknown) =>
+      urlOf(input).endsWith('/feedback')
+        ? { ok: false, status: 500, json: async () => null }
+        : ok(SSE('Réponse', { session_id: 's1' }))
+    )
+    await grant()
+    el.setAttribute('data-reco-open', '')
+    await type('x')
+    await waitFor(() => expect(assistantEntries().length).toBeGreaterThanOrEqual(2))
+    el.removeAttribute('data-reco-open')
+    await vi.waitFor(() => expect(card()).not.toBeNull(), { timeout: 2000 })
+    card()!.querySelector<HTMLButtonElement>('[data-reco-resolved="false"]')!.click()
+    card()!.querySelector<HTMLButtonElement>('[data-reco-submit]')!.click()
+    expect(card()!.textContent).toBe('Merci pour votre retour !')
+    await waitFor(() =>
+      expect(warn.mock.calls.some((c) => String(c).includes('feedback conversation'))).toBe(true)
+    )
+  })
+
+  it('« Non » sans étoiles ni commentaire : resolved false seul, score omis', async () => {
+    const spy = await converseThenClose()
+    await vi.waitFor(() => expect(card()).not.toBeNull(), { timeout: 2000 })
+    const submit = card()!.querySelector<HTMLButtonElement>('[data-reco-submit]')!
+    card()!.querySelector<HTMLButtonElement>('[data-reco-resolved="false"]')!.click()
+    expect(submit.disabled).toBe(false)
+    submit.click()
+    const post = spy.mock.calls.find(([i]) => urlOf(i).endsWith('/conversations/s1/feedback'))!
+    const body = JSON.parse((post[1] as { body: string }).body) as Record<string, unknown>
+    expect(body.resolved).toBe(false)
+    expect(body.score ?? null).toBeNull()
   })
 })

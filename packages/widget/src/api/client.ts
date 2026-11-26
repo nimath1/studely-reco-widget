@@ -306,6 +306,66 @@ export async function putProfile(userId: string, profile: ProfileUpsert): Promis
   }
 }
 
+/** Valeurs déclarées du `GET /users/{user_id}` utiles au formulaire conseiller. */
+export interface ProfileContact {
+  firstname?: string
+  lastname?: string
+  email?: string
+  /** Code ISO (ex. `SN`) ou nom en toutes lettres, tel que stocké. */
+  country?: string
+}
+
+/**
+ * GET /users/{user_id} : pré-remplit l'identité du formulaire conseiller.
+ * Chaque champ du Profile est un ProfileField `{ value, … }` ; un profil
+ * absent ou une erreur donnent `null` — le pré-remplissage est facultatif.
+ */
+export async function getProfileContact(userId: string): Promise<ProfileContact | null> {
+  try {
+    const res = await callApi(`/users/${encodeURIComponent(userId)}`, { method: 'GET' })
+    const profile = (await res.json()) as Record<string, { value?: unknown } | null | undefined>
+    const read = (key: string) => {
+      const value = profile?.[key]?.value
+      return typeof value === 'string' && value.trim() ? value.trim() : undefined
+    }
+    return {
+      firstname: read('firstname'),
+      lastname: read('lastname'),
+      email: read('email'),
+      country: read('country')
+    }
+  } catch {
+    return null
+  }
+}
+
+/** Réponse du POST …/handoff/draft : brouillon rédigé côté API (SAV-065). */
+export interface HandoffDraft {
+  subject: string
+  description: string
+  lang?: string
+  /** Brouillon indisponible : sujet de repli, description à écrire. */
+  fallback_used?: boolean
+}
+
+/**
+ * POST /conversations/{session_id}/handoff/draft : sujet + description
+ * rédigés depuis la conversation. 409 sans proposition en cours ; toute
+ * erreur donne `null` — l'utilisateur remplit alors lui-même.
+ */
+export async function draftHandoff(sessionId: string): Promise<HandoffDraft | null> {
+  try {
+    const res = await callApi(`/conversations/${encodeURIComponent(sessionId)}/handoff/draft`, {
+      method: 'POST'
+    })
+    const draft = (await res.json()) as Partial<HandoffDraft> | null
+    if (typeof draft?.subject !== 'string' || typeof draft.description !== 'string') return null
+    return draft as HandoffDraft
+  } catch {
+    return null
+  }
+}
+
 /** Corps du POST …/handoff (HandoffForm, SAV-065) — Zendesk revalide l'email. */
 export interface HandoffBody {
   first_name: string

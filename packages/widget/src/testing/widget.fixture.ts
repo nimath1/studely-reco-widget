@@ -22,7 +22,6 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
                 <div data-reco-dots aria-hidden="true"><i></i><i></i><i></i></div>
                 <p data-reco-field="pending-text"></p>
               </div>
-              <button type="button" data-reco-action="stop" data-reco-field="stop-label"></button>
             </div>
           </div>
         </div>
@@ -48,6 +47,7 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
           <label for="reco-message"><span data-reco-field="input-label"></span></label>
           <textarea id="reco-message" data-reco-input="message" rows="1"></textarea>
           <button type="submit" data-reco-action="send"></button>
+          <button type="button" data-reco-action="stop" hidden></button>
         </div>
         <p data-reco-disclaimer></p>
       </form>
@@ -83,12 +83,32 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
             <p data-reco-field="text"></p>
             <form data-reco-handoff novalidate>
               <label>
-                <span class="sr-only" data-reco-field="handoff-name-label">Nom complet</span>
-                <input type="text" data-reco-input="handoff-name" />
+                <span data-reco-field="handoff-subject-label">Sujet</span>
+                <input type="text" data-reco-input="handoff-subject" />
               </label>
               <label>
-                <span class="sr-only" data-reco-field="handoff-email-label">E-mail</span>
+                <span data-reco-field="handoff-description-label">Description</span>
+                <textarea data-reco-input="handoff-description"></textarea>
+              </label>
+              <label>
+                <span data-reco-field="handoff-first-label">Prénom</span>
+                <input type="text" data-reco-input="handoff-first" />
+              </label>
+              <label>
+                <span data-reco-field="handoff-last-label">Nom</span>
+                <input type="text" data-reco-input="handoff-last" />
+              </label>
+              <label>
+                <span data-reco-field="handoff-email-label">E-mail</span>
                 <input type="email" data-reco-input="handoff-email" />
+              </label>
+              <label>
+                <span data-reco-field="handoff-phone-label">Téléphone</span>
+                <input type="tel" data-reco-input="handoff-phone" />
+              </label>
+              <label>
+                <span data-reco-field="handoff-country-label">Pays de départ</span>
+                <input type="text" data-reco-input="handoff-country" />
               </label>
               <button type="submit" data-reco-action="handoff" data-reco-field="handoff-submit"></button>
             </form>
@@ -97,6 +117,7 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
         </div>
       </div>
       <div data-reco-labels hidden>
+        <span data-reco-label="reco.header.subtitle">Assistance Studely</span>
         <span data-reco-label="reco.greeting">Bonjour, comment puis-je vous aider ?</span>
         <span data-reco-label="reco.suggestion.1">Bachelor en Europe</span>
         <span data-reco-label="reco.suggestion.2">Master à l'étranger</span>
@@ -124,14 +145,21 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
         <span data-reco-label="reco.results.count">{count} recommandations</span>
         <span data-reco-label="reco.empty">Aucun parcours</span>
         <span data-reco-label="reco.handoff.intro">Laisse tes coordonnées pour la mise en relation.</span>
-        <span data-reco-label="reco.handoff.name">Ton nom</span>
+        <span data-reco-label="reco.handoff.subject">Sujet</span>
+        <span data-reco-label="reco.handoff.description">Description</span>
+        <span data-reco-label="reco.handoff.first">Ton prénom</span>
+        <span data-reco-label="reco.handoff.last">Ton nom</span>
         <span data-reco-label="reco.handoff.email">Ton adresse e-mail</span>
+        <span data-reco-label="reco.handoff.phone">Téléphone (optionnel)</span>
+        <span data-reco-label="reco.handoff.country">Pays de départ</span>
         <span data-reco-label="reco.handoff.submit">Envoyer ma demande</span>
         <span data-reco-label="reco.handoff.confirm">C'est noté ! Un conseiller te contactera.</span>
-        <span data-reco-label="reco.handoff.invalid">Nom et e-mail valides requis.</span>
+        <span data-reco-label="reco.handoff.invalid">Champs requis invalides.</span>
         <span data-reco-label="reco.feedback.up">Réponse utile</span>
         <span data-reco-label="reco.feedback.down">Réponse inutile</span>
-        <span data-reco-label="reco.feedback.resolved">Comment s'est passée votre expérience ?</span>
+        <span data-reco-label="reco.feedback.resolved">Votre problème est-il résolu ?</span>
+        <span data-reco-label="reco.feedback.yes">Oui</span>
+        <span data-reco-label="reco.feedback.no">Non</span>
         <span data-reco-label="reco.feedback.stars">Notez de 1 à 5 étoiles</span>
         <span data-reco-label="reco.feedback.star.1">Très décevant</span>
         <span data-reco-label="reco.feedback.star.2">Décevant</span>

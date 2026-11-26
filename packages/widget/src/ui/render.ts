@@ -90,28 +90,16 @@ function stripCitationMarkers(text: string): string {
 }
 
 /**
- * Builds one citation entry. A titled citation becomes a button whose
- * title is sent as the next user message (`data-reco-send`, handled by
- * the delegated click like the greeting chips); without a title there
- * is nothing to ask, so the URL stays an external <a>.
+ * Builds one citation entry: a link pill with the source title that opens
+ * the page in a new tab (the URL already passed the R10 filter). No title
+ * → the URL itself is the label.
  */
-function citationEntry(c: {
-  citation: ChatCitation
-  href: string
-}): HTMLAnchorElement | HTMLButtonElement {
-  const title = c.citation.title?.trim()
-  if (title) {
-    const button = document.createElement('button')
-    button.type = 'button'
-    button.textContent = title
-    button.dataset.recoSend = title
-    return button
-  }
+function citationEntry(c: { citation: ChatCitation; href: string }): HTMLAnchorElement {
   const link = document.createElement('a')
   link.href = c.href
-  link.textContent = c.href
   link.target = '_blank'
   link.rel = 'noopener'
+  link.textContent = c.citation.title?.trim() || c.href
   return link
 }
 

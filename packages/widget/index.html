@@ -50,9 +50,9 @@
         --reco-surface: #f4f6fb;
         --reco-bubble: #eef2f9;
         --reco-rule: #e3e8f2;
-        /* Studely brand: exact brand blue/pink/green/amber. Deep blue is
-           derived for small white-text surfaces (AA on small text). */
-        --reco-primary: #1d7edf;
+        /* Studely brand blue/pink/green/amber. Primary and deep share the
+           single brand blue #1264b7 (AA on small white text, 5.9:1). */
+        --reco-primary: #1264b7;
         --reco-primary-deep: #1264b7;
         --reco-secondary: #e74e70;
         --reco-tertiary: #57dd88;
@@ -112,10 +112,12 @@
         height: 60px;
         border: none;
         border-radius: 50%;
-        background: linear-gradient(135deg, var(--reco-primary) 0%, var(--reco-primary-deep) 100%);
+        /* Brand green (--reco-tertiary = #57dd88) in both states, white
+           icon kept per brand choice. */
+        background: var(--reco-tertiary);
         color: #fff;
         cursor: pointer;
-        box-shadow: 0 12px 32px rgb(29 126 223 / 45%);
+        box-shadow: 0 12px 32px rgb(87 221 136 / 45%);
         transition:
           transform 0.15s,
           box-shadow 0.15s;
@@ -126,7 +128,7 @@
         transform: scale(1.06);
       }
       [data-reco-launcher]:focus-visible {
-        outline: 3px solid var(--reco-accent);
+        outline: 3px solid var(--reco-primary);
         outline-offset: 3px;
       }
       [data-reco-launcher] svg {
@@ -134,14 +136,10 @@
         height: 26px;
         transition: transform 0.18s var(--reco-ease-out);
       }
-      /* Close icon shown while the window is open — and the launcher
-         flips to plain black so it reads as « fermer », not « nouveau ». */
+      /* Close icon shown while the window is open — the icon swap alone
+         says « fermer »; the launcher keeps its yellow. */
       [data-reco-launcher] [data-reco-icon='close'] {
         display: none;
-      }
-      [data-reco-launcher][aria-expanded='true'] {
-        background: var(--reco-ink);
-        box-shadow: 0 12px 32px rgb(21 24 43 / 30%);
       }
       [data-reco-launcher][aria-expanded='true'] [data-reco-icon='chat'] {
         display: none;
@@ -221,6 +219,7 @@
         font-size: 1rem;
         font-weight: 700;
         line-height: 1.2;
+        color: var(--reco-primary);
       }
       [data-reco-widget] > header small {
         display: block;
@@ -274,6 +273,12 @@
         overflow-y: auto;
         overscroll-behavior: contain;
         background: transparent;
+        /* The scrollbar must not push the thread off-center: same gutter
+           reserved on both edges, so messages stay centered under the
+           header and above the composer. Thin bar, quiet color. */
+        scrollbar-gutter: stable both-edges;
+        scrollbar-width: thin;
+        scrollbar-color: rgb(21 24 43 / 22%) transparent;
       }
       [data-reco-thread],
       [data-reco-pending],
@@ -481,7 +486,7 @@
         width: 56px;
         height: 56px;
         border-radius: 18px;
-        box-shadow: 0 6px 18px rgb(29 126 223 / 18%);
+        box-shadow: 0 6px 18px rgb(18 100 183 / 18%);
       }
       [data-reco-greeting]:only-child > [data-reco-avatar] svg {
         width: 28px;
@@ -570,7 +575,7 @@
       [data-reco-widget] [data-reco-field='suggestions'] [data-reco-send]:hover {
         border-color: var(--reco-primary);
         color: var(--reco-primary-deep);
-        box-shadow: 0 4px 14px rgb(29 126 223 / 14%);
+        box-shadow: 0 4px 14px rgb(18 100 183 / 14%);
       }
       [data-reco-widget] [data-reco-field='suggestions'] [data-reco-send]:focus-visible {
         outline: 3px solid var(--reco-primary);
@@ -587,7 +592,7 @@
         border-color: var(--reco-ink-subtle);
       }
       /* Turn rating: quiet thumbs under the reply — the chosen one stays
-         tinted via [data-reco-chosen], both lock once sent. */
+         tinted via [data-reco-chosen]; locked only while sending. */
       [data-reco-field='feedback'] {
         margin-top: 6px;
       }
@@ -695,6 +700,26 @@
       [data-reco-conv-feedback] [data-reco-star]:hover {
         color: #f5a623;
       }
+      /* « Résolu ? » : deux pastilles toggles — l'état choisi est rempli. */
+      [data-reco-conv-feedback] [data-reco-resolved-row] {
+        display: flex;
+        gap: 8px;
+      }
+      [data-reco-conv-feedback] [data-reco-resolved] {
+        padding: 5px 14px;
+        border: 1.5px solid var(--reco-rule, #e2e4ee);
+        border-radius: 999px;
+        background: var(--reco-paper, #fff);
+        color: var(--reco-ink, #15182b);
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      [data-reco-conv-feedback] [data-reco-resolved][aria-pressed='true'] {
+        border-color: var(--reco-primary, #1264b7);
+        background: var(--reco-primary, #1264b7);
+        color: #fff;
+      }
       [data-reco-conv-feedback] textarea {
         width: 100%;
         box-sizing: border-box;
@@ -708,7 +733,7 @@
         resize: vertical;
       }
       [data-reco-conv-feedback] textarea:focus-visible {
-        outline: 3px solid var(--reco-primary, #1d7edf);
+        outline: 3px solid var(--reco-primary, #1264b7);
         outline-offset: 1px;
       }
       [data-reco-conv-feedback] [data-reco-submit] {
@@ -716,7 +741,7 @@
         padding: 6px 14px;
         border: none;
         border-radius: 999px;
-        background: var(--reco-primary, #1d7edf);
+        background: var(--reco-primary, #1264b7);
         color: #fff;
         font: inherit;
         font-weight: 600;
@@ -739,51 +764,41 @@
         cursor: pointer;
       }
       [data-reco-conv-feedback] button:focus-visible {
-        outline: 3px solid var(--reco-primary, #1d7edf);
+        outline: 3px solid var(--reco-primary, #1264b7);
         outline-offset: 2px;
       }
-      /* Citation links (R10 filtered) as small cards. */
+      /* Citations the bot actually used (R10 filtered): link pills
+         « Titre · date » under the reply — a click opens the source page
+         in a new tab. */
       [data-reco-field='links'] {
         display: flex;
-        flex-direction: column;
-        gap: 6px;
-        margin-top: 10px;
-        max-width: 420px;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
       }
       [data-reco-field='links']:empty {
         margin-top: 0;
       }
-      /* Titled citations are buttons (`data-reco-send`): a click asks
-         the title as the next message instead of leaving the page.
-         `[data-reco-widget] … [data-reco-send]` beats the generic pill
-         button rule (radius 999px, min-height) — same look as the <a>. */
-      [data-reco-field='links'] a,
-      [data-reco-widget] [data-reco-field='links'] [data-reco-send] {
-        display: block;
-        width: 100%;
-        min-height: 0;
-        padding: 10px 12px;
+      [data-reco-field='links'] a {
+        display: inline-block;
+        max-width: 100%;
+        padding: 6px 12px;
         border: 1.5px solid var(--reco-rule);
-        border-radius: var(--reco-radius-card);
+        border-radius: 999px;
         background: var(--reco-paper);
-        font: inherit;
-        font-size: 0.83rem;
+        font-size: 0.8rem;
         font-weight: 600;
         line-height: 1.35;
-        text-align: start;
-        color: var(--reco-primary-deep);
+        color: var(--reco-primary);
         text-decoration: none;
-        cursor: pointer;
-        transition: border-color 0.15s;
+        overflow-wrap: anywhere;
+        transition:
+          border-color 0.15s,
+          background 0.15s;
       }
-      [data-reco-field='links'] a:hover,
-      [data-reco-widget] [data-reco-field='links'] [data-reco-send]:hover {
+      [data-reco-field='links'] a:hover {
         border-color: var(--reco-primary);
-      }
-      [data-reco-widget] [data-reco-field='links'] [data-reco-send]:disabled {
-        color: var(--reco-ink-subtle);
-        cursor: default;
-        opacity: 0.65;
+        background: var(--reco-primary-soft);
       }
       /* Advisor CTA under refused/handoff replies. */
       [data-reco-field='actions']:empty {
@@ -809,56 +824,92 @@
       [data-reco-field='actions'] [data-reco-action='advisor']:hover {
         border-color: var(--reco-primary);
       }
-      /* Handoff mini-form inside the thread (name + email). Its card takes
-         the full bubble width so it lines up with the replies above it,
-         instead of shrinking to its one-line intro. */
+      /* Full handoff form inside the thread (API HandoffForm: subject,
+         description, identity, phone, departure country). Its card takes
+         the full bubble width so it lines up with the replies above it. */
       [data-reco-bubble]:has([data-reco-handoff]) {
         width: 85%;
       }
       [data-reco-handoff] {
         display: flex;
         flex-direction: column;
-        gap: 8px;
-        margin-top: 10px;
-        max-width: 440px;
+        gap: 18px;
+        margin-top: 16px;
+        max-width: 560px;
       }
-      /* Wrapping labels keep the flex layout untouched. */
-      [data-reco-handoff] > label {
-        display: contents;
+      /* Pre-fill in progress (draft + profile): fields stay usable. */
+      [data-reco-handoff][aria-busy='true'] :is(input, textarea) {
+        background: var(--reco-surface);
+      }
+      /* Visible label above each field (wrapping label, no id/for). */
+      [data-reco-handoff] label {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-width: 0;
+        font-size: 0.8rem;
+        font-weight: 600;
+        line-height: 1.3;
+        color: var(--reco-ink-muted);
+      }
+      /* Two fields side by side (first/last name, phone/country) when the
+         card is wide enough; auto-fit drops to one column on its own in
+         the desktop panel and on phones — no viewport query needed. */
+      [data-reco-handoff-row] {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        gap: 18px 16px;
       }
       /* border-box: no preflight here, so padding + border would
          otherwise stack on top of the height. */
-      [data-reco-handoff] input {
+      [data-reco-handoff] :is(input, textarea) {
         box-sizing: border-box;
         width: 100%;
-        height: 38px;
+        height: 46px;
         padding: 0 14px;
         border: 1.5px solid var(--reco-rule);
         border-radius: var(--reco-radius-card);
         background: var(--reco-paper);
+        color: var(--reco-ink);
         font: inherit;
         font-size: 0.88rem;
+        font-weight: 400;
       }
-      [data-reco-handoff] input:focus-visible {
+      [data-reco-handoff] textarea {
+        height: auto;
+        min-height: 130px;
+        padding: 12px 14px;
+        line-height: 1.45;
+        resize: vertical;
+      }
+      [data-reco-handoff] :is(input, textarea):focus-visible {
         outline: 3px solid var(--reco-primary);
         outline-offset: 1px;
         border-color: var(--reco-primary);
       }
+      [data-reco-handoff] :is(input, textarea)[aria-invalid='true'] {
+        border-color: var(--reco-error);
+      }
+      [data-reco-handoff] :is(input, textarea):disabled {
+        opacity: 0.7;
+      }
       [data-reco-handoff] [data-reco-action='handoff'] {
-        align-self: flex-start;
-        min-height: 40px;
-        padding: 6px 18px;
+        align-self: center;
+        margin-top: 6px;
+        min-height: 46px;
+        padding: 10px 28px;
         border: none;
         border-radius: 999px;
         background: linear-gradient(120deg, var(--reco-primary) 0%, var(--reco-primary-deep) 100%);
         color: #fff;
         font: inherit;
-        font-size: 0.84rem;
+        font-size: 0.9rem;
         font-weight: 600;
         cursor: pointer;
       }
       [data-reco-field='handoff-error'] {
-        margin: 6px 0 0;
+        margin: 12px 0 0;
+        text-align: center;
         font-size: 0.8rem;
         font-weight: 600;
         color: var(--reco-error);
@@ -919,25 +970,6 @@
           opacity: 1;
           transform: translateY(-3px);
         }
-      }
-      [data-reco-pending] [data-reco-action='stop'] {
-        margin: 0;
-        margin-inline-start: auto;
-        min-height: 36px;
-        padding: 4px 14px;
-        border: 1.5px solid var(--reco-rule);
-        border-radius: 999px;
-        background: var(--reco-surface);
-        color: var(--reco-ink);
-        font: inherit;
-        font-size: 0.8rem;
-        font-weight: 600;
-        cursor: pointer;
-        flex-shrink: 0;
-      }
-      [data-reco-pending] [data-reco-action='stop']:hover {
-        border-color: var(--reco-primary);
-        color: var(--reco-primary-deep);
       }
       [data-reco-error-card] {
         display: flex;
@@ -1084,7 +1116,8 @@
         cursor: not-allowed;
         opacity: 0.7;
       }
-      [data-reco-action='send'] {
+      /* Send, and Stop which takes its place while a reply is pending. */
+      :is([data-reco-action='send'], [data-reco-action='stop']) {
         display: grid;
         place-items: center;
         width: var(--reco-control);
@@ -1096,14 +1129,20 @@
         background: var(--reco-primary);
         color: #fff;
         flex-shrink: 0;
-        transition: background 0.15s;
+        transition: box-shadow 0.15s;
       }
-      [data-reco-action='send'] svg {
+      :is([data-reco-action='send'], [data-reco-action='stop']) svg {
         width: 18px;
         height: 18px;
       }
-      [data-reco-action='send']:hover {
-        background: var(--reco-primary-deep);
+      [data-reco-action='stop'] svg {
+        width: 20px;
+        height: 20px;
+      }
+      /* Brand blue in every state: hover lifts with a shadow instead of
+         switching to the deep blue. */
+      :is([data-reco-action='send'], [data-reco-action='stop']):hover {
+        box-shadow: 0 4px 12px rgb(18 100 183 / 35%);
       }
       [data-reco-disclaimer] {
         margin: 8px 0 0;
@@ -1275,7 +1314,7 @@
         }
         [data-reco-widget] [data-reco-field='suggestions'] [data-reco-send]:not(:disabled):hover {
           transform: translateY(-2px);
-          box-shadow: 0 8px 20px rgb(29 126 223 / 18%);
+          box-shadow: 0 8px 20px rgb(18 100 183 / 18%);
         }
         [data-reco-widget] [data-reco-field='suggestions'] [data-reco-send]:not(:disabled)::after {
           transition: transform 0.15s var(--reco-ease-out);
@@ -1292,7 +1331,7 @@
         }
         [data-reco-widget] [data-reco-action='send']:not(:disabled) {
           transition:
-            background 0.15s,
+            box-shadow 0.15s,
             transform 0.1s var(--reco-ease-out);
         }
         [data-reco-widget] [data-reco-action='send']:not(:disabled):active {
@@ -1316,28 +1355,69 @@
           animation: none !important;
         }
       }
-      /* ── Mobile: safe-area, single-column suggestions, ≥16 px input
-         (iOS focus zoom), expanded launcher hidden — la croix du header
-         suffit pour fermer, pas de doublon bleu au-dessus du composer ── */
-      @media (max-width: 960px) {
+      /* ── Desktop (≥ 641 px): floating panel on the right, anchored
+         just above the launcher — the page stays visible behind a light
+         veil. Below that width the dialog stays full screen. Never a
+         transform here: the launcher inside must stay viewport-fixed. ── */
+      @media (min-width: 641px) {
+        [data-reco-widget] {
+          inset-block: auto 100px;
+          inset-inline: auto 24px;
+          width: 460px;
+          max-width: calc(100vw - 48px);
+          height: min(780px, calc(100vh - 124px));
+          height: min(780px, calc(100dvh - 124px));
+          border: 1px solid var(--reco-rule);
+          border-radius: 20px;
+          box-shadow: 0 24px 64px rgb(21 24 43 / 22%);
+        }
+        [data-reco-widget]::backdrop {
+          background: rgb(21 24 43 / 12%);
+        }
+        /* Panel: tighter gutters than the full-screen column. */
+        [data-reco-widget] :is([data-reco-thread], [data-reco-pending], [data-reco-error]) {
+          padding-inline: 16px;
+        }
+        [data-reco-widget] [data-reco-composer] {
+          width: calc(100% - 20px);
+          margin-bottom: 10px;
+          padding-inline: 14px;
+        }
+      }
+      /* ── Mobile: full screen, safe-area, expanded launcher hidden — la
+         croix du header suffit pour fermer, pas de doublon au-dessus du
+         composer ── */
+      @media (max-width: 640px) {
         [data-reco-widget] [data-reco-launcher][aria-expanded='true'] {
           display: none;
         }
       }
-      @media (max-width: 480px) {
+      /* Fields ≥ 16 px at every width: below that, iOS zooms on focus
+         (including the 481–640 px full-screen range). */
+      [data-reco-input='message'],
+      [data-reco-handoff] :is(input, textarea) {
+        font-size: 16px;
+      }
+      /* Narrow layout — phones AND the 460 px desktop panel: single-column
+         form, smaller greeting. */
+      @media (max-width: 480px), (min-width: 641px) {
         [data-reco-greeting]:only-child [data-reco-field='suggestions'] {
           grid-template-columns: 1fr;
           max-width: none;
         }
+        /* Handoff form: the card spans the whole thread width (the
+           bubble's 85 % cap lifted). */
+        [data-reco-bubble]:has([data-reco-handoff]) {
+          width: 100%;
+          max-width: none;
+          padding: 18px 16px 20px;
+        }
+        /* Narrow: the form card drops its avatar so fields get the width. */
+        [data-reco-msg]:has([data-reco-handoff]) > [data-reco-avatar] {
+          display: none;
+        }
         [data-reco-greeting]:only-child [data-reco-field='text'] {
           font-size: 1.1rem;
-        }
-        [data-reco-input='message'] {
-          font-size: 16px;
-        }
-        /* Comfortable touch target once the status row wraps. */
-        [data-reco-pending] [data-reco-action='stop'] {
-          min-height: 44px;
         }
       }
       @media (max-width: 420px) {
@@ -1369,6 +1449,7 @@
            data-* du conteneur, ce bloc de libellés traduit par Webflow
            Localization (§8.1), les styles et les scripts. -->
       <div data-reco-labels hidden>
+        <span data-reco-label="reco.header.subtitle">Assistance Studely</span>
         <span data-reco-label="reco.greeting">Bonjour, comment puis-je vous aider ?</span>
         <span data-reco-label="reco.suggestion.1"
           >Comment faire pour obtenir une AVI ou un compte bloqué ?</span
@@ -1385,9 +1466,9 @@
         >
         <span data-reco-label="reco.feedback.up">Réponse utile</span>
         <span data-reco-label="reco.feedback.down">Réponse inutile</span>
-        <span data-reco-label="reco.feedback.resolved"
-          >Comment s'est passée votre expérience ?</span
-        >
+        <span data-reco-label="reco.feedback.resolved">Votre problème est-il résolu ?</span>
+        <span data-reco-label="reco.feedback.yes">Oui</span>
+        <span data-reco-label="reco.feedback.no">Non</span>
         <span data-reco-label="reco.feedback.stars">Notez de 1 à 5 étoiles</span>
         <span data-reco-label="reco.feedback.star.1">Très décevant</span>
         <span data-reco-label="reco.feedback.star.2">Décevant</span>
@@ -1430,16 +1511,22 @@
         <span data-reco-label="reco.results.count">{count} recommandations pour toi.</span>
         <span data-reco-label="reco.empty">Aucun parcours ne correspond à ta demande.</span>
         <span data-reco-label="reco.handoff.intro"
-          >Pour te mettre en relation avec un conseiller, laisse-moi tes coordonnées.</span
+          >Pour te mettre en relation avec un conseiller, vérifie ta demande et laisse-moi tes
+          coordonnées.</span
         >
-        <span data-reco-label="reco.handoff.name">Ton nom</span>
-        <span data-reco-label="reco.handoff.email">Ton adresse e-mail</span>
+        <span data-reco-label="reco.handoff.subject">Sujet</span>
+        <span data-reco-label="reco.handoff.description">Description</span>
+        <span data-reco-label="reco.handoff.first">Prénom</span>
+        <span data-reco-label="reco.handoff.last">Nom</span>
+        <span data-reco-label="reco.handoff.email">Adresse e-mail</span>
+        <span data-reco-label="reco.handoff.phone">Téléphone (optionnel)</span>
+        <span data-reco-label="reco.handoff.country">Pays de départ</span>
         <span data-reco-label="reco.handoff.submit">Envoyer ma demande</span>
         <span data-reco-label="reco.handoff.confirm"
           >C'est noté ! Un conseiller te contactera très vite.</span
         >
         <span data-reco-label="reco.handoff.invalid"
-          >Merci d'indiquer un nom et une adresse e-mail valides.</span
+          >Merci de compléter les champs signalés (téléphone au format +33612345678).</span
         >
       </div>
     </dialog>
@@ -1601,10 +1688,23 @@
           setTimeout(focusComposer, 0)
         }
         scope.addEventListener('click', (e) => {
-          const trigger = e.target?.closest?.('[data-reco-launcher], [data-reco-close]')
-          if (!trigger || (scope !== document && !scope.contains(trigger))) return
           const w = widget()
           if (!w) return
+          const trigger =
+            e.target === w ? w : e.target?.closest?.('[data-reco-launcher], [data-reco-close]')
+          if (!trigger || (scope !== document && !scope.contains(trigger))) return
+          if (trigger === w) {
+            // Desktop panel: a click on the veil around it (the dialog's
+            // ::backdrop reports the dialog itself as target) closes it.
+            const r = w.getBoundingClientRect()
+            const inside =
+              e.clientX >= r.left &&
+              e.clientX <= r.right &&
+              e.clientY >= r.top &&
+              e.clientY <= r.bottom
+            if (!inside) setOpen(false)
+            return
+          }
           if (trigger.dataset.recoLauncher !== undefined) {
             // While a close animation runs the launcher reopens/cancels.
             setOpen(!w.open || closingAnimation !== null)

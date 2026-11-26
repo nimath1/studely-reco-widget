@@ -20,7 +20,8 @@ export const SCENARIOS = [
   'unavailable',
   'timeout',
   'bad-url',
-  'html-reason'
+  'html-reason',
+  'handoff'
 ] as const
 
 export type Scenario = (typeof SCENARIOS)[number]
@@ -101,6 +102,15 @@ export const handlers = [
             ]
           }
         })
+      case 'handoff':
+        // « Je veux parler à un humain » : le formulaire complet s'ouvre seul.
+        return sse({
+          text: 'Je te mets en relation avec un conseiller Studely : vérifie ta demande ci-dessous.',
+          meta: {
+            session_id: body.session_id ?? 'mock-session-1',
+            handoff_proposed: true
+          }
+        })
       case 'html-reason':
         // HTML dans le texte : doit rester du texte brut à l'affichage.
         return sse({
@@ -121,6 +131,21 @@ export const handlers = [
   http.put(`${BASE()}/users/:userId`, async ({ params, request }) => {
     const profile = (await request.json()) as Record<string, unknown>
     return HttpResponse.json({ user_id: params.userId, ...profile })
+  }),
+  // Profil déclaré : vide tant que le formulaire n'a rien PUT (pas de pré-remplissage).
+  http.get(`${BASE()}/users/:userId`, ({ params }) =>
+    HttpResponse.json({ user_id: params.userId })
+  ),
+  // Brouillon du formulaire conseiller (sujet + description rédigés côté API).
+  http.post(`${BASE()}/conversations/:sessionId/handoff/draft`, async () => {
+    await delay(300)
+    return HttpResponse.json({
+      subject: 'Demande de mise en relation avec un conseiller Studely',
+      description:
+        'Je souhaite parler à un conseiller Studely. Je souhaite être recontacté par un conseiller.',
+      lang: 'fr',
+      fallback_used: false
+    })
   }),
   http.post(`${BASE()}/conversations/:sessionId/handoff`, ({ params }) =>
     HttpResponse.json({
