@@ -429,6 +429,31 @@ export async function draftHandoff(sessionId: string): Promise<HandoffDraft | nu
   }
 }
 
+/**
+ * POST /conversations/{session_id}/upload : pièces jointes du formulaire
+ * conseiller, en multipart (un champ `files` par fichier — PDF et images
+ * acceptés, 415 sinon). Réponse `{ upload_tokens: string[] }`, un jeton
+ * par fichier, à renvoyer dans le HandoffForm. Pas de Content-Type JSON :
+ * le navigateur pose la boundary multipart.
+ */
+export async function uploadFiles(sessionId: string, files: File[]): Promise<string[]> {
+  try {
+    const data = new FormData()
+    for (const file of files) data.append('files', file)
+    const res = await fetch(
+      `${API_BASE_URL}/conversations/${encodeURIComponent(sessionId)}/upload`,
+      { method: 'POST', headers: { 'X-Request-Id': requestId() }, body: data }
+    )
+    if (!res.ok) throw await toApiError(res)
+    const body = (await res.json()) as { upload_tokens?: unknown }
+    if (!Array.isArray(body.upload_tokens)) return []
+    return body.upload_tokens.filter((token): token is string => typeof token === 'string')
+  } catch (error) {
+    if (error instanceof RecoApiError) throw error
+    throw new RecoApiError('network', 'API injoignable ou délai dépassé')
+  }
+}
+
 /** Corps du POST …/handoff (HandoffForm, SAV-065) — Zendesk revalide l'email. */
 export interface HandoffBody {
   first_name: string

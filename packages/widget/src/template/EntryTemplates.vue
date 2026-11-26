@@ -129,6 +129,15 @@
               />
             </label>
           </div>
+          <label>
+            <span data-reco-field="handoff-attachments-label">Pièces jointes (optionnel)</span>
+            <input
+              type="file"
+              data-reco-input="handoff-files"
+              multiple
+              accept=".pdf,image/png,image/jpeg"
+            />
+          </label>
           <button type="submit" data-reco-action="handoff" data-reco-field="handoff-submit">
             Envoyer ma demande
           </button>

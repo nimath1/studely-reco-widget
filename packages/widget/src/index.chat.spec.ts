@@ -499,7 +499,16 @@ describe('mise en relation conseiller', () => {
     mockFetch(async () => ok(SSE('Hors périmètre', { out_of_scope: true })))
     await type('météo ?')
     await openViaAdvisor()
-    for (const f of ['subject', 'description', 'first', 'last', 'email', 'phone', 'country']) {
+    for (const f of [
+      'subject',
+      'description',
+      'first',
+      'last',
+      'email',
+      'phone',
+      'country',
+      'files'
+    ]) {
       expect(handoffForm()!.querySelector(`[data-reco-input="handoff-${f}"]`)).not.toBeNull()
     }
     const events = (window.dataLayer ?? []).map((p) => p.event)
@@ -600,6 +609,102 @@ describe('mise en relation conseiller', () => {
     )
     const events = (window.dataLayer ?? []).map((p) => p.event)
     expect(events).toContain('reco_handoff')
+  })
+
+  it('pièces jointes : uploadées avant le handoff, jetons dans le corps', async () => {
+    const spy = mockFetch(async (input: unknown) => {
+      const url = urlOf(input)
+      if (url.includes('/upload')) return json({ upload_tokens: ['tok-1', 'tok-2'] })
+      if (url.includes('/users/') || url.includes('/handoff')) return ok('{}')
+      return ok(SSE('Hors périmètre', { out_of_scope: true, session_id: 'sess-up' }))
+    })
+    await type('x')
+    await openViaAdvisor()
+    fillValid(handoffForm()!)
+    const fileInput = handoffForm()!.querySelector<HTMLInputElement>(
+      '[data-reco-input="handoff-files"]'
+    )!
+    Object.defineProperty(fileInput, 'files', {
+      configurable: true,
+      value: [
+        new File(['a'], 'attestation.pdf', { type: 'application/pdf' }),
+        new File(['b'], 'photo.png', { type: 'image/png' })
+      ]
+    })
+    handoffForm()!.requestSubmit()
+    await waitFor(() =>
+      expect(spy.mock.calls.some(([i]) => urlOf(i).endsWith('/conversations/sess-up/upload'))).toBe(
+        true
+      )
+    )
+    const upload = spy.mock.calls.find(([i]) => urlOf(i).endsWith('/conversations/sess-up/upload'))!
+    const data = (upload[1] as { body: FormData }).body
+    expect(data).toBeInstanceOf(FormData)
+    expect(data.getAll('files')).toHaveLength(2)
+    // Pas de Content-Type JSON : la boundary multipart est posée par le navigateur.
+    expect(
+      (upload[1] as { headers: Record<string, string> }).headers['Content-Type']
+    ).toBeUndefined()
+    await waitFor(() =>
+      expect(
+        spy.mock.calls.some(([i]) => urlOf(i).endsWith('/conversations/sess-up/handoff'))
+      ).toBe(true)
+    )
+    const post = spy.mock.calls.find(([i]) => urlOf(i).endsWith('/conversations/sess-up/handoff'))!
+    expect(JSON.parse((post[1] as { body: string }).body).upload_tokens).toEqual(['tok-1', 'tok-2'])
+    await waitFor(() =>
+      expect(assistantEntries().at(-1)!.textContent).toContain('conseiller te contactera')
+    )
+  })
+
+  it('échec de l’upload : erreur réseau, saisie réactivée, handoff jamais posté', async () => {
+    const spy = mockFetch(async (input: unknown) => {
+      const url = urlOf(input)
+      if (url.includes('/upload')) return { ok: false, status: 415, headers: new Headers() }
+      if (url.includes('/users/') || url.includes('/handoff')) return ok('{}')
+      return ok(SSE('Hors périmètre', { out_of_scope: true, session_id: 'sess-up2' }))
+    })
+    await type('x')
+    await openViaAdvisor()
+    fillValid(handoffForm()!)
+    const fileInput = handoffForm()!.querySelector<HTMLInputElement>(
+      '[data-reco-input="handoff-files"]'
+    )!
+    Object.defineProperty(fileInput, 'files', {
+      configurable: true,
+      value: [new File(['a'], 'notes.txt', { type: 'text/plain' })]
+    })
+    handoffForm()!.requestSubmit()
+    await waitFor(() =>
+      expect(el.querySelector<HTMLElement>('[data-reco-field="handoff-error"]')!.hidden).toBe(false)
+    )
+    expect(
+      handoffForm()!.querySelector<HTMLInputElement>('[data-reco-input="handoff-subject"]')!
+        .disabled
+    ).toBe(false)
+    expect(spy.mock.calls.some(([i]) => urlOf(i).endsWith('/conversations/sess-up2/handoff'))).toBe(
+      false
+    )
+  })
+
+  it('sans pièce jointe : aucun upload, pas de upload_tokens', async () => {
+    const spy = mockFetch(async (input: unknown) => {
+      const url = urlOf(input)
+      if (url.includes('/users/') || url.includes('/handoff')) return ok('{}')
+      return ok(SSE('Hors périmètre', { out_of_scope: true, session_id: 'sess-up3' }))
+    })
+    await type('x')
+    await openViaAdvisor()
+    fillValid(handoffForm()!)
+    handoffForm()!.requestSubmit()
+    await waitFor(() =>
+      expect(
+        spy.mock.calls.some(([i]) => urlOf(i).endsWith('/conversations/sess-up3/handoff'))
+      ).toBe(true)
+    )
+    expect(spy.mock.calls.some(([i]) => urlOf(i).includes('/upload'))).toBe(false)
+    const post = spy.mock.calls.find(([i]) => urlOf(i).endsWith('/conversations/sess-up3/handoff'))!
+    expect(JSON.parse((post[1] as { body: string }).body)).not.toHaveProperty('upload_tokens')
   })
 
   it('422 de l’API : le champ fautif est marqué, la saisie reste possible', async () => {

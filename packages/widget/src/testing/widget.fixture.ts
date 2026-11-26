@@ -110,6 +110,10 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
                 <span data-reco-field="handoff-country-label">Pays de départ</span>
                 <input type="text" data-reco-input="handoff-country" />
               </label>
+              <label>
+                <span data-reco-field="handoff-attachments-label">Pièces jointes (optionnel)</span>
+                <input type="file" data-reco-input="handoff-files" multiple />
+              </label>
               <button type="submit" data-reco-action="handoff" data-reco-field="handoff-submit"></button>
             </form>
             <p data-reco-field="handoff-error" hidden></p>
@@ -152,6 +156,7 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
         <span data-reco-label="reco.handoff.email">Ton adresse e-mail</span>
         <span data-reco-label="reco.handoff.phone">Téléphone (optionnel)</span>
         <span data-reco-label="reco.handoff.country">Pays de départ</span>
+        <span data-reco-label="reco.handoff.attachments">Pièces jointes (optionnel)</span>
         <span data-reco-label="reco.handoff.submit">Envoyer ma demande</span>
         <span data-reco-label="reco.handoff.confirm">C'est noté ! Un conseiller te contactera.</span>
         <span data-reco-label="reco.handoff.invalid">Champs requis invalides.</span>

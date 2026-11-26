@@ -19,6 +19,7 @@ import {
   RecoApiError,
   requestHandoff,
   saveChatSession,
+  uploadFiles,
   type TurnRating
 } from './api/client'
 import type { ChatReply } from './api/types'
@@ -393,6 +394,24 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
   }
 
   /**
+   * Pièces jointes du formulaire conseiller : uploadées d'abord, leurs
+   * jetons repartent dans le HandoffForm. Sans session (erreur avant la
+   * 1re réponse) il n'y a pas de conversation où les déposer — l'upload
+   * est sauté comme le ticket. Échec → `null` (erreur réseau affichée).
+   */
+  async function uploadAttachments(form: HTMLFormElement): Promise<string[] | null> {
+    const files = [
+      ...(form.querySelector<HTMLInputElement>('[data-reco-input="handoff-files"]')?.files ?? [])
+    ]
+    if (files.length === 0 || !sessionId) return []
+    try {
+      return await uploadFiles(sessionId, files)
+    } catch {
+      return null
+    }
+  }
+
+  /**
    * Mise en relation : valide le formulaire (schéma HandoffForm) puis
    * transmet. Succès → la carte devient une confirmation ; 422 → champ
    * fautif marqué ; échec réseau → message, saisie réactivée.
@@ -418,7 +437,13 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     if (errorField) errorField.hidden = true
     const controls = form.querySelectorAll<HTMLButtonElement>('input, textarea, button')
     controls.forEach((control) => (control.disabled = true))
-    const outcome = await deliverHandoff(values)
+    const uploadTokens = await uploadAttachments(form)
+    if (uploadTokens === null) {
+      controls.forEach((control) => (control.disabled = false))
+      fail('reco.error.network')
+      return
+    }
+    const outcome = await deliverHandoff(values, uploadTokens)
     if (outcome !== 'ok') {
       controls.forEach((control) => (control.disabled = false))
       if (outcome === 'network') {
@@ -454,9 +479,11 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
    * erreur réseau.
    */
   async function deliverHandoff(
-    values: HandoffValues
+    values: HandoffValues,
+    uploadTokens: string[] = []
   ): Promise<'ok' | 'network' | { field?: string }> {
     const body = toHandoffBody(values)
+    if (uploadTokens.length > 0) body.upload_tokens = uploadTokens
     if (config.handoffUrl) {
       try {
         const response = await fetch(config.handoffUrl, {

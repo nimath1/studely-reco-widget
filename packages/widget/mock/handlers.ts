@@ -156,6 +156,20 @@ export const handlers = [
     })
   ),
 
+  // Restauration au rechargement : fil vide dans le mock (l'accueil
+  // reprend la main), état sans ticket ni feedback.
+  http.get(`${BASE()}/conversations/:sessionId/turns`, () => HttpResponse.json([])),
+  http.get(`${BASE()}/conversations`, () => HttpResponse.json([])),
+
+  // Pièces jointes du formulaire conseiller : un jeton factice par fichier.
+  http.post(`${BASE()}/conversations/:sessionId/upload`, async ({ request }) => {
+    const data = await request.formData()
+    const count = data.getAll('files').length
+    return HttpResponse.json({
+      upload_tokens: Array.from({ length: count }, (_, i) => `mock-token-${i + 1}`)
+    })
+  }),
+
   // « Résolu ? » de fin de conversation.
   http.post(`${BASE()}/conversations/:sessionId/feedback`, async ({ request }) => {
     const body = (await request.json()) as {
