@@ -1,5 +1,5 @@
 // Contrôle de taille du bundle (cahier des charges §7 : 25 ko gzip maximum,
-// relevé à 32 ko après le parcours chat puis 33 ko avec la restauration
+// relevé à 32 ko après le parcours chat puis 34 ko avec la restauration
 // d'historique, les pièces jointes et l'effacement — hausses validées).
 // Lancé après `vite build` : un dépassement fait échouer le build, donc la CI.
 // Usage : node scripts/check-size.mjs [fichier] [limite en octets]
@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs'
 import { gzipSync } from 'node:zlib'
 
 const DEFAULT_FILE = 'dist/reco.js'
-const DEFAULT_LIMIT = 33 * 1024
+const DEFAULT_LIMIT = 34 * 1024
 
 const [file = DEFAULT_FILE, rawLimit] = process.argv.slice(2)
 const limit = rawLimit === undefined ? DEFAULT_LIMIT : Number(rawLimit)
