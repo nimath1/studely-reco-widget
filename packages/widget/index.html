@@ -700,6 +700,26 @@
       [data-reco-conv-feedback] [data-reco-star]:hover {
         color: #f5a623;
       }
+      /* « Résolu ? » : deux pastilles toggles — l'état choisi est rempli. */
+      [data-reco-conv-feedback] [data-reco-resolved-row] {
+        display: flex;
+        gap: 8px;
+      }
+      [data-reco-conv-feedback] [data-reco-resolved] {
+        padding: 5px 14px;
+        border: 1.5px solid var(--reco-rule, #e2e4ee);
+        border-radius: 999px;
+        background: var(--reco-paper, #fff);
+        color: var(--reco-ink, #15182b);
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      [data-reco-conv-feedback] [data-reco-resolved][aria-pressed='true'] {
+        border-color: var(--reco-primary, #1264b7);
+        background: var(--reco-primary, #1264b7);
+        color: #fff;
+      }
       [data-reco-conv-feedback] textarea {
         width: 100%;
         box-sizing: border-box;
@@ -1446,9 +1466,9 @@
         >
         <span data-reco-label="reco.feedback.up">Réponse utile</span>
         <span data-reco-label="reco.feedback.down">Réponse inutile</span>
-        <span data-reco-label="reco.feedback.resolved"
-          >Comment s'est passée votre expérience ?</span
-        >
+        <span data-reco-label="reco.feedback.resolved">Votre problème est-il résolu ?</span>
+        <span data-reco-label="reco.feedback.yes">Oui</span>
+        <span data-reco-label="reco.feedback.no">Non</span>
         <span data-reco-label="reco.feedback.stars">Notez de 1 à 5 étoiles</span>
         <span data-reco-label="reco.feedback.star.1">Très décevant</span>
         <span data-reco-label="reco.feedback.star.2">Décevant</span>

@@ -652,11 +652,10 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     convCard = null
   }
 
-  function answerConvFeedback(score: number, comment?: string): void {
+  function answerConvFeedback(resolved: boolean, score?: number, comment?: string): void {
     const card = convCard
     if (!card || !sessionId) return
     convFeedbackDone = true
-    const resolved = score >= 6
     emitRecoEvent(el, 'feedback', { resolved, score })
     void postConversationFeedback(sessionId, { resolved, score, comment }).catch((error: unknown) =>
       logger.warn('feedback conversation non enregistré :', error)
@@ -668,9 +667,10 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
   }
 
   /**
-   * Carte de fin : 5 étoiles (chaque étoile vaut 2 points — score 0-10 du
-   * contrat), commentaire optionnel, Envoyer actif dès la 1re étoile.
-   * « Ignorer » ferme sans rien envoyer.
+   * Carte de fin : « résolu ? » explicite (Oui/Non — seul champ requis du
+   * contrat), puis 5 étoiles facultatives (chaque étoile vaut 2 points —
+   * score 0-10) et commentaire optionnel. Envoyer actif dès le choix
+   * résolu ; « Ignorer » ferme sans rien envoyer.
    */
   function showConversationFeedback(): void {
     if (convFeedbackDone || convCard || !sessionId) return
@@ -680,6 +680,36 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     card.setAttribute('data-reco-conv-feedback', '')
     const question = doc.createElement('p')
     question.textContent = t('reco.feedback.resolved')
+    const submit = doc.createElement('button')
+    submit.type = 'button'
+    submit.setAttribute('data-reco-submit', '')
+    submit.textContent = t('reco.feedback.send')
+    submit.disabled = true
+    // « Votre problème est-il résolu ? » : le booléen requis du contrat
+    // est un choix déclaré, jamais déduit de la note (3 étoiles ≠ résolu).
+    let resolvedChoice: boolean | null = null
+    const resolvedRow = doc.createElement('div')
+    resolvedRow.setAttribute('data-reco-resolved-row', '')
+    const resolvedButtons: HTMLButtonElement[] = []
+    for (const [value, labelKey] of [
+      [true, 'reco.feedback.yes'],
+      [false, 'reco.feedback.no']
+    ] as const) {
+      const choice = doc.createElement('button')
+      choice.type = 'button'
+      choice.dataset.recoResolved = String(value)
+      choice.setAttribute('aria-pressed', 'false')
+      choice.textContent = t(labelKey)
+      choice.addEventListener('click', () => {
+        resolvedChoice = value
+        resolvedButtons.forEach((other) =>
+          other.setAttribute('aria-pressed', String(other === choice))
+        )
+        submit.disabled = false
+      })
+      resolvedButtons.push(choice)
+      resolvedRow.append(choice)
+    }
     const stars = doc.createElement('div')
     stars.setAttribute('data-reco-stars', '')
     stars.setAttribute('role', 'group')
@@ -704,11 +734,6 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
       })
       showHint(score)
     }
-    const submit = doc.createElement('button')
-    submit.type = 'button'
-    submit.setAttribute('data-reco-submit', '')
-    submit.textContent = t('reco.feedback.send')
-    submit.disabled = true
     for (let i = 1; i <= 5; i += 1) {
       const star = doc.createElement('button')
       star.type = 'button'
@@ -719,7 +744,6 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
       star.addEventListener('click', () => {
         score = i
         paint()
-        submit.disabled = false
       })
       star.addEventListener('mouseenter', () => showHint(i))
       star.addEventListener('focus', () => showHint(i))
@@ -741,10 +765,16 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
       removeConvCard()
     })
     submit.addEventListener('click', () => {
-      // 1 étoile = 2 points : le score API attend 0-10.
-      answerConvFeedback(score * 2, comment.value.trim() || undefined)
+      if (resolvedChoice === null) return
+      // 1 étoile = 2 points : le score API attend 0-10 ; sans étoile
+      // choisie le score est omis (optionnel dans le contrat).
+      answerConvFeedback(
+        resolvedChoice,
+        score > 0 ? score * 2 : undefined,
+        comment.value.trim() || undefined
+      )
     })
-    card.append(question, stars, comment, submit, dismiss)
+    card.append(question, resolvedRow, stars, comment, submit, dismiss)
     convCard = card
     el.insertAdjacentElement('afterend', card)
   }

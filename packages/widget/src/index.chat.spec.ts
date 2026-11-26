@@ -720,7 +720,7 @@ describe('question de fin de conversation', () => {
     return spy
   }
 
-  it('après fermeture : étoiles → POST feedback (score 0-10) puis remerciement', async () => {
+  it('après fermeture : résolu explicite + étoiles → POST feedback puis remerciement', async () => {
     const spy = await converseThenClose()
     await vi.waitFor(() => expect(card()).not.toBeNull(), { timeout: 2000 })
     const submit = card()!.querySelector<HTMLButtonElement>('[data-reco-submit]')!
@@ -743,6 +743,14 @@ describe('question de fin de conversation', () => {
       'true',
       'false'
     ])
+    // Les étoiles seules ne déverrouillent pas l'envoi : « résolu ? » est requis.
+    expect(submit.disabled).toBe(true)
+    const yes = card()!.querySelector<HTMLButtonElement>('[data-reco-resolved="true"]')!
+    const no = card()!.querySelector<HTMLButtonElement>('[data-reco-resolved="false"]')!
+    expect(yes.textContent).toBe('Oui')
+    yes.click()
+    expect(yes.getAttribute('aria-pressed')).toBe('true')
+    expect(no.getAttribute('aria-pressed')).toBe('false')
     expect(submit.disabled).toBe(false)
     card()!.querySelector('textarea')!.value = '  Très clair  '
     submit.click()
@@ -789,11 +797,24 @@ describe('question de fin de conversation', () => {
     await waitFor(() => expect(assistantEntries().length).toBeGreaterThanOrEqual(2))
     el.removeAttribute('data-reco-open')
     await vi.waitFor(() => expect(card()).not.toBeNull(), { timeout: 2000 })
-    card()!.querySelector<HTMLButtonElement>('[data-reco-star="2"]')!.click()
+    card()!.querySelector<HTMLButtonElement>('[data-reco-resolved="false"]')!.click()
     card()!.querySelector<HTMLButtonElement>('[data-reco-submit]')!.click()
     expect(card()!.textContent).toBe('Merci pour votre retour !')
     await waitFor(() =>
       expect(warn.mock.calls.some((c) => String(c).includes('feedback conversation'))).toBe(true)
     )
+  })
+
+  it('« Non » sans étoiles ni commentaire : resolved false seul, score omis', async () => {
+    const spy = await converseThenClose()
+    await vi.waitFor(() => expect(card()).not.toBeNull(), { timeout: 2000 })
+    const submit = card()!.querySelector<HTMLButtonElement>('[data-reco-submit]')!
+    card()!.querySelector<HTMLButtonElement>('[data-reco-resolved="false"]')!.click()
+    expect(submit.disabled).toBe(false)
+    submit.click()
+    const post = spy.mock.calls.find(([i]) => urlOf(i).endsWith('/conversations/s1/feedback'))!
+    const body = JSON.parse((post[1] as { body: string }).body) as Record<string, unknown>
+    expect(body.resolved).toBe(false)
+    expect(body.score ?? null).toBeNull()
   })
 })
