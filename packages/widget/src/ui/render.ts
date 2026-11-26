@@ -89,41 +89,17 @@ function stripCitationMarkers(text: string): string {
   return out
 }
 
-/** `updated_at` (ISO) → date courte de la locale (« 15/04/2026 » en fr) ; invalide → absente. */
-function citationDate(value: string | undefined, locale: string): string | null {
-  const date = new Date(value ?? NaN)
-  if (Number.isNaN(date.getTime())) return null
-  try {
-    return date.toLocaleDateString(locale, { dateStyle: 'short' })
-  } catch {
-    return null
-  }
-}
-
 /**
- * Builds one citation entry: a link pill « Titre · date » that opens the
- * source page in a new tab (the URL already passed the R10 filter). No
- * title → the URL itself is the label.
+ * Builds one citation entry: a link pill with the source title that opens
+ * the page in a new tab (the URL already passed the R10 filter). No title
+ * → the URL itself is the label.
  */
-function citationEntry(
-  c: { citation: ChatCitation; href: string },
-  locale: string
-): HTMLAnchorElement {
+function citationEntry(c: { citation: ChatCitation; href: string }): HTMLAnchorElement {
   const link = document.createElement('a')
   link.href = c.href
   link.target = '_blank'
   link.rel = 'noopener'
-  const title = document.createElement('span')
-  title.dataset.recoCitationTitle = ''
-  title.textContent = c.citation.title?.trim() || c.href
-  link.append(title)
-  const date = citationDate(c.citation.updated_at, locale)
-  if (date) {
-    const stamp = document.createElement('span')
-    stamp.dataset.recoCitationDate = ''
-    stamp.textContent = ` · ${date}`
-    link.append(stamp)
-  }
+  link.textContent = c.citation.title?.trim() || c.href
   return link
 }
 
@@ -136,8 +112,7 @@ function citationEntry(
 export function fillAssistantEntry(
   card: HTMLElement,
   text: string,
-  citations: ChatCitation[] | undefined,
-  locale = 'fr'
+  citations: ChatCitation[] | undefined
 ): { pieces: number; links: number } {
   const links = allowedCitations(citations)
   const clean = stripCitationMarkers(text)
@@ -152,7 +127,7 @@ export function fillAssistantEntry(
   const list = card.querySelector('[data-reco-field="links"]')
   if (list) {
     list.replaceChildren()
-    for (const link of links) list.append(citationEntry(link, locale))
+    for (const link of links) list.append(citationEntry(link))
   }
   return { pieces: links.length + (clean.trim() ? 1 : 0), links: links.length }
 }

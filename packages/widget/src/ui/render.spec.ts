@@ -71,42 +71,23 @@ describe('fillAssistantEntry', () => {
     expect(entry.querySelectorAll('[data-reco-field="links"] button')).toHaveLength(0)
   })
 
-  it('citation → lien « Titre · date » qui ouvre la page dans un nouvel onglet', () => {
+  it('citation → lien titré, sans date, qui ouvre la page dans un nouvel onglet', () => {
     const entry = card()
-    const result = fillAssistantEntry(
-      entry,
-      'Texte [S3]',
-      [
-        {
-          label: 'S3',
-          title: 'Ouvrir un compte bloqué',
-          source_url: 'https://support.studely.com/hc/fr/articles/3-compte',
-          updated_at: '2026-04-15T09:30:00Z'
-        }
-      ],
-      'fr'
-    )
+    const result = fillAssistantEntry(entry, 'Texte [S3]', [
+      {
+        label: 'S3',
+        title: 'Ouvrir un compte bloqué',
+        source_url: 'https://support.studely.com/hc/fr/articles/3-compte',
+        updated_at: '2026-04-15T09:30:00Z'
+      }
+    ])
     expect(result).toEqual({ pieces: 2, links: 1 })
     const link = entry.querySelector<HTMLAnchorElement>('[data-reco-field="links"] a')!
     expect(link.href).toBe('https://support.studely.com/hc/fr/articles/3-compte')
     expect(link.target).toBe('_blank')
     expect(link.rel).toBe('noopener')
     expect(link.hasAttribute('data-reco-send')).toBe(false)
-    expect(link.querySelector('[data-reco-citation-title]')!.textContent).toBe(
-      'Ouvrir un compte bloqué'
-    )
-    expect(link.querySelector('[data-reco-citation-date]')!.textContent).toBe(' · 15/04/2026')
-  })
-
-  it('date absente ou invalide → titre seul', () => {
-    const entry = card()
-    fillAssistantEntry(entry, 'Texte', [
-      { title: 'A', url: 'https://www.studely.com/a' },
-      { title: 'B', url: 'https://www.studely.com/b', updated_at: 'pas une date' }
-    ])
-    const links = [...entry.querySelectorAll<HTMLAnchorElement>('[data-reco-field="links"] a')]
-    expect(links.map((l) => l.textContent)).toEqual(['A', 'B'])
-    expect(entry.querySelector('[data-reco-citation-date]')).toBeNull()
+    expect(link.textContent).toBe('Ouvrir un compte bloqué')
   })
 
   it('dédoublonne sur l’URL résolue (url vs source_url) avant le cap', () => {

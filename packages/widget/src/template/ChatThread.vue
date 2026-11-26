@@ -17,8 +17,15 @@
             <div data-reco-dots aria-hidden="true"><i></i><i></i><i></i></div>
             <p data-reco-field="pending-text">Analyse de ta demande…</p>
           </div>
-          <button type="button" data-reco-action="stop" data-reco-field="stop-label">
-            Arrêter la réponse
+          <button
+            type="button"
+            data-reco-action="stop"
+            aria-label="Arrêter la réponse"
+            title="Arrêter la réponse"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <rect x="6" y="6" width="12" height="12" rx="2.5" />
+            </svg>
           </button>
         </div>
       </div>

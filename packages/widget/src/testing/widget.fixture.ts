@@ -22,7 +22,7 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
                 <div data-reco-dots aria-hidden="true"><i></i><i></i><i></i></div>
                 <p data-reco-field="pending-text"></p>
               </div>
-              <button type="button" data-reco-action="stop" data-reco-field="stop-label"></button>
+              <button type="button" data-reco-action="stop"></button>
             </div>
           </div>
         </div>

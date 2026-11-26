@@ -66,10 +66,7 @@ function fillReply(
     // Only `final.citations` — the sources the bot actually used (« retenue »).
     // `event: sources` is the whole retrieval list, uncited entries included:
     // never shown, they would point the user to off-topic pages.
-    reply.meta.citations ?? [],
-    // Citation dates in the page language (same resolution as the config:
-    // <html lang>, then data-reco-locale).
-    el.closest('[lang]')?.getAttribute('lang') || el.dataset.recoLocale || 'fr'
+    reply.meta.citations ?? []
   )
   if (pieces === 0) {
     // Réponse vide : la bulle garde au moins le message « aucun parcours ».
@@ -216,7 +213,14 @@ export function showPending(el: HTMLElement, t: Translate): void {
   const node = el.querySelector<HTMLElement>('[data-reco-pending]')
   if (!node) return
   fillField(node, 'pending-text', t('reco.pending'))
-  fillField(node, 'stop-label', t('reco.stop'))
+  // Icon-only stop button: the translated label is its accessible name
+  // and tooltip (template FR kept when the key is missing).
+  const stop = node.querySelector('[data-reco-action="stop"]')
+  const label = t('reco.stop')
+  if (stop && label !== 'reco.stop') {
+    stop.setAttribute('aria-label', label)
+    stop.setAttribute('title', label)
+  }
   node.hidden = false
   scrollEnd(el)
 }

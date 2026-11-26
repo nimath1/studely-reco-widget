@@ -780,10 +780,6 @@
         border-color: var(--reco-primary);
         background: var(--reco-primary-soft);
       }
-      [data-reco-field='links'] [data-reco-citation-date] {
-        font-weight: 400;
-        color: var(--reco-ink-muted);
-      }
       /* Advisor CTA under refused/handoff replies. */
       [data-reco-field='actions']:empty {
         display: none;
@@ -955,24 +951,30 @@
           transform: translateY(-3px);
         }
       }
-      [data-reco-pending] [data-reco-action='stop'] {
+      /* Stop: bare square icon, no frame; name via aria-label. The
+         36 px box only keeps a comfortable click target. */
+      [data-reco-widget] [data-reco-pending] [data-reco-action='stop'] {
+        display: inline-grid;
+        place-items: center;
         margin: 0;
         margin-inline-start: auto;
-        min-height: 36px;
-        padding: 4px 14px;
-        border: 1.5px solid var(--reco-rule);
-        border-radius: 999px;
-        background: var(--reco-surface);
+        width: 36px;
+        height: 36px;
+        min-height: 0;
+        padding: 0;
+        border: none;
+        border-radius: 8px;
+        background: transparent;
         color: var(--reco-ink);
-        font: inherit;
-        font-size: 0.8rem;
-        font-weight: 600;
         cursor: pointer;
         flex-shrink: 0;
       }
+      [data-reco-pending] [data-reco-action='stop'] svg {
+        width: 20px;
+        height: 20px;
+      }
       [data-reco-pending] [data-reco-action='stop']:hover {
-        border-color: var(--reco-primary);
-        color: var(--reco-primary-deep);
+        color: var(--reco-primary);
       }
       [data-reco-error-card] {
         display: flex;
@@ -1418,8 +1420,9 @@
           font-size: 16px;
         }
         /* Comfortable touch target once the status row wraps. */
-        [data-reco-pending] [data-reco-action='stop'] {
-          min-height: 44px;
+        [data-reco-widget] [data-reco-pending] [data-reco-action='stop'] {
+          width: 44px;
+          height: 44px;
         }
       }
       @media (max-width: 420px) {
