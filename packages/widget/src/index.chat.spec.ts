@@ -22,6 +22,12 @@ const fail = (status: number, headers = new Headers()): Partial<Response> => ({
   json: async () => null
 })
 
+const json = (body: unknown): Partial<Response> => ({
+  ok: true,
+  json: async () => body,
+  text: async () => JSON.stringify(body)
+})
+
 let el: HTMLElement
 
 const consent = () => el.querySelector<HTMLInputElement>('[data-reco-input="consent"]')!
@@ -455,11 +461,6 @@ describe('mise en relation conseiller', () => {
   const handoffForm = () =>
     el.querySelector<HTMLFormElement>('[data-reco-thread] [data-reco-handoff]')
   const urlOf = (input: unknown) => (typeof input === 'string' ? input : (input as Request).url)
-  const json = (body: unknown): Partial<Response> => ({
-    ok: true,
-    json: async () => body,
-    text: async () => JSON.stringify(body)
-  })
   /** Formulaire ouvert et pré-remplissage terminé (aria-busy retiré). */
   const formReady = (form = handoffForm) =>
     waitFor(() => {
@@ -816,5 +817,138 @@ describe('question de fin de conversation', () => {
     const body = JSON.parse((post[1] as { body: string }).body) as Record<string, unknown>
     expect(body.resolved).toBe(false)
     expect(body.score ?? null).toBeNull()
+  })
+})
+
+describe('restauration de session au rechargement', () => {
+  const urlOf = (input: unknown) => (typeof input === 'string' ? input : (input as Request).url)
+  const TURNS = [
+    {
+      turn_id: 'turn-1',
+      user: 'Je cherche un master',
+      assistant: 'Voici une piste [S1].',
+      citations: [
+        {
+          label: 'S1',
+          title: 'Master Informatique',
+          source_url: 'https://support.studely.com/hc/fr/articles/1-master'
+        }
+      ]
+    },
+    { turn_id: 'turn-2', user: 'Et la bourse ?', assistant: 'La bourse Studely couvre…' }
+  ]
+
+  /** Simule un rechargement : session persistée, fil vidé, ré-init. */
+  function reload(): void {
+    sessionStorage.setItem('studely.reco.session.mexique', 'sess-restored')
+    el.querySelector('[data-reco-thread]')!.replaceChildren()
+    StudelyReco.init(el)
+  }
+
+  function mockApi(state: object | null): ReturnType<typeof mockFetch> {
+    return mockFetch(async (input: unknown) => {
+      const url = urlOf(input)
+      if (url.includes('/turns')) return json(TURNS)
+      if (url.includes('/conversations?')) return json(state ? [state] : [])
+      return ok(SSE('Réponse', { session_id: 'sess-restored' }))
+    })
+  }
+
+  it('fil restauré : bulles user + assistant, citations et pouces du turn_id', async () => {
+    mockApi({ session_id: 'sess-restored', handoff_tickets: [], feedback: null })
+    reload()
+    await waitFor(() => expect(userEntries()).toHaveLength(2))
+    expect(assistantEntries()).toHaveLength(2)
+    expect(userEntries()[0]!.textContent).toContain('Je cherche un master')
+    expect(assistantEntries()[0]!.textContent).toContain('Voici une piste')
+    // Pas d'accueil en plus du fil restauré.
+    expect(el.querySelector('[data-reco-greeting]')).toBeNull()
+    const pill = assistantEntries()[0]!.querySelector('a[href*="support.studely.com"]')
+    expect(pill).not.toBeNull()
+    expect(el.querySelector('[data-reco-turn-id]')?.getAttribute('data-reco-turn-id')).toBe(
+      'turn-1'
+    )
+  })
+
+  it('ticket handoff existant → confirmation réaffichée', async () => {
+    mockApi({
+      session_id: 'sess-restored',
+      handoff_tickets: [{ ticket_id: 'zd-1', status: 'requested' }],
+      feedback: null
+    })
+    reload()
+    await waitFor(() =>
+      expect(assistantEntries().at(-1)!.textContent).toContain('conseiller te contactera')
+    )
+  })
+
+  it('feedback déjà donné → la question « résolu ? » n’est pas reposée', async () => {
+    mockApi({
+      session_id: 'sess-restored',
+      handoff_tickets: [],
+      feedback: { resolved: true, score: 8 }
+    })
+    reload()
+    await waitFor(() => expect(userEntries()).toHaveLength(2))
+    el.setAttribute('data-reco-open', '')
+    el.removeAttribute('data-reco-open')
+    await new Promise((r) => setTimeout(r, 700))
+    expect(document.querySelector('[data-reco-conv-feedback]')).toBeNull()
+  })
+
+  it('sans feedback enregistré → la question est posée normalement', async () => {
+    mockApi({ session_id: 'sess-restored', handoff_tickets: [], feedback: null })
+    reload()
+    await waitFor(() => expect(userEntries()).toHaveLength(2))
+    el.setAttribute('data-reco-open', '')
+    el.removeAttribute('data-reco-open')
+    await vi.waitFor(
+      () => expect(document.querySelector('[data-reco-conv-feedback]')).not.toBeNull(),
+      {
+        timeout: 2000
+      }
+    )
+  })
+
+  it('historique vide ou erreur → accueil classique', async () => {
+    mockFetch(async (input: unknown) => {
+      const url = urlOf(input)
+      if (url.includes('/turns')) return json([])
+      if (url.includes('/conversations?')) return json([])
+      return ok(SSE('x'))
+    })
+    reload()
+    await waitFor(() => expect(el.querySelector('[data-reco-greeting]')).not.toBeNull())
+    mockFetch(async () => {
+      throw new TypeError('fetch failed')
+    })
+    sessionStorage.setItem('studely.reco.session.mexique', 'sess-restored')
+    el.querySelector('[data-reco-thread]')!.replaceChildren()
+    StudelyReco.init(el)
+    await waitFor(() => expect(el.querySelector('[data-reco-greeting]')).not.toBeNull())
+  })
+
+  it('envoi avant la fin du chargement → restauration annulée', async () => {
+    // Les tours arrivent après l'envoi utilisateur : la génération a
+    // changé, le fil de l'utilisateur n'est pas écrasé.
+    let releaseTurns!: (r: Partial<Response>) => void
+    mockFetch(async (input: unknown) => {
+      const url = urlOf(input)
+      if (url.includes('/turns')) {
+        return new Promise<Partial<Response>>((resolve) => {
+          releaseTurns = resolve
+        })
+      }
+      if (url.includes('/conversations?')) return json([])
+      return ok(SSE('Réponse', { session_id: 'sess-restored' }))
+    })
+    reload()
+    await grant()
+    await type('urgent')
+    await waitFor(() => expect(userEntries()).toHaveLength(1))
+    releaseTurns(json(TURNS))
+    await new Promise((r) => setTimeout(r, 50))
+    expect(userEntries()).toHaveLength(1)
+    expect(userEntries()[0]!.textContent).toContain('urgent')
   })
 })

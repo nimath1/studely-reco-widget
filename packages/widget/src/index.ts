@@ -8,6 +8,8 @@ import {
   clearChatSession,
   draftHandoff,
   ensureUserId,
+  getConversationState,
+  getConversationTurns,
   getProfileContact,
   loadChatSession,
   postChat,
@@ -28,6 +30,7 @@ import { emitRecoEvent, trackReco } from './tracking/events'
 import { injectTemplate } from './ui/template'
 import {
   appendAssistant,
+  appendHandoffConfirm,
   appendHandoffForm,
   appendUser,
   beginAssistantStream,
@@ -803,13 +806,52 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     removeConvCard()
   })
 
+  /**
+   * Rechargement en cours de conversation : le fil est restauré depuis
+   * GET …/turns (la session vit côté serveur), l'état depuis
+   * GET /conversations — ticket handoff déjà créé (confirmation
+   * réaffichée) et feedback déjà donné (la question « résolu ? » n'est
+   * pas reposée). Un envoi ou une « nouvelle recherche » entre-temps
+   * (génération incrémentée) annule la restauration ; erreur ou
+   * historique vide → accueil classique.
+   */
+  async function restoreHistory(session: string): Promise<void> {
+    const gen = generation
+    const [turns, state] = await Promise.all([
+      getConversationTurns(session, userId),
+      getConversationState(session, userId)
+    ])
+    if (signal.aborted || gen !== generation) return
+    if (!turns || turns.length === 0) {
+      greet(el, t)
+      return
+    }
+    if (state?.feedback) convFeedbackDone = true
+    for (const turn of turns) {
+      if (turn.user) appendUser(el, turn.user)
+      if (turn.assistant) {
+        appendAssistant(
+          el,
+          { text: turn.assistant, meta: { turn_id: turn.turn_id, citations: turn.citations } },
+          t
+        )
+      }
+    }
+    if ((state?.handoff_tickets?.length ?? 0) > 0) appendHandoffConfirm(el, t)
+  }
+
   // Phase initiale : un consentement pré-coché ouvre directement le chat.
   el.dataset.recoState = view.state.consent ? 'chat' : 'consent'
   phase = el.dataset.recoState === 'chat' ? 'chat' : 'consent'
   if (phase === 'chat') void ensureChallenge(el, signal)
   // Accueil seulement si le fil est vide — un gabarit hôte pré-rempli ou
-  // une ré-init gardent leurs entrées.
-  if (!el.querySelector('[data-reco-thread]')?.hasChildNodes()) greet(el, t)
+  // une ré-init gardent leurs entrées. Une session persiste côté serveur
+  // quand le navigateur recharge : le fil est restauré plutôt que
+  // reparti de zéro.
+  if (!el.querySelector('[data-reco-thread]')?.hasChildNodes()) {
+    if (sessionId) void restoreHistory(sessionId)
+    else greet(el, t)
+  }
 }
 
 /**

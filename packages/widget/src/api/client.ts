@@ -339,6 +339,69 @@ export async function getProfileContact(userId: string): Promise<ProfileContact 
   }
 }
 
+/** Un tour de `GET …/turns` : question utilisateur, réponse (marqueurs
+    `[Sn]` inclus — le rendu les traite comme en direct) et citations. */
+export interface ConversationTurn {
+  turn_id?: string
+  user?: string
+  assistant?: string
+  citations?: ChatCitation[]
+}
+
+/**
+ * GET /conversations/{session_id}/turns?user_id= : l'historique de la
+ * session persiste côté serveur — utilisé pour restaurer le fil après un
+ * rechargement. `user_id` est exigé en query (422 sinon). Toute erreur
+ * donne `null` : la restauration est facultative, l'accueil la remplace.
+ */
+export async function getConversationTurns(
+  sessionId: string,
+  userId: string
+): Promise<ConversationTurn[] | null> {
+  try {
+    const res = await callApi(
+      `/conversations/${encodeURIComponent(sessionId)}/turns?user_id=${encodeURIComponent(userId)}`,
+      { method: 'GET' }
+    )
+    const turns = (await res.json()) as unknown
+    return Array.isArray(turns) ? (turns as ConversationTurn[]) : null
+  } catch {
+    return null
+  }
+}
+
+/** État d'une conversation dans `GET /conversations` — seuls les champs
+    exploités par le widget sont lus (le reste est ignoré). */
+export interface ConversationState {
+  session_id: string
+  /** Ticket(s) de mise en relation déjà créés — la confirmation s'affiche. */
+  handoff_tickets?: { ticket_id?: string; status?: string }[]
+  /** Feedback de fin déjà donné — la question « résolu ? » n'est pas reposée. */
+  feedback?: unknown
+}
+
+/**
+ * GET /conversations?user_id= puis filtre sur la session courante : état
+ * handoff/feedback restauré avec le fil. Erreur ou session absente →
+ * `null` — le comportement par défaut (question posée, pas de ticket)
+ * reste valable.
+ */
+export async function getConversationState(
+  sessionId: string,
+  userId: string
+): Promise<ConversationState | null> {
+  try {
+    const res = await callApi(`/conversations?user_id=${encodeURIComponent(userId)}`, {
+      method: 'GET'
+    })
+    const list = (await res.json()) as unknown
+    if (!Array.isArray(list)) return null
+    return (list as ConversationState[]).find((c) => c.session_id === sessionId) ?? null
+  } catch {
+    return null
+  }
+}
+
 /** Réponse du POST …/handoff/draft : brouillon rédigé côté API (SAV-065). */
 export interface HandoffDraft {
   subject: string

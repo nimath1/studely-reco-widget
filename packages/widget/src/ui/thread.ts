@@ -111,6 +111,17 @@ export function appendAssistant(
 }
 
 /**
+ * Confirmation de mise en relation restaurée (ticket déjà créé avant le
+ * rechargement) : simple bulle assistant avec le texte de confirmation.
+ */
+export function appendHandoffConfirm(el: HTMLElement, t: Translate): void {
+  const card = cloneTemplate(el, 'msg-assistant')
+  if (!card) return
+  fillField(card, 'text', t('reco.handoff.confirm'))
+  append(el, card)
+}
+
+/**
  * Bulle assistant posée vide puis remplie au fil des deltas SSE :
  * `update` re-rend le Markdown accumulé, `finish` applique la réponse
  * finale (citations, refus out-of-scope, CTA) comme `appendAssistant`.
