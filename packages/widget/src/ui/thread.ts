@@ -156,18 +156,16 @@ function firstEmptyInput(form: Element): HTMLElement | null {
 /**
  * Mise en relation : une seule carte formulaire à la fois — un second
  * déclencheur refocalise la carte existante plutôt que d'empiler.
- * `focus: false` (ouverture automatique sur `handoff_proposed`) laisse le
- * focus au composer. `created` dit si la carte vient d'être posée — seule
+ * `created` dit si la carte vient d'être posée — seule
  * une nouvelle carte est pré-remplie.
  */
 export function appendHandoffForm(
   el: HTMLElement,
-  t: Translate,
-  focus = true
+  t: Translate
 ): { card: HTMLElement; created: boolean } | null {
   const existing = el.querySelector<HTMLElement>('[data-reco-thread] [data-reco-handoff]')
   if (existing) {
-    if (focus) firstEmptyInput(existing)?.focus()
+    firstEmptyInput(existing)?.focus()
     scrollEnd(el)
     const card = existing.closest<HTMLElement>('[data-reco-msg]')
     return card ? { card, created: false } : null
@@ -184,7 +182,7 @@ export function appendHandoffForm(
   fill('handoff-attachments-label', 'reco.handoff.attachments')
   for (const field of HANDOFF_FIELDS) fill(`handoff-${field}-label`, `reco.handoff.${field}`)
   append(el, card)
-  if (focus) firstEmptyInput(card)?.focus()
+  firstEmptyInput(card)?.focus()
   return { card, created: true }
 }
 

@@ -49,7 +49,6 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
           <button type="submit" data-reco-action="send"></button>
           <button type="button" data-reco-action="stop" hidden></button>
         </div>
-        <p data-reco-disclaimer></p>
         <button type="button" data-reco-action="erase" data-reco-field="erase-label" data-reco-erase></button>
       </form>
       <div data-reco-templates hidden>
@@ -108,7 +107,7 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
                 <input type="tel" data-reco-input="handoff-phone" />
               </label>
               <label>
-                <span data-reco-field="handoff-country-label">Pays de départ</span>
+                <span data-reco-field="handoff-country-label">Pays de résidence</span>
                 <input type="text" data-reco-input="handoff-country" />
               </label>
               <label>
@@ -146,7 +145,6 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
         <span data-reco-label="reco.error.server">Serveur</span>
         <span data-reco-label="reco.error.input">Saisie invalide</span>
         <span data-reco-label="reco.error.captcha">Captcha échoué</span>
-        <span data-reco-label="reco.disclaimer">Recommandations indicatives.</span>
         <span data-reco-label="reco.results.count">{count} recommandations</span>
         <span data-reco-label="reco.empty">Aucun parcours</span>
         <span data-reco-label="reco.handoff.intro">Laisse tes coordonnées pour la mise en relation.</span>
@@ -156,7 +154,7 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
         <span data-reco-label="reco.handoff.last">Ton nom</span>
         <span data-reco-label="reco.handoff.email">Ton adresse e-mail</span>
         <span data-reco-label="reco.handoff.phone">Téléphone (optionnel)</span>
-        <span data-reco-label="reco.handoff.country">Pays de départ</span>
+        <span data-reco-label="reco.handoff.country">Pays de résidence</span>
         <span data-reco-label="reco.handoff.attachments">Pièces jointes (optionnel)</span>
         <span data-reco-label="reco.handoff.submit">Envoyer ma demande</span>
         <span data-reco-label="reco.handoff.confirm">C'est noté ! Un conseiller te contactera.</span>

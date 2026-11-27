@@ -10,7 +10,7 @@
         data-reco-input="message"
         rows="1"
         data-reco-field="input"
-        placeholder="Décris ton projet d'études…"
+        placeholder="Posez votre question…"
       ></textarea>
       <button type="submit" data-reco-action="send" data-reco-field="send" aria-label="Envoyer">
         <svg
@@ -42,9 +42,5 @@
       En continuant, vous acceptez l’analyse automatique de vos messages pour vous proposer des
       parcours.
     </p>
-    <p data-reco-disclaimer>Recommandations indicatives générées automatiquement.</p>
-    <button type="button" data-reco-action="erase" data-reco-field="erase-label" data-reco-erase>
-      Supprimer mes données
-    </button>
   </form>
 </template>

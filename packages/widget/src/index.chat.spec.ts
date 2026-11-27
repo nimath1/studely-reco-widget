@@ -515,7 +515,7 @@ describe('mise en relation conseiller', () => {
     expect(events).toContain('reco_advisor')
   })
 
-  it('handoff_proposed : formulaire ouvert seul, pré-rempli par le brouillon et le profil', async () => {
+  it('handoff_proposed : CTA seul, formulaire ouvert au clic et pré-rempli', async () => {
     const spy = mockFetch(async (input: unknown) => {
       const url = urlOf(input)
       if (url.includes('/handoff/draft')) {
@@ -533,7 +533,16 @@ describe('mise en relation conseiller', () => {
     })
     textarea().focus()
     await type('Je veux discuter avec un humain')
-    await formReady()
+    // La réponse affiche le CTA mais n'ouvre pas le formulaire.
+    await waitFor(() =>
+      expect(
+        assistantEntries().at(-1)!.querySelector('[data-reco-action="advisor"]')
+      ).not.toBeNull()
+    )
+    expect(handoffForm()).toBeNull()
+    expect(document.activeElement).toBe(textarea())
+    expect((window.dataLayer ?? []).map((p) => p.event)).not.toContain('reco_advisor')
+    await openViaAdvisor()
     const field = (n: string) =>
       handoffForm()!.querySelector<HTMLInputElement>(`[data-reco-input="handoff-${n}"]`)!.value
     expect(field('subject')).toBe('Sujet IA')
@@ -545,11 +554,7 @@ describe('mise en relation conseiller', () => {
     expect(
       spy.mock.calls.some(([i]) => urlOf(i).endsWith('/conversations/sess-7/handoff/draft'))
     ).toBe(true)
-    // Le CTA reste disponible sous la réponse ; le focus reste au composer.
-    expect(assistantEntries().at(-2)!.querySelector('[data-reco-action="advisor"]')).not.toBeNull()
-    await waitFor(() => expect(document.activeElement).toBe(textarea()))
-    // Ouverture automatique : pas de jalon « advisor » (aucun clic).
-    expect((window.dataLayer ?? []).map((p) => p.event)).not.toContain('reco_advisor')
+    expect((window.dataLayer ?? []).map((p) => p.event)).toContain('reco_advisor')
   })
 
   it('formulaire invalide : erreur affichée, champs marqués, rien n’est posté', async () => {

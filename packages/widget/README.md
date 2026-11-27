@@ -135,7 +135,7 @@ R12) et un avertissement `[studely-reco]` est émis en console.
   (bloque tout envoi tant qu'elle n'est pas cochée), bloc
   `data-reco-turnstile`, `textarea data-reco-input="message"` autosize
   (Entrée envoie, Maj+Entrée = saut de ligne), bouton
-  `data-reco-action="send"`, ligne `data-reco-disclaimer`.
+  `data-reco-action="send"`.
 - Templates `data-reco-template` : `msg-user`, `msg-assistant` (champs
   `text`, `suggestions`, `links`, `actions`), `suggestion` (chip
   `data-reco-send` — son libellé part comme message), `advisor-cta`,
@@ -147,9 +147,9 @@ R12) et un avertissement `[studely-reco]` est émis en console.
 - Boutons `data-reco-action` : `send`, `stop`, `retry`, `advisor`,
   `handoff`.
 - Mise en relation : quand le bot répond `handoff_proposed` (ex. « je
-  veux parler à un humain »), le formulaire complet s'ouvre seul sous sa
-  réponse ; « Parler à un conseiller » (CTA de bulle ou carte
-  d'indisponibilité) l'ouvre aussi. Sujet + description sont pré-remplis
+  veux parler à un humain »), seul le CTA « Parler à un conseiller »
+  apparaît sous sa réponse ; le formulaire complet ne s'ouvre qu'au clic
+  sur ce CTA (ou sur celui de la carte d'indisponibilité). Sujet + description sont pré-remplis
   par `POST /conversations/{id}/handoff/draft`, prénom/nom/e-mail/pays par
   `GET /users/{user_id}` (jamais par-dessus une saisie). Validé selon le
   schéma HandoffForm (téléphone facultatif, E.164), il part vers
@@ -244,8 +244,8 @@ Scénarios (`?recoMock=`) : `nominal`, `empty`, `field-error` (400 avec
 `field`), `forbidden` (403 CAPTCHA_FAILED), `rate` (429 + Retry-After 30 s),
 `server` (500), `unavailable` (503), `timeout` (réponse jamais reçue,
 timeout 20 s du widget), `bad-url` (URLs hors studely.com), `html-reason`
-(HTML injecté dans `reason`), `handoff` (`handoff_proposed` → formulaire
-conseiller complet pré-rempli). Les réponses sont fournies dans les 5 locales.
+(HTML injecté dans `reason`), `handoff` (`handoff_proposed` → CTA
+conseiller, formulaire pré-rempli au clic). Les réponses sont fournies dans les 5 locales.
 
 ## Tests
 

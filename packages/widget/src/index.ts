@@ -153,8 +153,6 @@ function applyStaticLabels(el: HTMLElement, t: Translate): HTMLTextAreaElement |
     stopButton.setAttribute('aria-label', stopLabel)
     stopButton.setAttribute('title', stopLabel)
   }
-  const disclaimer = el.querySelector<HTMLElement>('[data-reco-disclaimer]')
-  if (disclaimer) disclaimer.textContent = t('reco.disclaimer')
   return composer
 }
 
@@ -259,9 +257,6 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
       emitRecoEvent(el, 'reply', { count: lastResultCount })
       announce(t('reco.results.count', { count: lastResultCount }))
     }
-    // « Je veux parler à un humain » : le bot propose la mise en relation,
-    // le formulaire complet s'ouvre aussitôt sous sa réponse.
-    if (reply.meta.handoff_proposed === true) proposeHandoff(true)
   }
 
   /**
@@ -566,18 +561,18 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
   }
 
   /**
-   * Formulaire conseiller dans le fil. `auto` : le bot vient de proposer
-   * la mise en relation (`handoff_proposed`) — la carte s'ouvre sans voler
-   * le focus du composer. Une nouvelle carte est pré-remplie : sujet et
+   * Formulaire conseiller dans le fil, ouvert seulement par un clic sur
+   * « Parler à un conseiller » — `handoff_proposed` n'affiche que le CTA
+   * sous la réponse. Une nouvelle carte est pré-remplie : sujet et
    * description par POST /handoff/draft (si session), identité par le
    * profil déclaré ; l'échec de l'un ou l'autre laisse les champs vides.
    */
-  function proposeHandoff(auto = false): void {
-    if (!auto) emitRecoEvent(el, 'advisor', { from: phase })
-    const opened = appendHandoffForm(el, t, !auto)
+  function proposeHandoff(): void {
+    emitRecoEvent(el, 'advisor', { from: phase })
+    const opened = appendHandoffForm(el, t)
     if (!opened) {
       // Gabarit sans le template : repli sur le lien direct.
-      if (!auto) el.ownerDocument.defaultView?.open(config.advisorUrl, '_blank', 'noopener')
+      el.ownerDocument.defaultView?.open(config.advisorUrl, '_blank', 'noopener')
       return
     }
     const form = opened.card.querySelector<HTMLFormElement>('[data-reco-handoff]')

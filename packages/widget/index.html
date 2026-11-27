@@ -1035,7 +1035,7 @@
         color: #fff;
       }
       /* ── Composer: elevated white island (consent, turnstile, inset
-         input group, compact disclaimer) ── */
+         input group) ── */
       [data-reco-composer] {
         flex-shrink: 0;
         width: calc(100% - 24px);
@@ -1068,13 +1068,10 @@
         flex-shrink: 0;
         cursor: pointer;
       }
-      /* Passive notice: quiet centered legal line, no affordance. */
+      /* Continuation marker: kept in the DOM (it enables sending without a
+         checkbox) but not displayed under the input. */
       [data-reco-consent='continuation'] {
-        margin: 10px 0 0;
-        font-size: 0.72rem;
-        line-height: 1.5;
-        color: var(--reco-ink-subtle);
-        text-align: center;
+        display: none;
       }
       /* Inset input group: textarea + send sit inside one soft well. */
       [data-reco-input-row] {
@@ -1143,39 +1140,6 @@
          switching to the deep blue. */
       :is([data-reco-action='send'], [data-reco-action='stop']):hover {
         box-shadow: 0 4px 12px rgb(18 100 183 / 35%);
-      }
-      [data-reco-disclaimer] {
-        margin: 8px 0 0;
-        font-size: 0.7rem;
-        color: var(--reco-ink-subtle);
-        text-align: center;
-      }
-      /* « Supprimer mes données » : lien discret en pied du composer —
-         visible sans peser ; l'état de confirmation passe en couleur
-         erreur. */
-      [data-reco-erase] {
-        display: block;
-        margin: 6px auto 0;
-        padding: 2px 6px;
-        border: none;
-        background: transparent;
-        color: var(--reco-ink-subtle);
-        font: inherit;
-        font-size: 0.7rem;
-        text-decoration: underline;
-        text-underline-offset: 2px;
-        cursor: pointer;
-      }
-      [data-reco-erase]:hover {
-        color: var(--reco-ink);
-      }
-      [data-reco-erase][data-reco-confirm] {
-        color: var(--reco-error);
-        font-weight: 600;
-      }
-      [data-reco-erase]:disabled {
-        opacity: 0.6;
-        cursor: wait;
       }
       /* ── Fallback panel (config invalide) ── */
       [data-reco-panel='fallback'] {
@@ -1517,7 +1481,7 @@
           parcours.</span
         >
         <span data-reco-label="reco.input.label">Décris ton projet d'études</span>
-        <span data-reco-label="reco.input.placeholder">Décris ton projet d'études…</span>
+        <span data-reco-label="reco.input.placeholder">Posez votre question…</span>
         <span data-reco-label="reco.send">Envoyer</span>
         <span data-reco-label="reco.pending">Analyse de ta demande…</span>
         <span data-reco-label="reco.stop">Arrêter la réponse</span>
@@ -1532,12 +1496,6 @@
         <span data-reco-label="reco.error.captcha"
           >La vérification anti-robot a échoué. Réessaie.</span
         >
-        <span data-reco-label="reco.privacy.delete">Supprimer mes données</span>
-        <span data-reco-label="reco.privacy.confirm">Confirmer la suppression ?</span>
-        <span data-reco-label="reco.privacy.done">Tes données ont été supprimées.</span>
-        <span data-reco-label="reco.disclaimer"
-          >Recommandations indicatives générées automatiquement.</span
-        >
         <span data-reco-label="reco.results.count">{count} recommandations pour toi.</span>
         <span data-reco-label="reco.empty">Aucun parcours ne correspond à ta demande.</span>
         <span data-reco-label="reco.handoff.intro"
@@ -1550,7 +1508,7 @@
         <span data-reco-label="reco.handoff.last">Nom</span>
         <span data-reco-label="reco.handoff.email">Adresse e-mail</span>
         <span data-reco-label="reco.handoff.phone">Téléphone (optionnel)</span>
-        <span data-reco-label="reco.handoff.country">Pays de départ</span>
+        <span data-reco-label="reco.handoff.country">Pays de résidence</span>
         <span data-reco-label="reco.handoff.attachments">Pièces jointes (optionnel)</span>
         <span data-reco-label="reco.handoff.submit">Envoyer ma demande</span>
         <span data-reco-label="reco.handoff.confirm"

@@ -58,13 +58,13 @@ test.describe('chat UI (mock MSW)', () => {
     await expect(launcher(page)).toBeFocused()
   })
 
-  test('consentement passif : notice visible, pas de case, saisie libre', async ({ page }) => {
+  test('consentement passif : notice masquée, pas de case, saisie libre', async ({ page }) => {
     await open(page)
-    // Plus de case à cocher : la notice passive la remplace.
+    // Plus de case à cocher : le marqueur continuation reste, masqué.
     await expect(composer(page).locator('[data-reco-input="consent"]')).toHaveCount(0)
     const notice = composer(page).locator('[data-reco-consent="continuation"]')
-    await expect(notice).toBeVisible()
-    await expect(notice).toContainText('En continuant, vous acceptez')
+    await expect(notice).toHaveCount(1)
+    await expect(notice).toBeHidden()
     // Champ et envoi disponibles immédiatement.
     await expect(widget(page).locator('[data-reco-input="message"]')).toBeEnabled()
     await expect(widget(page).locator('[data-reco-action="send"]')).toBeEnabled()

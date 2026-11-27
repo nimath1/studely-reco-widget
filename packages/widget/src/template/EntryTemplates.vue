@@ -119,7 +119,7 @@
               />
             </label>
             <label>
-              <span data-reco-field="handoff-country-label">Pays de départ</span>
+              <span data-reco-field="handoff-country-label">Pays de résidence</span>
               <input
                 type="text"
                 data-reco-input="handoff-country"
