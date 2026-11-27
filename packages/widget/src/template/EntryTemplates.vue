@@ -135,14 +135,15 @@
           </div>
           <label data-reco-attach>
             <span data-reco-field="handoff-attachments-label">Pièces jointes (optionnel)</span>
-            <!-- Input natif masqué : le label entier ouvre le sélecteur. -->
-            <input
-              type="file"
-              data-reco-input="handoff-files"
-              multiple
-              accept=".pdf,image/png,image/jpeg"
-            />
             <span data-reco-attach-button>
+              <!-- Input natif invisible limité à la pastille trombone :
+                   au-delà il recouvrirait les croix de retrait. -->
+              <input
+                type="file"
+                data-reco-input="handoff-files"
+                multiple
+                accept=".pdf,image/png,image/jpeg"
+              />
               <svg
                 viewBox="0 0 24 24"
                 fill="none"

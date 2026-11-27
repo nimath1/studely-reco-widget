@@ -112,10 +112,9 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
                 <span data-reco-field="handoff-country-label">Pays de résidence</span>
                 <input type="text" data-reco-input="handoff-country" />
               </label>
-              <label>
+              <label data-reco-attach>
                 <span data-reco-field="handoff-attachments-label">Pièces jointes (optionnel)</span>
-                <input type="file" data-reco-input="handoff-files" multiple />
-                <span data-reco-attach-button><span data-reco-field="handoff-attach-cta">Joindre un fichier</span></span>
+                <span data-reco-attach-button><input type="file" data-reco-input="handoff-files" multiple /><span data-reco-field="handoff-attach-cta">Joindre un fichier</span></span>
                 <span data-reco-field="handoff-files-names"></span>
               </label>
               <button type="submit" data-reco-action="handoff" data-reco-field="handoff-submit"></button>
@@ -162,7 +161,7 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
         <span data-reco-label="reco.handoff.attachments">Pièces jointes (optionnel)</span>
         <span data-reco-label="reco.handoff.submit">Envoyer ma demande</span>
         <span data-reco-label="reco.handoff.confirm">C'est noté ! Un conseiller te contactera.</span>
-        <span data-reco-label="reco.handoff.invalid">Champs requis invalides.</span>
+        <span data-reco-label="reco.handoff.invalid">Champs requis invalides.</span><span data-reco-label="reco.handoff.invalid.phone">Champs invalides, téléphone au format E.164.</span>
         <span data-reco-label="reco.privacy.delete">Nouvelle discussion</span>
         <span data-reco-label="reco.privacy.done">Tes données ont été supprimées.</span>
         <span data-reco-label="reco.feedback.up">Réponse utile</span>
