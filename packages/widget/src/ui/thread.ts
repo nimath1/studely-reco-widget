@@ -180,6 +180,7 @@ export function appendHandoffForm(
   fill('text', 'reco.handoff.intro')
   fill('handoff-submit', 'reco.handoff.submit')
   fill('handoff-attachments-label', 'reco.handoff.attachments')
+  fill('handoff-attach-cta', 'reco.handoff.attach')
   for (const field of HANDOFF_FIELDS) fill(`handoff-${field}-label`, `reco.handoff.${field}`)
   append(el, card)
   firstEmptyInput(card)?.focus()

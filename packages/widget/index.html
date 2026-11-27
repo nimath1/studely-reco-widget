@@ -256,14 +256,21 @@
         outline-offset: 2px;
         border-radius: 8px;
       }
-      /* The close icon, pushed to the trailing edge. */
-      [data-reco-widget] > header button[data-reco-close] {
-        width: var(--reco-control);
+      /* "New conversation" + close icons, pushed to the trailing edge. */
+      [data-reco-widget] > header button:is([data-reco-close], [data-reco-erase]) {
+        min-width: var(--reco-control);
         margin-inline-start: auto;
-        border-radius: 50%;
+        border-radius: 999px;
       }
-      [data-reco-widget] > header button[data-reco-close]:hover {
+      [data-reco-widget] > header button[data-reco-erase] + button[data-reco-close] {
+        margin-inline-start: 4px;
+      }
+      [data-reco-widget] > header button:is([data-reco-close], [data-reco-erase]):hover {
         background: var(--reco-surface);
+      }
+      [data-reco-widget] > header button[data-reco-erase]:disabled {
+        opacity: 0.6;
+        cursor: wait;
       }
       /* ── Scrolling body: thread + pending + error, centered column on a
          pale-blue atmospheric radial ── */
@@ -893,6 +900,59 @@
       [data-reco-handoff] :is(input, textarea):disabled {
         opacity: 0.7;
       }
+      /* Attachments: native file input hidden (still focusable), a dashed
+         pill with a paperclip opens the picker; chosen names below. */
+      [data-reco-handoff] [data-reco-input='handoff-files'] {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        border: 0;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        opacity: 0;
+      }
+      [data-reco-attach-button] {
+        /* Full width, same height and radius as the other fields. */
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        width: 100%;
+        min-height: 46px;
+        padding: 0 14px;
+        border: 1.5px dashed var(--reco-rule);
+        border-radius: var(--reco-radius-card);
+        background: var(--reco-paper);
+        color: var(--reco-primary);
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition:
+          border-color 0.15s,
+          background 0.15s;
+      }
+      [data-reco-attach-button] svg {
+        width: 18px;
+        height: 18px;
+        flex-shrink: 0;
+      }
+      [data-reco-attach]:hover [data-reco-attach-button] {
+        border-color: var(--reco-primary);
+        background: var(--reco-primary-soft);
+      }
+      [data-reco-attach]:has(input:focus-visible) [data-reco-attach-button] {
+        outline: 3px solid var(--reco-primary);
+        outline-offset: 1px;
+      }
+      [data-reco-field='handoff-files-names'] {
+        font-weight: 400;
+        color: var(--reco-ink-muted);
+        overflow-wrap: anywhere;
+      }
+      [data-reco-field='handoff-files-names']:empty {
+        display: none;
+      }
       [data-reco-handoff] [data-reco-action='handoff'] {
         align-self: center;
         margin-top: 6px;
@@ -1446,15 +1506,13 @@
           >Comment faire pour obtenir une AVI ou un compte bloqué ?</span
         >
         <span data-reco-label="reco.suggestion.2"
-          >Comment faire pour débloquer mon compte à l'arrivée et obtenir mes virements
-          mensuels ?</span
+          >Comment faire pour débloquer mon compte à l'arrivée et obtenir mes virements mensuels
+          ?</span
         >
         <span data-reco-label="reco.suggestion.3"
           >Comment faire pour obtenir un remboursement en cas de refus de visa ?</span
         >
-        <span data-reco-label="reco.suggestion.4"
-          >Je veux discuter avec un agent de Studely</span
-        >
+        <span data-reco-label="reco.suggestion.4">Je veux discuter avec un agent de Studely</span>
         <span data-reco-label="reco.feedback.up">Réponse utile</span>
         <span data-reco-label="reco.feedback.down">Réponse inutile</span>
         <span data-reco-label="reco.feedback.resolved">Votre problème est-il résolu ?</span>
@@ -1466,9 +1524,7 @@
         <span data-reco-label="reco.feedback.star.3">Correct</span>
         <span data-reco-label="reco.feedback.star.4">Satisfaisant</span>
         <span data-reco-label="reco.feedback.star.5">Très bien</span>
-        <span data-reco-label="reco.feedback.comment"
-          >Un commentaire ? (optionnel)</span
-        >
+        <span data-reco-label="reco.feedback.comment">Un commentaire ? (optionnel)</span>
         <span data-reco-label="reco.feedback.send">Envoyer</span>
         <span data-reco-label="reco.feedback.thanks">Merci pour votre retour !</span>
         <span data-reco-label="reco.feedback.dismiss">Ignorer</span>
@@ -1496,6 +1552,8 @@
         <span data-reco-label="reco.error.captcha"
           >La vérification anti-robot a échoué. Réessaie.</span
         >
+        <span data-reco-label="reco.privacy.delete">Nouvelle discussion</span>
+        <span data-reco-label="reco.privacy.done">Tes données ont été supprimées.</span>
         <span data-reco-label="reco.results.count">{count} recommandations pour toi.</span>
         <span data-reco-label="reco.empty">Aucun parcours ne correspond à ta demande.</span>
         <span data-reco-label="reco.handoff.intro"
@@ -1510,6 +1568,7 @@
         <span data-reco-label="reco.handoff.phone">Téléphone (optionnel)</span>
         <span data-reco-label="reco.handoff.country">Pays de résidence</span>
         <span data-reco-label="reco.handoff.attachments">Pièces jointes (optionnel)</span>
+        <span data-reco-label="reco.handoff.attach">Joindre un fichier</span>
         <span data-reco-label="reco.handoff.submit">Envoyer ma demande</span>
         <span data-reco-label="reco.handoff.confirm"
           >C'est noté ! Un conseiller te contactera très vite.</span

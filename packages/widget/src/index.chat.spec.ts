@@ -636,6 +636,11 @@ describe('mise en relation conseiller', () => {
         new File(['b'], 'photo.png', { type: 'image/png' })
       ]
     })
+    fileInput.dispatchEvent(new Event('change', { bubbles: true }))
+    // Noms des fichiers choisis affichés sous le bouton trombone.
+    expect(
+      handoffForm()!.querySelector('[data-reco-field="handoff-files-names"]')!.textContent
+    ).toBe('attestation.pdf, photo.png')
     handoffForm()!.requestSubmit()
     await waitFor(() =>
       expect(spy.mock.calls.some(([i]) => urlOf(i).endsWith('/conversations/sess-up/upload'))).toBe(
@@ -1067,7 +1072,7 @@ describe("effacement des données (droit à l'oubli)", () => {
   const urlOf = (input: unknown) => (typeof input === 'string' ? input : (input as Request).url)
   const erase = () => el.querySelector<HTMLButtonElement>('[data-reco-action="erase"]')!
 
-  it('deux clics : DELETE /users, fil réinitialisé, user_id régénéré', async () => {
+  it('un clic : DELETE /users, fil réinitialisé, user_id régénéré', async () => {
     const spy = mockFetch(async (input: unknown) => {
       const url = urlOf(input)
       if (url.includes('/users/')) return { ok: true, status: 204, json: async () => null }
@@ -1080,12 +1085,8 @@ describe("effacement des données (droit à l'oubli)", () => {
     expect(firstUserId).not.toBeNull()
     expect(sessionStorage.getItem('studely.reco.session.mexique')).toBe('sess-del')
 
-    // Premier clic : armement seul, aucun appel API.
-    erase().click()
-    expect(erase().textContent).toBe('Confirmer la suppression ?')
-    expect(spy.mock.calls.some(([i]) => urlOf(i).includes('/users/'))).toBe(false)
-
-    // Second clic : DELETE puis effacement local.
+    // Un seul clic, sans confirmation : DELETE puis effacement local.
+    expect(erase().getAttribute('aria-label')).toBe('Nouvelle discussion')
     erase().click()
     await waitFor(() =>
       expect(
@@ -1100,8 +1101,6 @@ describe("effacement des données (droit à l'oubli)", () => {
     expect(sessionStorage.getItem('studely.reco.session.mexique')).toBeNull()
     const newUserId = localStorage.getItem('studely.reco.user.mexique')
     expect(newUserId).not.toBe(firstUserId)
-    // Bouton restauré.
-    expect(erase().textContent).toBe('Supprimer mes données')
     expect(erase().disabled).toBe(false)
   })
 
@@ -1115,13 +1114,11 @@ describe("effacement des données (droit à l'oubli)", () => {
     await type('bonjour')
     await waitFor(() => expect(userEntries()).toHaveLength(1))
     erase().click()
-    erase().click()
     await waitFor(() =>
       expect(el.querySelector('[data-reco-live]')!.textContent).toContain('Réseau')
     )
     expect(userEntries()).toHaveLength(1)
     expect(sessionStorage.getItem('studely.reco.session.mexique')).toBe('sess-del2')
     expect(erase().disabled).toBe(false)
-    expect(erase().textContent).toBe('Supprimer mes données')
   })
 })

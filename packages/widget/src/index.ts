@@ -98,8 +98,7 @@ const ERROR_KEYS: Record<RecoApiError['kind'], string> = {
 /** Textes statiques du gabarit passés par le bloc de libellés traduit. */
 const STATIC_LABELS: [field: string, key: string][] = [
   ['input-label', 'reco.input.label'],
-  ['header-subtitle', 'reco.header.subtitle'],
-  ['erase-label', 'reco.privacy.delete']
+  ['header-subtitle', 'reco.header.subtitle']
 ]
 
 /**
@@ -152,6 +151,13 @@ function applyStaticLabels(el: HTMLElement, t: Translate): HTMLTextAreaElement |
   if (stopButton && stopLabel !== 'reco.stop') {
     stopButton.setAttribute('aria-label', stopLabel)
     stopButton.setAttribute('title', stopLabel)
+  }
+  // Icône « Nouvelle discussion » : libellé traduit = nom accessible + infobulle.
+  const erase = el.querySelector<HTMLElement>('[data-reco-erase]')
+  const eraseLabel = t('reco.privacy.delete')
+  if (erase && eraseLabel !== 'reco.privacy.delete') {
+    erase.setAttribute('aria-label', eraseLabel)
+    erase.setAttribute('title', eraseLabel)
   }
   return composer
 }
@@ -411,34 +417,17 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
   }
 
   /**
-   * « Supprimer mes données » en deux temps : le premier clic arme le
-   * bouton (libellé « Confirmer la suppression ? », retour automatique
-   * après 4 s), le second exécute. DELETE /users/{user_id} puis effacement
-   * local : session oubliée, fil reparti à l'accueil, `user_id` régénéré
-   * — le nouvel identifiant ne peut pas être relié à l'ancien profil.
+   * « Nouvelle discussion » (icône de l'en-tête), sans confirmation :
+   * DELETE /users/{user_id} puis effacement local — session oubliée, fil
+   * reparti à l'accueil, `user_id` régénéré (le nouvel identifiant ne
+   * peut pas être relié à l'ancien profil).
    */
-  function askErase(trigger: HTMLButtonElement): void {
-    if (trigger.dataset.recoConfirm === 'true') {
-      void eraseData(trigger)
-      return
-    }
-    trigger.dataset.recoConfirm = 'true'
-    trigger.textContent = t('reco.privacy.confirm')
-    el.ownerDocument.defaultView?.setTimeout(() => {
-      if (!trigger.isConnected) return
-      delete trigger.dataset.recoConfirm
-      trigger.textContent = t('reco.privacy.delete')
-    }, 4000)
-  }
-
   async function eraseData(trigger: HTMLButtonElement): Promise<void> {
     trigger.disabled = true
     try {
       await deleteProfile(userId)
     } catch {
       trigger.disabled = false
-      delete trigger.dataset.recoConfirm
-      trigger.textContent = t('reco.privacy.delete')
       announce(t('reco.error.network'))
       return
     }
@@ -446,8 +435,6 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     userId = ensureUserId(config.origin)
     emitRecoEvent(el, 'erase')
     trigger.disabled = false
-    delete trigger.dataset.recoConfirm
-    trigger.textContent = t('reco.privacy.delete')
     // restart vide le fil, oublie la session et re-poser l'accueil.
     restart()
     announce(t('reco.privacy.done'))
@@ -638,8 +625,8 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
         restart()
         break
       case 'erase':
-        // Seul un <button> porte cette action (gabarit composer).
-        if (trigger instanceof HTMLButtonElement) askErase(trigger)
+        // Seul un <button> porte cette action (icône de l'en-tête).
+        if (trigger instanceof HTMLButtonElement) void eraseData(trigger)
         break
       case 'advisor':
         proposeHandoff()
@@ -665,12 +652,16 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
   )
 
   // Consentement : coche → saisie déverrouillée ; décoche → retour consent.
+  // Pièces jointes : noms des fichiers choisis sous le bouton trombone.
   el.addEventListener(
     'change',
     (event) => {
       const input = event.target
-      if (input instanceof HTMLInputElement && input.matches('[data-reco-input="consent"]')) {
-        consentGranted(input.checked)
+      if (!(input instanceof HTMLInputElement)) return
+      if (input.matches('[data-reco-input="consent"]')) consentGranted(input.checked)
+      if (input.matches('[data-reco-input="handoff-files"]')) {
+        const names = input.parentElement?.querySelector('[data-reco-field="handoff-files-names"]')
+        if (names) names.textContent = [...(input.files ?? [])].map((f) => f.name).join(', ')
       }
     },
     { signal }
