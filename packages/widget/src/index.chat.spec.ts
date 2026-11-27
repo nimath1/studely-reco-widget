@@ -495,6 +495,70 @@ describe('mise en relation conseiller', () => {
     await grant()
   })
 
+  it('récupération : « Analyse de ta demande… » tant que brouillon et profil chargent', async () => {
+    let releaseDraft!: (r: Partial<Response>) => void
+    mockFetch(async (input: unknown) => {
+      const url = urlOf(input)
+      if (url.includes('/handoff/draft')) {
+        return new Promise<Partial<Response>>((resolve) => {
+          releaseDraft = resolve
+        })
+      }
+      if (url.includes('/users/')) return json({ user_id: 'u' })
+      return ok(SSE('Hors périmètre', { out_of_scope: true, session_id: 'sess-p' }))
+    })
+    await type('météo ?')
+    await waitFor(() =>
+      expect(
+        assistantEntries().at(-1)!.querySelector('[data-reco-action="advisor"]')
+      ).not.toBeNull()
+    )
+    assistantEntries().at(-1)!.querySelector<HTMLElement>('[data-reco-action="advisor"]')!.click()
+    // Pendant la récupération : squelette visible, pas encore de formulaire.
+    await waitFor(() =>
+      expect(el.querySelector<HTMLElement>('[data-reco-pending]')!.hidden).toBe(false)
+    )
+    expect(handoffForm()).toBeNull()
+    // Le libellé de la fixture est « Analyse… » — la clé, pas le texte.
+    expect(el.querySelector('[data-reco-pending]')!.textContent).toContain('Analyse')
+    releaseDraft(json({ subject: 'Sujet IA', description: 'Description IA' }))
+    // Récupération terminée : squelette retiré, formulaire pré-rempli.
+    await formReady()
+    expect(el.querySelector<HTMLElement>('[data-reco-pending]')!.hidden).toBe(true)
+    expect(
+      handoffForm()!.querySelector<HTMLInputElement>('[data-reco-input="handoff-subject"]')!.value
+    ).toBe('Sujet IA')
+  })
+
+  it('envoi sans utiliser le formulaire : il est retiré, le prochain clic en rouvre un neuf', async () => {
+    mockFetch(async (input: unknown) => {
+      const url = urlOf(input)
+      if (url.includes('/users/')) return json({ user_id: 'u' })
+      return ok(SSE('Hors périmètre', { out_of_scope: true, session_id: 'sess-x' }))
+    })
+    await type('météo ?')
+    await openViaAdvisor()
+    expect(handoffForm()).not.toBeNull()
+    // L'utilisateur repart dans la conversation sans remplir le formulaire.
+    await type('autre question')
+    await waitFor(() => expect(handoffForm()).toBeNull())
+    // Nouveau clic conseiller : un nouveau formulaire s'affiche en bas.
+    await openViaAdvisor()
+    expect(handoffForm()).not.toBeNull()
+    expect(el.querySelectorAll('[data-reco-thread] [data-reco-handoff]')).toHaveLength(1)
+  })
+
+  it('envoi : le composer repasse en une ligne', async () => {
+    mockFetch(async () => ok(SSE('Réponse', {})))
+    // jsdom : scrollHeight vaut 0 — la saisie écrase quand même style.height,
+    // ce qui suffit à prouver que l'envoi le réinitialise.
+    textarea().value = 'ligne 1\nligne 2\nligne 3'
+    textarea().dispatchEvent(new Event('input', { bubbles: true }))
+    textarea().closest('form')!.requestSubmit()
+    await waitFor(() => expect(textarea().value).toBe(''))
+    expect(textarea().style.height).toBe('auto')
+  })
+
   it('« Parler à un conseiller » ajoute le formulaire complet au fil', async () => {
     mockFetch(async () => ok(SSE('Hors périmètre', { out_of_scope: true })))
     await type('météo ?')

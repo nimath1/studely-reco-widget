@@ -13,6 +13,7 @@ import {
   getConversationState,
   getConversationTurns,
   getProfileContact,
+  hasStoredChatSession,
   loadChatSession,
   postChat,
   postConversationFeedback,
@@ -41,6 +42,8 @@ import {
   greet,
   hideError,
   hidePending,
+  pinScrollEnd,
+  scrollEnd,
   setChipsEnabled,
   showError,
   showPending,
@@ -152,12 +155,15 @@ function applyStaticLabels(el: HTMLElement, t: Translate): HTMLTextAreaElement |
     stopButton.setAttribute('aria-label', stopLabel)
     stopButton.setAttribute('title', stopLabel)
   }
-  // Icône « Nouvelle discussion » : libellé traduit = nom accessible + infobulle.
+  // Icône « Nouvelle discussion » : libellé traduit = nom accessible,
+  // infobulle et texte visible à côté du « + ».
   const erase = el.querySelector<HTMLElement>('[data-reco-erase]')
   const eraseLabel = t('reco.privacy.delete')
   if (erase && eraseLabel !== 'reco.privacy.delete') {
     erase.setAttribute('aria-label', eraseLabel)
     erase.setAttribute('title', eraseLabel)
+    const visible = erase.querySelector<HTMLElement>('[data-reco-erase-label]')
+    if (visible) visible.textContent = eraseLabel
   }
   return composer
 }
@@ -173,6 +179,7 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
   const t: Translate = readLabels(el)
   const view = mountView(el)
   signal.addEventListener('abort', view.unmount, { once: true })
+  pinScrollEnd(el, signal)
 
   let phase: WidgetPhase = 'consent'
   const setPhase = (to: WidgetPhase, name: string) => {
@@ -356,6 +363,12 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
       }
     }
     lastMessage = text
+    // Un formulaire conseiller ouvert et non envoyé n'a plus de sens dès
+    // que la conversation repart : il est retiré du fil plutôt que de
+    // traîner en haut — sinon le prochain clic conseiller ne ferait que
+    // re-focaliser l'ancien, invisible, et l'utilisateur ne comprendrait
+    // pas ce qui se passe.
+    el.querySelector('[data-reco-thread] [data-reco-handoff]')?.closest('[data-reco-msg]')?.remove()
     appendUser(el, text)
     emitRecoEvent(el, 'send', { via })
     void sendPayload(text)
@@ -556,23 +569,35 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
    */
   function proposeHandoff(): void {
     emitRecoEvent(el, 'advisor', { from: phase })
-    const opened = appendHandoffForm(el, t)
-    if (!opened) {
-      // Gabarit sans le template : repli sur le lien direct.
-      el.ownerDocument.defaultView?.open(config.advisorUrl, '_blank', 'noopener')
+    const open = () => {
+      const opened = appendHandoffForm(el, t)
+      if (!opened) {
+        // Gabarit sans le template : repli sur le lien direct.
+        el.ownerDocument.defaultView?.open(config.advisorUrl, '_blank', 'noopener')
+      }
+      return opened
+    }
+    // Formulaire déjà au fil : pas de nouvelle analyse, le focus suffit.
+    if (el.querySelector('[data-reco-thread] [data-reco-handoff]')) {
+      open()
       return
     }
-    const form = opened.card.querySelector<HTMLFormElement>('[data-reco-handoff]')
-    if (!opened.created || !form) return
-    form.setAttribute('aria-busy', 'true')
+    // Récupération avant affichage : le squelette « Analyse de ta
+    // demande… » couvre POST /handoff/draft (sujet + description rédigés)
+    // et GET /users (identité déclarée) ; le formulaire n'apparaît que
+    // pré-rempli. Échec de l'un ou l'autre → champs vides, jamais bloquant.
+    showPending(el, t)
+    const gen = generation
     void Promise.all([
       sessionId ? draftHandoff(sessionId) : Promise.resolve(null),
       getProfileContact(userId)
     ]).then(([draft, contact]) => {
-      form.removeAttribute('aria-busy')
-      // « Nouvelle recherche » entre-temps : la carte n'est plus au fil.
-      if (signal.aborted || !form.isConnected) return
-      prefillHandoff(form, draft, contact, config.locale)
+      hidePending(el)
+      // « Nouvelle recherche » ou envoi entre-temps : pas de carte.
+      if (signal.aborted || gen !== generation) return
+      const opened = open()
+      const form = opened?.card.querySelector<HTMLFormElement>('[data-reco-handoff]')
+      if (form) prefillHandoff(form, draft, contact, config.locale)
     })
   }
 
@@ -613,7 +638,12 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
       }
       case 'send':
         send(composer?.value ?? '')
-        if (composer) composer.value = ''
+        if (composer) {
+          composer.value = ''
+          // Hauteur recalée sur une ligne — sinon le champ garde la taille
+          // du message qui vient de partir.
+          composer.style.height = 'auto'
+        }
         break
       case 'retry':
         retry()
@@ -698,7 +728,12 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
       if (form.matches('[data-reco-handoff]')) void submitHandoff(form)
       else {
         send(composer?.value ?? '')
-        if (composer) composer.value = ''
+        if (composer) {
+          composer.value = ''
+          // Hauteur recalée sur une ligne — sinon le champ garde la taille
+          // du message qui vient de partir.
+          composer.style.height = 'auto'
+        }
       }
     },
     { signal }
@@ -861,6 +896,10 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
       win?.clearTimeout(convTimer)
       convTimer = undefined
       removeConvCard()
+      // Ouverture : le fil colle en bas — la restauration a pu remplir le
+      // fil pendant que le panneau fermé empêchait le scroll (hauteur
+      // nulle), et un utilisateur qui rouvre attend les derniers messages.
+      win?.requestAnimationFrame(() => scrollEnd(el))
     }
   })
   openObserver.observe(el, { attributes: true, attributeFilter: ['data-reco-open'] })
@@ -1004,7 +1043,11 @@ export function init(el: HTMLElement): WidgetConfig | null {
 }
 
 function initWhenNear(el: HTMLElement): void {
-  if (typeof IntersectionObserver !== 'function') {
+  // Session persistée : init immédiate. Fermé, le bloc est hors viewport
+  // (le launcher seul est fixed) et l'observer ne se déclencherait qu'à
+  // l'ouverture — l'utilisateur verrait l'accueil flash avant le fil
+  // restauré. Le contenu doit être prêt avant la première ouverture.
+  if (hasStoredChatSession() || typeof IntersectionObserver !== 'function') {
     init(el)
     return
   }
