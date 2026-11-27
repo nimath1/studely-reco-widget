@@ -24,6 +24,86 @@ export function scrollEnd(el: HTMLElement): void {
 }
 
 /**
+ * Épingle le fil en bas tant que l'utilisateur ne remonte pas lui-même.
+ * Le simple scrollEnd à l'ajout ne suffit pas : fonts et re-layouts
+ * (panneau fermé → ouvert, chargement différé) font grandir le contenu
+ * après coup — la restauration remplit le fil pendant que le panneau
+ * fermé donne une hauteur nulle. ResizeObserver réapplique le scroll si
+ * le fil était déjà collé en bas ; un scroll utilisateur vers le haut
+ * désépingle jusqu'à ce qu'il redescende.
+ */
+export function pinScrollEnd(el: HTMLElement, signal: AbortSignal): void {
+  const body = el.querySelector<HTMLElement>('[data-reco-body]')
+  if (!body || typeof ResizeObserver !== 'function') return
+  let pinned = true
+  // L'épingle ne saute que sur geste utilisateur (molette, toucher,
+  // clavier) — jamais sur un simple événement scroll : le clamp du
+  // navigateur pendant l'animation d'ouverture en émet, et ils
+  // désépingleraient le fil sans que l'utilisateur ait rien demandé.
+  // Redescendre tout en bas ré-épingle via l'écouteur scroll.
+  const unpin = () => {
+    pinned = false
+  }
+  // Molette vers le haut seulement : un coup de molette vers le bas alors
+  // que le fil est déjà tout en bas ne doit pas désépingler.
+  body.addEventListener(
+    'wheel',
+    (event) => {
+      if ((event as WheelEvent).deltaY < 0) unpin()
+    },
+    { signal, passive: true }
+  )
+  // Tactile : le doigt glissant vers le bas remonte le fil vers les
+  // messages anciens — inversement il ne fait rien quand le fil est déjà
+  // en bas, donc seule cette direction désépingle.
+  let touchY: number | null = null
+  body.addEventListener(
+    'touchstart',
+    (event) => {
+      touchY = (event as TouchEvent).touches[0]?.clientY ?? null
+    },
+    { signal, passive: true }
+  )
+  body.addEventListener(
+    'touchmove',
+    (event) => {
+      const y = (event as TouchEvent).touches[0]?.clientY
+      if (touchY !== null && y !== undefined && y > touchY) unpin()
+      touchY = y ?? touchY
+    },
+    { signal, passive: true }
+  )
+  body.addEventListener('keydown', unpin, { signal, passive: true })
+  body.addEventListener(
+    'scroll',
+    () => {
+      // Seuil généreux : les arrondis subpixel ne doivent pas empêcher la
+      // ré-épingle quand l'utilisateur redescend tout en bas.
+      if (body.scrollTop + body.clientHeight >= body.scrollHeight - 40) pinned = true
+    },
+    { signal, passive: true }
+  )
+  const observer = new ResizeObserver(() => {
+    if (pinned) scrollEnd(el)
+  })
+  observer.observe(body)
+  const thread = el.querySelector<HTMLElement>('[data-reco-thread]')
+  if (thread) observer.observe(thread)
+  signal.addEventListener('abort', () => observer.disconnect(), { once: true })
+}
+
+/**
+ * « Nouvelle discussion » n'a de sens qu'avec une conversation en cours :
+ * visible dès qu'une entrée concrète (hors accueil) est dans le fil.
+ */
+function syncEraseVisibility(el: HTMLElement): void {
+  const container = thread(el)
+  const empty =
+    !container || !container.hasChildNodes() || container.hasAttribute('data-reco-virgin')
+  el.querySelector('[data-reco-erase]')?.toggleAttribute('hidden', empty)
+}
+
+/**
  * Ajoute une entrée au fil. `afterAppend` est appelé après insertion pour
  * que le scroll voie la hauteur finale du contenu rempli.
  */
@@ -32,6 +112,7 @@ function append(el: HTMLElement, node: HTMLElement | null): HTMLElement | null {
   if (!node || !container) return null
   container.append(node)
   scrollEnd(el)
+  syncEraseVisibility(el)
   return node
 }
 
@@ -111,6 +192,17 @@ export function appendAssistant(
 }
 
 /**
+ * Confirmation de mise en relation restaurée (ticket déjà créé avant le
+ * rechargement) : simple bulle assistant avec le texte de confirmation.
+ */
+export function appendHandoffConfirm(el: HTMLElement, t: Translate): void {
+  const card = cloneTemplate(el, 'msg-assistant')
+  if (!card) return
+  fillField(card, 'text', t('reco.handoff.confirm'))
+  append(el, card)
+}
+
+/**
  * Bulle assistant posée vide puis remplie au fil des deltas SSE :
  * `update` re-rend le Markdown accumulé, `finish` applique la réponse
  * finale (citations, refus out-of-scope, CTA) comme `appendAssistant`.
@@ -145,18 +237,16 @@ function firstEmptyInput(form: Element): HTMLElement | null {
 /**
  * Mise en relation : une seule carte formulaire à la fois — un second
  * déclencheur refocalise la carte existante plutôt que d'empiler.
- * `focus: false` (ouverture automatique sur `handoff_proposed`) laisse le
- * focus au composer. `created` dit si la carte vient d'être posée — seule
+ * `created` dit si la carte vient d'être posée — seule
  * une nouvelle carte est pré-remplie.
  */
 export function appendHandoffForm(
   el: HTMLElement,
-  t: Translate,
-  focus = true
+  t: Translate
 ): { card: HTMLElement; created: boolean } | null {
   const existing = el.querySelector<HTMLElement>('[data-reco-thread] [data-reco-handoff]')
   if (existing) {
-    if (focus) firstEmptyInput(existing)?.focus()
+    firstEmptyInput(existing)?.focus()
     scrollEnd(el)
     const card = existing.closest<HTMLElement>('[data-reco-msg]')
     return card ? { card, created: false } : null
@@ -170,9 +260,11 @@ export function appendHandoffForm(
   }
   fill('text', 'reco.handoff.intro')
   fill('handoff-submit', 'reco.handoff.submit')
+  fill('handoff-attachments-label', 'reco.handoff.attachments')
+  fill('handoff-attach-cta', 'reco.handoff.attach')
   for (const field of HANDOFF_FIELDS) fill(`handoff-${field}-label`, `reco.handoff.${field}`)
   append(el, card)
-  if (focus) firstEmptyInput(card)?.focus()
+  firstEmptyInput(card)?.focus()
   return { card, created: true }
 }
 
@@ -187,6 +279,22 @@ export function greet(el: HTMLElement, t: Translate): void {
   // Greeting marker: the CSS gives a generous welcome layout while the
   // card is the only thread entry (:only-child).
   card.dataset.recoGreeting = ''
+  // L'accueil garde l'étincelle d'origine — le logo de marque ne marque
+  // que les réponses de l'assistant dans le fil.
+  const avatar = card.querySelector('[data-reco-avatar]')
+  if (avatar) {
+    const doc = avatar.ownerDocument
+    const svg = doc.createElementNS('http://www.w3.org/2000/svg', 'svg')
+    svg.setAttribute('viewBox', '0 0 24 24')
+    svg.setAttribute('fill', 'currentColor')
+    const path = doc.createElementNS('http://www.w3.org/2000/svg', 'path')
+    path.setAttribute(
+      'd',
+      'M12 2.6 13.8 8l5.4 1.8-5.4 1.8L12 17.2 10.2 11.6 4.8 9.8 10.2 8 12 2.6ZM18.5 15l.9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9.9-2.6Z'
+    )
+    svg.append(path)
+    avatar.replaceChildren(svg)
+  }
   fillField(card, 'text', t('reco.greeting'))
   const slot = card.querySelector('[data-reco-field="suggestions"]')
   if (slot) {
@@ -203,9 +311,11 @@ export function greet(el: HTMLElement, t: Translate): void {
     }
     if (!slot.hasChildNodes()) slot.remove()
   }
-  append(el, card)
   // L'accueil seul prend toute la hauteur (centrage `margin-block: auto`).
+  // Posé avant l'ajout pour que la visibilité de « Nouvelle discussion »
+  // soit calculée sur l'état final.
   thread(el)?.setAttribute('data-reco-virgin', '')
+  append(el, card)
 }
 
 /** Squelette « analyse en cours », puis scroll. */
@@ -248,6 +358,7 @@ export function clearThread(el: HTMLElement): void {
   thread(el)?.replaceChildren()
   hidePending(el)
   hideError(el)
+  syncEraseVisibility(el)
 }
 
 /**

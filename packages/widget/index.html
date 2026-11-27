@@ -256,14 +256,74 @@
         outline-offset: 2px;
         border-radius: 8px;
       }
-      /* The close icon, pushed to the trailing edge. */
-      [data-reco-widget] > header button[data-reco-close] {
-        width: var(--reco-control);
+      /* "New conversation" + close icons, pushed to the trailing edge.
+         La marge auto va sur le premier des deux visible : quand « + »
+         est masqué (pas de conversation), la croix garde le bord droit. */
+      [data-reco-widget] > header button:is([data-reco-close], [data-reco-erase]) {
+        min-width: var(--reco-control);
+        border-radius: 999px;
+      }
+      [data-reco-widget] > header button[data-reco-erase]:not([hidden]),
+      [data-reco-widget] > header button[data-reco-erase][hidden] + button[data-reco-close] {
         margin-inline-start: auto;
-        border-radius: 50%;
+      }
+      /* Nouvelle discussion : pilule rouge de marque « + » + libellé,
+         centrés ensemble. Sur petit écran le texte tombe, la pastille
+         redevient un cercle. */
+      [data-reco-widget] > header button[data-reco-erase] {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        width: auto;
+        height: 32px;
+        min-width: 32px;
+        min-height: 32px;
+        padding: 0 12px 0 9px;
+        align-self: center;
+        border: none;
+        background: #d13a5c;
+        color: #fff;
+        font-size: 0.8rem;
+        font-weight: 600;
+        line-height: 1;
+        white-space: nowrap;
+        box-shadow: 0 1px 3px rgb(231 78 112 / 40%);
+        transition:
+          transform 0.15s var(--reco-ease-out),
+          background 0.15s var(--reco-ease-out);
+      }
+      [data-reco-widget] > header button[data-reco-erase] svg {
+        width: 15px;
+        height: 15px;
+        flex-shrink: 0;
+      }
+      [data-reco-widget] > header button[data-reco-erase]:active {
+        transform: scale(0.96);
+      }
+      @media (max-width: 480px) {
+        [data-reco-widget] > header button[data-reco-erase] {
+          width: 32px;
+          padding: 0;
+          justify-content: center;
+        }
+        [data-reco-widget] > header button[data-reco-erase] [data-reco-erase-label] {
+          display: none;
+        }
+      }
+      [data-reco-widget] > header button[data-reco-erase] + button[data-reco-close] {
+        margin-inline-start: 4px;
       }
       [data-reco-widget] > header button[data-reco-close]:hover {
         background: var(--reco-surface);
+      }
+      [data-reco-widget] > header button[data-reco-erase]:hover {
+        background: #b92c50;
+        color: #fff;
+        transform: scale(1.05);
+      }
+      [data-reco-widget] > header button[data-reco-erase]:disabled {
+        opacity: 0.6;
+        cursor: wait;
       }
       /* ── Scrolling body: thread + pending + error, centered column on a
          pale-blue atmospheric radial ── */
@@ -333,6 +393,13 @@
         box-shadow: 0 1px 4px rgb(21 24 43 / 6%);
         flex-shrink: 0;
       }
+      [data-reco-avatar] img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 9px;
+      }
+      /* Étincelle de l'accueil (les réponses portent le logo de marque). */
       [data-reco-avatar] svg {
         width: 16px;
         height: 16px;
@@ -893,6 +960,68 @@
       [data-reco-handoff] :is(input, textarea):disabled {
         opacity: 0.7;
       }
+      /* Attachments: native file input hidden (still focusable), a dashed
+         pill with a paperclip opens the picker; chosen names below. */
+      [data-reco-handoff] [data-reco-input='handoff-files'] {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        border: 0;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        opacity: 0;
+      }
+      [data-reco-attach-button] {
+        /* Full width, same height and radius as the other fields — content
+           left-aligned like the field values; only the submit stays
+           centered at the bottom of the form. */
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 8px;
+        width: 100%;
+        min-height: 46px;
+        padding: 0 14px;
+        border: 1.5px dashed var(--reco-rule);
+        border-radius: var(--reco-radius-card);
+        background: var(--reco-paper);
+        color: var(--reco-primary);
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition:
+          border-color 0.15s,
+          background 0.15s;
+      }
+      [data-reco-attach-button] svg {
+        width: 18px;
+        height: 18px;
+        flex-shrink: 0;
+      }
+      [data-reco-attach]:hover [data-reco-attach-button] {
+        border-color: var(--reco-primary);
+        background: var(--reco-primary-soft);
+      }
+      [data-reco-attach]:has(input:focus-visible) [data-reco-attach-button] {
+        outline: 3px solid var(--reco-primary);
+        outline-offset: 1px;
+      }
+      [data-reco-field='handoff-files-names'] {
+        /* Le nom choisi doit sauter aux yeux — texte plein dans une
+           pastille, pas une discrète ligne grise. */
+        margin-top: 8px;
+        padding: 6px 10px;
+        border: 1px solid var(--reco-rule);
+        border-radius: 8px;
+        background: var(--reco-surface);
+        font-weight: 500;
+        color: var(--reco-ink);
+        overflow-wrap: anywhere;
+      }
+      [data-reco-field='handoff-files-names']:empty {
+        display: none;
+      }
       [data-reco-handoff] [data-reco-action='handoff'] {
         align-self: center;
         margin-top: 6px;
@@ -1035,7 +1164,7 @@
         color: #fff;
       }
       /* ── Composer: elevated white island (consent, turnstile, inset
-         input group, compact disclaimer) ── */
+         input group) ── */
       [data-reco-composer] {
         flex-shrink: 0;
         width: calc(100% - 24px);
@@ -1068,13 +1197,10 @@
         flex-shrink: 0;
         cursor: pointer;
       }
-      /* Passive notice: quiet centered legal line, no affordance. */
+      /* Continuation marker: kept in the DOM (it enables sending without a
+         checkbox) but not displayed under the input. */
       [data-reco-consent='continuation'] {
-        margin: 10px 0 0;
-        font-size: 0.72rem;
-        line-height: 1.5;
-        color: var(--reco-ink-subtle);
-        text-align: center;
+        display: none;
       }
       /* Inset input group: textarea + send sit inside one soft well. */
       [data-reco-input-row] {
@@ -1089,15 +1215,20 @@
       /* One uniform well: the focus ring lives on the group, the textarea
          itself stays transparent (no white rectangle inside the well). */
       [data-reco-input-row]:focus-within {
-        outline: 3px solid var(--reco-primary);
-        outline-offset: 1px;
+        /* Anneau unique : offset nul pour que l'outline colle à la
+           bordure — un offset positif laisserait un liseré blanc qui
+           donne l'impression de deux bordures. */
+        outline: 1px solid var(--reco-primary);
+        outline-offset: 0;
         border-color: var(--reco-primary);
       }
       [data-reco-input='message'] {
         flex: 1;
         min-width: 0;
         min-height: var(--reco-control);
-        max-height: calc(var(--reco-control) * 3);
+        /* 3 lignes de texte max : 4.5em + le padding vertical
+           (control − 1.5em) = control + 3em. */
+        max-height: calc(var(--reco-control) + 3em);
         padding: calc((var(--reco-control) - 1.5em) / 2) 12px;
         border: none;
         border-radius: 10px;
@@ -1143,12 +1274,6 @@
          switching to the deep blue. */
       :is([data-reco-action='send'], [data-reco-action='stop']):hover {
         box-shadow: 0 4px 12px rgb(18 100 183 / 35%);
-      }
-      [data-reco-disclaimer] {
-        margin: 8px 0 0;
-        font-size: 0.7rem;
-        color: var(--reco-ink-subtle);
-        text-align: center;
       }
       /* ── Fallback panel (config invalide) ── */
       [data-reco-panel='fallback'] {
@@ -1455,15 +1580,13 @@
           >Comment faire pour obtenir une AVI ou un compte bloqué ?</span
         >
         <span data-reco-label="reco.suggestion.2"
-          >Comment faire pour débloquer mon compte à l'arrivée et obtenir mes virements
-          mensuels ?</span
+          >Comment faire pour débloquer mon compte à l'arrivée et obtenir mes virements mensuels
+          ?</span
         >
         <span data-reco-label="reco.suggestion.3"
           >Comment faire pour obtenir un remboursement en cas de refus de visa ?</span
         >
-        <span data-reco-label="reco.suggestion.4"
-          >Je veux discuter avec un agent de Studely</span
-        >
+        <span data-reco-label="reco.suggestion.4">Je veux discuter avec un agent de Studely</span>
         <span data-reco-label="reco.feedback.up">Réponse utile</span>
         <span data-reco-label="reco.feedback.down">Réponse inutile</span>
         <span data-reco-label="reco.feedback.resolved">Votre problème est-il résolu ?</span>
@@ -1475,9 +1598,7 @@
         <span data-reco-label="reco.feedback.star.3">Correct</span>
         <span data-reco-label="reco.feedback.star.4">Satisfaisant</span>
         <span data-reco-label="reco.feedback.star.5">Très bien</span>
-        <span data-reco-label="reco.feedback.comment"
-          >Un commentaire ? (optionnel)</span
-        >
+        <span data-reco-label="reco.feedback.comment">Un commentaire ? (optionnel)</span>
         <span data-reco-label="reco.feedback.send">Envoyer</span>
         <span data-reco-label="reco.feedback.thanks">Merci pour votre retour !</span>
         <span data-reco-label="reco.feedback.dismiss">Ignorer</span>
@@ -1490,7 +1611,7 @@
           parcours.</span
         >
         <span data-reco-label="reco.input.label">Décris ton projet d'études</span>
-        <span data-reco-label="reco.input.placeholder">Décris ton projet d'études…</span>
+        <span data-reco-label="reco.input.placeholder">Posez votre question…</span>
         <span data-reco-label="reco.send">Envoyer</span>
         <span data-reco-label="reco.pending">Analyse de ta demande…</span>
         <span data-reco-label="reco.stop">Arrêter la réponse</span>
@@ -1505,9 +1626,8 @@
         <span data-reco-label="reco.error.captcha"
           >La vérification anti-robot a échoué. Réessaie.</span
         >
-        <span data-reco-label="reco.disclaimer"
-          >Recommandations indicatives générées automatiquement.</span
-        >
+        <span data-reco-label="reco.privacy.delete">Nouvelle discussion</span>
+        <span data-reco-label="reco.privacy.done">Tes données ont été supprimées.</span>
         <span data-reco-label="reco.results.count">{count} recommandations pour toi.</span>
         <span data-reco-label="reco.empty">Aucun parcours ne correspond à ta demande.</span>
         <span data-reco-label="reco.handoff.intro"
@@ -1520,7 +1640,9 @@
         <span data-reco-label="reco.handoff.last">Nom</span>
         <span data-reco-label="reco.handoff.email">Adresse e-mail</span>
         <span data-reco-label="reco.handoff.phone">Téléphone (optionnel)</span>
-        <span data-reco-label="reco.handoff.country">Pays de départ</span>
+        <span data-reco-label="reco.handoff.country">Pays de résidence</span>
+        <span data-reco-label="reco.handoff.attachments">Pièces jointes (optionnel)</span>
+        <span data-reco-label="reco.handoff.attach">Joindre un fichier</span>
         <span data-reco-label="reco.handoff.submit">Envoyer ma demande</span>
         <span data-reco-label="reco.handoff.confirm"
           >C'est noté ! Un conseiller te contactera très vite.</span

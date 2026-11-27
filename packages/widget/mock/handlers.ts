@@ -21,7 +21,8 @@ export const SCENARIOS = [
   'timeout',
   'bad-url',
   'html-reason',
-  'handoff'
+  'handoff',
+  'restore'
 ] as const
 
 export type Scenario = (typeof SCENARIOS)[number]
@@ -136,6 +137,8 @@ export const handlers = [
   http.get(`${BASE()}/users/:userId`, ({ params }) =>
     HttpResponse.json({ user_id: params.userId })
   ),
+  // Effacement du profil déclaré (droit à l'oubli) : 204 sans corps.
+  http.delete(`${BASE()}/users/:userId`, () => new HttpResponse(null, { status: 204 })),
   // Brouillon du formulaire conseiller (sujet + description rédigés côté API).
   http.post(`${BASE()}/conversations/:sessionId/handoff/draft`, async () => {
     await delay(300)
@@ -155,6 +158,52 @@ export const handlers = [
       updated_at: new Date().toISOString()
     })
   ),
+
+  // Restauration au rechargement : fil fixe à deux tours, mais seulement
+  // dans le scénario dédié — partout ailleurs l'historique vide laisse
+  // l'accueil reprendre la main (un test qui enchaîne deux navigations
+  // dans le même onglet garde la session en sessionStorage).
+  http.get(`${BASE()}/conversations/:sessionId/turns`, () =>
+    HttpResponse.json(
+      currentScenario() !== 'restore'
+        ? []
+        : [
+            {
+              turn_id: 'mock-turn-1',
+              user: 'Je cherche un master',
+              assistant: 'Voici une piste adaptée à ton profil.',
+              citations: []
+            },
+            {
+              turn_id: 'mock-turn-2',
+              user: 'Et la bourse ?',
+              // Texte long volontairement : le fil restauré doit dépasser la
+              // hauteur du panneau pour que le scroll de restauration soit
+              // vérifiable en e2e.
+              assistant:
+                'La bourse Studely couvre une partie des frais de dossier et de scolarité. ' +
+                'Elle est attribuée selon le profil académique, le pays de destination et le ' +
+                'niveau d’études visé. Les critères principaux sont la qualité du parcours, ' +
+                'la cohérence du projet professionnel et la capacité de financement restante. ' +
+                'Le montant varie de quelques centaines à plusieurs milliers d’euros, versé ' +
+                'en une ou plusieurs fois selon le calendrier universitaire. Un conseiller ' +
+                'peut estimer ton éligibilité en quelques minutes et t’indiquer les pièces ' +
+                'à préparer pour le dossier.',
+              citations: []
+            }
+          ]
+    )
+  ),
+  http.get(`${BASE()}/conversations`, () => HttpResponse.json([])),
+
+  // Pièces jointes du formulaire conseiller : un jeton factice par fichier.
+  http.post(`${BASE()}/conversations/:sessionId/upload`, async ({ request }) => {
+    const data = await request.formData()
+    const count = data.getAll('files').length
+    return HttpResponse.json({
+      upload_tokens: Array.from({ length: count }, (_, i) => `mock-token-${i + 1}`)
+    })
+  }),
 
   // « Résolu ? » de fin de conversation.
   http.post(`${BASE()}/conversations/:sessionId/feedback`, async ({ request }) => {

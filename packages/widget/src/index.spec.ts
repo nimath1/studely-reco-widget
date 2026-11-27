@@ -140,7 +140,7 @@ describe('API publique', () => {
     expect(labelOf('last')).toContain('Nom')
     expect(labelOf('email')).toContain('E-mail')
     expect(labelOf('phone')).toContain('Téléphone')
-    expect(labelOf('country')).toContain('Pays de départ')
+    expect(labelOf('country')).toContain('Pays de résidence')
   })
 
   it('retire aussi les écouteurs si la nouvelle config est invalide', async () => {

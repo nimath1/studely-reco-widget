@@ -6,9 +6,14 @@
 import { version as pkgVersion } from '../package.json'
 import {
   clearChatSession,
+  clearUserId,
+  deleteProfile,
   draftHandoff,
   ensureUserId,
+  getConversationState,
+  getConversationTurns,
   getProfileContact,
+  hasStoredChatSession,
   loadChatSession,
   postChat,
   postConversationFeedback,
@@ -17,6 +22,7 @@ import {
   RecoApiError,
   requestHandoff,
   saveChatSession,
+  uploadFiles,
   type TurnRating
 } from './api/client'
 import type { ChatReply } from './api/types'
@@ -28,6 +34,7 @@ import { emitRecoEvent, trackReco } from './tracking/events'
 import { injectTemplate } from './ui/template'
 import {
   appendAssistant,
+  appendHandoffConfirm,
   appendHandoffForm,
   appendUser,
   beginAssistantStream,
@@ -35,6 +42,8 @@ import {
   greet,
   hideError,
   hidePending,
+  pinScrollEnd,
+  scrollEnd,
   setChipsEnabled,
   showError,
   showPending,
@@ -146,8 +155,16 @@ function applyStaticLabels(el: HTMLElement, t: Translate): HTMLTextAreaElement |
     stopButton.setAttribute('aria-label', stopLabel)
     stopButton.setAttribute('title', stopLabel)
   }
-  const disclaimer = el.querySelector<HTMLElement>('[data-reco-disclaimer]')
-  if (disclaimer) disclaimer.textContent = t('reco.disclaimer')
+  // Icône « Nouvelle discussion » : libellé traduit = nom accessible,
+  // infobulle et texte visible à côté du « + ».
+  const erase = el.querySelector<HTMLElement>('[data-reco-erase]')
+  const eraseLabel = t('reco.privacy.delete')
+  if (erase && eraseLabel !== 'reco.privacy.delete') {
+    erase.setAttribute('aria-label', eraseLabel)
+    erase.setAttribute('title', eraseLabel)
+    const visible = erase.querySelector<HTMLElement>('[data-reco-erase-label]')
+    if (visible) visible.textContent = eraseLabel
+  }
   return composer
 }
 
@@ -162,6 +179,7 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
   const t: Translate = readLabels(el)
   const view = mountView(el)
   signal.addEventListener('abort', view.unmount, { once: true })
+  pinScrollEnd(el, signal)
 
   let phase: WidgetPhase = 'consent'
   const setPhase = (to: WidgetPhase, name: string) => {
@@ -173,8 +191,9 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
 
   /** La session /chat continue d'un envoi à l'autre (retry compris). */
   let sessionId = loadChatSession(config.origin)
-  /** `user_id` stable : relie conversation, profil déclaré et ticket handoff. */
-  const userId = ensureUserId(config.origin)
+  /** `user_id` stable : relie conversation, profil déclaré et ticket handoff.
+      Régénéré après un effacement — sans lien avec l'ancien. */
+  let userId = ensureUserId(config.origin)
   let retryLockUntil = 0
   /** Échecs captcha consécutifs : relance du défi au 1er, erreur au 2e (§9.1). */
   let captchaFailures = 0
@@ -251,9 +270,6 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
       emitRecoEvent(el, 'reply', { count: lastResultCount })
       announce(t('reco.results.count', { count: lastResultCount }))
     }
-    // « Je veux parler à un humain » : le bot propose la mise en relation,
-    // le formulaire complet s'ouvre aussitôt sous sa réponse.
-    if (reply.meta.handoff_proposed === true) proposeHandoff(true)
   }
 
   /**
@@ -347,6 +363,12 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
       }
     }
     lastMessage = text
+    // Un formulaire conseiller ouvert et non envoyé n'a plus de sens dès
+    // que la conversation repart : il est retiré du fil plutôt que de
+    // traîner en haut — sinon le prochain clic conseiller ne ferait que
+    // re-focaliser l'ancien, invisible, et l'utilisateur ne comprendrait
+    // pas ce qui se passe.
+    el.querySelector('[data-reco-thread] [data-reco-handoff]')?.closest('[data-reco-msg]')?.remove()
     appendUser(el, text)
     emitRecoEvent(el, 'send', { via })
     void sendPayload(text)
@@ -390,6 +412,48 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
   }
 
   /**
+   * Pièces jointes du formulaire conseiller : uploadées d'abord, leurs
+   * jetons repartent dans le HandoffForm. Sans session (erreur avant la
+   * 1re réponse) il n'y a pas de conversation où les déposer — l'upload
+   * est sauté comme le ticket. Échec → `null` (erreur réseau affichée).
+   */
+  async function uploadAttachments(form: HTMLFormElement): Promise<string[] | null> {
+    const files = [
+      ...(form.querySelector<HTMLInputElement>('[data-reco-input="handoff-files"]')?.files ?? [])
+    ]
+    if (files.length === 0 || !sessionId) return []
+    try {
+      return await uploadFiles(sessionId, files)
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * « Nouvelle discussion » (icône de l'en-tête), sans confirmation :
+   * DELETE /users/{user_id} puis effacement local — session oubliée, fil
+   * reparti à l'accueil, `user_id` régénéré (le nouvel identifiant ne
+   * peut pas être relié à l'ancien profil).
+   */
+  async function eraseData(trigger: HTMLButtonElement): Promise<void> {
+    trigger.disabled = true
+    try {
+      await deleteProfile(userId)
+    } catch {
+      trigger.disabled = false
+      announce(t('reco.error.network'))
+      return
+    }
+    clearUserId(config.origin)
+    userId = ensureUserId(config.origin)
+    emitRecoEvent(el, 'erase')
+    trigger.disabled = false
+    // restart vide le fil, oublie la session et re-poser l'accueil.
+    restart()
+    announce(t('reco.privacy.done'))
+  }
+
+  /**
    * Mise en relation : valide le formulaire (schéma HandoffForm) puis
    * transmet. Succès → la carte devient une confirmation ; 422 → champ
    * fautif marqué ; échec réseau → message, saisie réactivée.
@@ -415,7 +479,13 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     if (errorField) errorField.hidden = true
     const controls = form.querySelectorAll<HTMLButtonElement>('input, textarea, button')
     controls.forEach((control) => (control.disabled = true))
-    const outcome = await deliverHandoff(values)
+    const uploadTokens = await uploadAttachments(form)
+    if (uploadTokens === null) {
+      controls.forEach((control) => (control.disabled = false))
+      fail('reco.error.network')
+      return
+    }
+    const outcome = await deliverHandoff(values, uploadTokens)
     if (outcome !== 'ok') {
       controls.forEach((control) => (control.disabled = false))
       if (outcome === 'network') {
@@ -451,9 +521,11 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
    * erreur réseau.
    */
   async function deliverHandoff(
-    values: HandoffValues
+    values: HandoffValues,
+    uploadTokens: string[] = []
   ): Promise<'ok' | 'network' | { field?: string }> {
     const body = toHandoffBody(values)
+    if (uploadTokens.length > 0) body.upload_tokens = uploadTokens
     if (config.handoffUrl) {
       try {
         const response = await fetch(config.handoffUrl, {
@@ -489,31 +561,43 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
   }
 
   /**
-   * Formulaire conseiller dans le fil. `auto` : le bot vient de proposer
-   * la mise en relation (`handoff_proposed`) — la carte s'ouvre sans voler
-   * le focus du composer. Une nouvelle carte est pré-remplie : sujet et
+   * Formulaire conseiller dans le fil, ouvert seulement par un clic sur
+   * « Parler à un conseiller » — `handoff_proposed` n'affiche que le CTA
+   * sous la réponse. Une nouvelle carte est pré-remplie : sujet et
    * description par POST /handoff/draft (si session), identité par le
    * profil déclaré ; l'échec de l'un ou l'autre laisse les champs vides.
    */
-  function proposeHandoff(auto = false): void {
-    if (!auto) emitRecoEvent(el, 'advisor', { from: phase })
-    const opened = appendHandoffForm(el, t, !auto)
-    if (!opened) {
-      // Gabarit sans le template : repli sur le lien direct.
-      if (!auto) el.ownerDocument.defaultView?.open(config.advisorUrl, '_blank', 'noopener')
+  function proposeHandoff(): void {
+    emitRecoEvent(el, 'advisor', { from: phase })
+    const open = () => {
+      const opened = appendHandoffForm(el, t)
+      if (!opened) {
+        // Gabarit sans le template : repli sur le lien direct.
+        el.ownerDocument.defaultView?.open(config.advisorUrl, '_blank', 'noopener')
+      }
+      return opened
+    }
+    // Formulaire déjà au fil : pas de nouvelle analyse, le focus suffit.
+    if (el.querySelector('[data-reco-thread] [data-reco-handoff]')) {
+      open()
       return
     }
-    const form = opened.card.querySelector<HTMLFormElement>('[data-reco-handoff]')
-    if (!opened.created || !form) return
-    form.setAttribute('aria-busy', 'true')
+    // Récupération avant affichage : le squelette « Analyse de ta
+    // demande… » couvre POST /handoff/draft (sujet + description rédigés)
+    // et GET /users (identité déclarée) ; le formulaire n'apparaît que
+    // pré-rempli. Échec de l'un ou l'autre → champs vides, jamais bloquant.
+    showPending(el, t)
+    const gen = generation
     void Promise.all([
       sessionId ? draftHandoff(sessionId) : Promise.resolve(null),
       getProfileContact(userId)
     ]).then(([draft, contact]) => {
-      form.removeAttribute('aria-busy')
-      // « Nouvelle recherche » entre-temps : la carte n'est plus au fil.
-      if (signal.aborted || !form.isConnected) return
-      prefillHandoff(form, draft, contact, config.locale)
+      hidePending(el)
+      // « Nouvelle recherche » ou envoi entre-temps : pas de carte.
+      if (signal.aborted || gen !== generation) return
+      const opened = open()
+      const form = opened?.card.querySelector<HTMLFormElement>('[data-reco-handoff]')
+      if (form) prefillHandoff(form, draft, contact, config.locale)
     })
   }
 
@@ -554,7 +638,12 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
       }
       case 'send':
         send(composer?.value ?? '')
-        if (composer) composer.value = ''
+        if (composer) {
+          composer.value = ''
+          // Hauteur recalée sur une ligne — sinon le champ garde la taille
+          // du message qui vient de partir.
+          composer.style.height = 'auto'
+        }
         break
       case 'retry':
         retry()
@@ -564,6 +653,10 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
         break
       case 'reset':
         restart()
+        break
+      case 'erase':
+        // Seul un <button> porte cette action (icône de l'en-tête).
+        if (trigger instanceof HTMLButtonElement) void eraseData(trigger)
         break
       case 'advisor':
         proposeHandoff()
@@ -589,12 +682,16 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
   )
 
   // Consentement : coche → saisie déverrouillée ; décoche → retour consent.
+  // Pièces jointes : noms des fichiers choisis sous le bouton trombone.
   el.addEventListener(
     'change',
     (event) => {
       const input = event.target
-      if (input instanceof HTMLInputElement && input.matches('[data-reco-input="consent"]')) {
-        consentGranted(input.checked)
+      if (!(input instanceof HTMLInputElement)) return
+      if (input.matches('[data-reco-input="consent"]')) consentGranted(input.checked)
+      if (input.matches('[data-reco-input="handoff-files"]')) {
+        const names = input.parentElement?.querySelector('[data-reco-field="handoff-files-names"]')
+        if (names) names.textContent = [...(input.files ?? [])].map((f) => f.name).join(', ')
       }
     },
     { signal }
@@ -631,7 +728,12 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
       if (form.matches('[data-reco-handoff]')) void submitHandoff(form)
       else {
         send(composer?.value ?? '')
-        if (composer) composer.value = ''
+        if (composer) {
+          composer.value = ''
+          // Hauteur recalée sur une ligne — sinon le champ garde la taille
+          // du message qui vient de partir.
+          composer.style.height = 'auto'
+        }
       }
     },
     { signal }
@@ -794,6 +896,10 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
       win?.clearTimeout(convTimer)
       convTimer = undefined
       removeConvCard()
+      // Ouverture : le fil colle en bas — la restauration a pu remplir le
+      // fil pendant que le panneau fermé empêchait le scroll (hauteur
+      // nulle), et un utilisateur qui rouvre attend les derniers messages.
+      win?.requestAnimationFrame(() => scrollEnd(el))
     }
   })
   openObserver.observe(el, { attributes: true, attributeFilter: ['data-reco-open'] })
@@ -803,13 +909,52 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     removeConvCard()
   })
 
+  /**
+   * Rechargement en cours de conversation : le fil est restauré depuis
+   * GET …/turns (la session vit côté serveur), l'état depuis
+   * GET /conversations — ticket handoff déjà créé (confirmation
+   * réaffichée) et feedback déjà donné (la question « résolu ? » n'est
+   * pas reposée). Un envoi ou une « nouvelle recherche » entre-temps
+   * (génération incrémentée) annule la restauration ; erreur ou
+   * historique vide → accueil classique.
+   */
+  async function restoreHistory(session: string): Promise<void> {
+    const gen = generation
+    const [turns, state] = await Promise.all([
+      getConversationTurns(session, userId),
+      getConversationState(session, userId)
+    ])
+    if (signal.aborted || gen !== generation) return
+    if (!turns || turns.length === 0) {
+      greet(el, t)
+      return
+    }
+    if (state?.feedback) convFeedbackDone = true
+    for (const turn of turns) {
+      if (turn.user) appendUser(el, turn.user)
+      if (turn.assistant) {
+        appendAssistant(
+          el,
+          { text: turn.assistant, meta: { turn_id: turn.turn_id, citations: turn.citations } },
+          t
+        )
+      }
+    }
+    if ((state?.handoff_tickets?.length ?? 0) > 0) appendHandoffConfirm(el, t)
+  }
+
   // Phase initiale : un consentement pré-coché ouvre directement le chat.
   el.dataset.recoState = view.state.consent ? 'chat' : 'consent'
   phase = el.dataset.recoState === 'chat' ? 'chat' : 'consent'
   if (phase === 'chat') void ensureChallenge(el, signal)
   // Accueil seulement si le fil est vide — un gabarit hôte pré-rempli ou
-  // une ré-init gardent leurs entrées.
-  if (!el.querySelector('[data-reco-thread]')?.hasChildNodes()) greet(el, t)
+  // une ré-init gardent leurs entrées. Une session persiste côté serveur
+  // quand le navigateur recharge : le fil est restauré plutôt que
+  // reparti de zéro.
+  if (!el.querySelector('[data-reco-thread]')?.hasChildNodes()) {
+    if (sessionId) void restoreHistory(sessionId)
+    else greet(el, t)
+  }
 }
 
 /**
@@ -898,7 +1043,11 @@ export function init(el: HTMLElement): WidgetConfig | null {
 }
 
 function initWhenNear(el: HTMLElement): void {
-  if (typeof IntersectionObserver !== 'function') {
+  // Session persistée : init immédiate. Fermé, le bloc est hors viewport
+  // (le launcher seul est fixed) et l'observer ne se déclencherait qu'à
+  // l'ouverture — l'utilisateur verrait l'accueil flash avant le fil
+  // restauré. Le contenu doit être prêt avant la première ouverture.
+  if (hasStoredChatSession() || typeof IntersectionObserver !== 'function') {
     init(el)
     return
   }

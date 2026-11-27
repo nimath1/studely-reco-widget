@@ -136,13 +136,11 @@ describe('appendHandoffForm', () => {
     bare.querySelector('[data-reco-label="reco.handoff.country"]')!.remove()
     vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const { card } = appendHandoffForm(bare, readLabels(bare))!
-    expect(labelsOf(card, 'handoff-country')[0]?.textContent).toContain('Pays de départ')
+    expect(labelsOf(card, 'handoff-country')[0]?.textContent).toContain('Pays de résidence')
     bare.remove()
   })
 
-  it('focus on the first empty field, none when opened automatically', () => {
-    appendHandoffForm(el, t, false)
-    expect(el.contains(document.activeElement)).toBe(false)
+  it('focus on the first empty field', () => {
     const { card } = appendHandoffForm(el, t)!
     expect(document.activeElement).toBe(card.querySelector('[data-reco-input="handoff-subject"]'))
   })

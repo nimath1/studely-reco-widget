@@ -11,7 +11,10 @@ export const VALID_ATTRS = 'data-reco-origin="mexique" data-reco-advisor-url="/m
 export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
   document.body.innerHTML = `
     <section data-reco-widget ${attrs}>
-      <header><button type="button" data-reco-close>Fermer</button></header>
+      <header>
+        <button type="button" data-reco-action="erase" data-reco-erase></button>
+        <button type="button" data-reco-close>Fermer</button>
+      </header>
       <div data-reco-live class="sr-only"></div>
       <div data-reco-body>
         <div data-reco-thread role="log"></div>
@@ -49,7 +52,6 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
           <button type="submit" data-reco-action="send"></button>
           <button type="button" data-reco-action="stop" hidden></button>
         </div>
-        <p data-reco-disclaimer></p>
       </form>
       <div data-reco-templates hidden>
         <div data-reco-template="msg-user" data-reco-msg="user">
@@ -107,8 +109,14 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
                 <input type="tel" data-reco-input="handoff-phone" />
               </label>
               <label>
-                <span data-reco-field="handoff-country-label">Pays de départ</span>
+                <span data-reco-field="handoff-country-label">Pays de résidence</span>
                 <input type="text" data-reco-input="handoff-country" />
+              </label>
+              <label>
+                <span data-reco-field="handoff-attachments-label">Pièces jointes (optionnel)</span>
+                <input type="file" data-reco-input="handoff-files" multiple />
+                <span data-reco-attach-button><span data-reco-field="handoff-attach-cta">Joindre un fichier</span></span>
+                <span data-reco-field="handoff-files-names"></span>
               </label>
               <button type="submit" data-reco-action="handoff" data-reco-field="handoff-submit"></button>
             </form>
@@ -141,7 +149,6 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
         <span data-reco-label="reco.error.server">Serveur</span>
         <span data-reco-label="reco.error.input">Saisie invalide</span>
         <span data-reco-label="reco.error.captcha">Captcha échoué</span>
-        <span data-reco-label="reco.disclaimer">Recommandations indicatives.</span>
         <span data-reco-label="reco.results.count">{count} recommandations</span>
         <span data-reco-label="reco.empty">Aucun parcours</span>
         <span data-reco-label="reco.handoff.intro">Laisse tes coordonnées pour la mise en relation.</span>
@@ -151,10 +158,13 @@ export function mountWidget(attrs: string = VALID_ATTRS): HTMLElement {
         <span data-reco-label="reco.handoff.last">Ton nom</span>
         <span data-reco-label="reco.handoff.email">Ton adresse e-mail</span>
         <span data-reco-label="reco.handoff.phone">Téléphone (optionnel)</span>
-        <span data-reco-label="reco.handoff.country">Pays de départ</span>
+        <span data-reco-label="reco.handoff.country">Pays de résidence</span>
+        <span data-reco-label="reco.handoff.attachments">Pièces jointes (optionnel)</span>
         <span data-reco-label="reco.handoff.submit">Envoyer ma demande</span>
         <span data-reco-label="reco.handoff.confirm">C'est noté ! Un conseiller te contactera.</span>
         <span data-reco-label="reco.handoff.invalid">Champs requis invalides.</span>
+        <span data-reco-label="reco.privacy.delete">Nouvelle discussion</span>
+        <span data-reco-label="reco.privacy.done">Tes données ont été supprimées.</span>
         <span data-reco-label="reco.feedback.up">Réponse utile</span>
         <span data-reco-label="reco.feedback.down">Réponse inutile</span>
         <span data-reco-label="reco.feedback.resolved">Votre problème est-il résolu ?</span>

@@ -30,7 +30,7 @@ const VALID = {
 
 beforeEach(() => {
   const el = mountWidget()
-  const { card } = appendHandoffForm(el, readLabels(el), false)!
+  const { card } = appendHandoffForm(el, readLabels(el))!
   form = card.querySelector<HTMLFormElement>('[data-reco-handoff]')!
 })
 

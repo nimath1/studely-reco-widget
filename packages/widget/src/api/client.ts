@@ -175,6 +175,25 @@ export function loadChatSession(origin: string): string | null {
   }
 }
 
+/**
+ * Vrai si une session /chat est persistée, toute origine confondue. Sert
+ * à l'init immédiate au chargement : fermé, le bloc est hors viewport et
+ * l'init différée ne se déclencherait qu'à l'ouverture — le fil restauré
+ * doit être prêt avant.
+ */
+export function hasStoredChatSession(): boolean {
+  try {
+    const store = storage()
+    if (!store) return false
+    for (let i = 0; i < store.length; i++) {
+      if (store.key(i)?.startsWith(SESSION_KEY_PREFIX)) return true
+    }
+    return false
+  } catch {
+    return false
+  }
+}
+
 export function saveChatSession(origin: string, sessionId: string | undefined): void {
   if (!sessionId) return
   try {
@@ -208,6 +227,18 @@ export function ensureUserId(origin: string): string {
     return fresh
   } catch {
     return requestId()
+  }
+}
+
+/**
+ * Oubli du `user_id` local (après DELETE du profil) : le prochain
+ * `ensureUserId` en régénère un neuf, sans lien avec l'ancien.
+ */
+export function clearUserId(origin: string): void {
+  try {
+    globalThis.localStorage?.removeItem(`${USER_KEY_PREFIX}${origin}`)
+  } catch {
+    // Sans importance : un nouvel identifiant sera écrit par-dessus.
   }
 }
 
@@ -306,6 +337,20 @@ export async function putProfile(userId: string, profile: ProfileUpsert): Promis
   }
 }
 
+/**
+ * DELETE /users/{user_id} : effacement du profil déclaré (droit à
+ * l'oubli). 204 sans corps ; l'appelant nettoie ensuite l'ancien
+ * identifiant local et la conversation.
+ */
+export async function deleteProfile(userId: string): Promise<void> {
+  try {
+    await callApi(`/users/${encodeURIComponent(userId)}`, { method: 'DELETE' })
+  } catch (error) {
+    if (error instanceof RecoApiError) throw error
+    throw new RecoApiError('network', 'API injoignable ou délai dépassé')
+  }
+}
+
 /** Valeurs déclarées du `GET /users/{user_id}` utiles au formulaire conseiller. */
 export interface ProfileContact {
   firstname?: string
@@ -339,6 +384,69 @@ export async function getProfileContact(userId: string): Promise<ProfileContact 
   }
 }
 
+/** Un tour de `GET …/turns` : question utilisateur, réponse (marqueurs
+    `[Sn]` inclus — le rendu les traite comme en direct) et citations. */
+export interface ConversationTurn {
+  turn_id?: string
+  user?: string
+  assistant?: string
+  citations?: ChatCitation[]
+}
+
+/**
+ * GET /conversations/{session_id}/turns?user_id= : l'historique de la
+ * session persiste côté serveur — utilisé pour restaurer le fil après un
+ * rechargement. `user_id` est exigé en query (422 sinon). Toute erreur
+ * donne `null` : la restauration est facultative, l'accueil la remplace.
+ */
+export async function getConversationTurns(
+  sessionId: string,
+  userId: string
+): Promise<ConversationTurn[] | null> {
+  try {
+    const res = await callApi(
+      `/conversations/${encodeURIComponent(sessionId)}/turns?user_id=${encodeURIComponent(userId)}`,
+      { method: 'GET' }
+    )
+    const turns = (await res.json()) as unknown
+    return Array.isArray(turns) ? (turns as ConversationTurn[]) : null
+  } catch {
+    return null
+  }
+}
+
+/** État d'une conversation dans `GET /conversations` — seuls les champs
+    exploités par le widget sont lus (le reste est ignoré). */
+export interface ConversationState {
+  session_id: string
+  /** Ticket(s) de mise en relation déjà créés — la confirmation s'affiche. */
+  handoff_tickets?: { ticket_id?: string; status?: string }[]
+  /** Feedback de fin déjà donné — la question « résolu ? » n'est pas reposée. */
+  feedback?: unknown
+}
+
+/**
+ * GET /conversations?user_id= puis filtre sur la session courante : état
+ * handoff/feedback restauré avec le fil. Erreur ou session absente →
+ * `null` — le comportement par défaut (question posée, pas de ticket)
+ * reste valable.
+ */
+export async function getConversationState(
+  sessionId: string,
+  userId: string
+): Promise<ConversationState | null> {
+  try {
+    const res = await callApi(`/conversations?user_id=${encodeURIComponent(userId)}`, {
+      method: 'GET'
+    })
+    const list = (await res.json()) as unknown
+    if (!Array.isArray(list)) return null
+    return (list as ConversationState[]).find((c) => c.session_id === sessionId) ?? null
+  } catch {
+    return null
+  }
+}
+
 /** Réponse du POST …/handoff/draft : brouillon rédigé côté API (SAV-065). */
 export interface HandoffDraft {
   subject: string
@@ -363,6 +471,31 @@ export async function draftHandoff(sessionId: string): Promise<HandoffDraft | nu
     return draft as HandoffDraft
   } catch {
     return null
+  }
+}
+
+/**
+ * POST /conversations/{session_id}/upload : pièces jointes du formulaire
+ * conseiller, en multipart (un champ `files` par fichier — PDF et images
+ * acceptés, 415 sinon). Réponse `{ upload_tokens: string[] }`, un jeton
+ * par fichier, à renvoyer dans le HandoffForm. Pas de Content-Type JSON :
+ * le navigateur pose la boundary multipart.
+ */
+export async function uploadFiles(sessionId: string, files: File[]): Promise<string[]> {
+  try {
+    const data = new FormData()
+    for (const file of files) data.append('files', file)
+    const res = await fetch(
+      `${API_BASE_URL}/conversations/${encodeURIComponent(sessionId)}/upload`,
+      { method: 'POST', headers: { 'X-Request-Id': requestId() }, body: data }
+    )
+    if (!res.ok) throw await toApiError(res)
+    const body = (await res.json()) as { upload_tokens?: unknown }
+    if (!Array.isArray(body.upload_tokens)) return []
+    return body.upload_tokens.filter((token): token is string => typeof token === 'string')
+  } catch (error) {
+    if (error instanceof RecoApiError) throw error
+    throw new RecoApiError('network', 'API injoignable ou délai dépassé')
   }
 }
 

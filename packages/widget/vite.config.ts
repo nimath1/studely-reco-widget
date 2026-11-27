@@ -93,6 +93,9 @@ export default defineConfig(({ command, mode }) => {
     // gabarit HTML importé ?raw par le bundle.
     plugins: [tailwindcss(), recoTemplate()],
     server: {
+      // Tunnel cloudflared de démo : les sous-domaines trycloudflare.com
+      // sont acceptés en plus de localhost.
+      allowedHosts: ['.trycloudflare.com'],
       // Dev : les appels `/chat` du widget partent en même-origine et sont
       // relayés au chatbot réel — pas de CORS côté navigateur, la vraie
       // API est testable localement sans mock (`?recoMock=` reste prioritaire).

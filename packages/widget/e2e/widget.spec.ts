@@ -106,7 +106,8 @@ test.describe('parcours widget (mock MSW)', () => {
     await ask(page)
     const reply = thread(page).locator('[data-reco-msg="assistant"]').nth(1)
     await expect(reply).toContainText('<img src=x onerror=alert(1)>', { timeout: 10_000 })
-    await expect(reply.locator('img')).toHaveCount(0)
+    // Aucun img dans la bulle — l'avatar de marque à côté est légitime.
+    await expect(reply.locator('[data-reco-bubble] img')).toHaveCount(0)
   })
 
   test('arabe : dir=rtl et réponse complète', async ({ page }) => {
@@ -116,5 +117,39 @@ test.describe('parcours widget (mock MSW)', () => {
     const reply = thread(page).locator('[data-reco-msg="assistant"]').nth(1)
     await expect(reply).toBeAttached({ timeout: 10_000 })
     await expect(reply.locator('[data-reco-field="links"] a')).toHaveCount(3)
+  })
+
+  test('reload : fil restauré prêt avant la première ouverture, sans accueil', async ({ page }) => {
+    await open(page, 'restore')
+    await ask(page)
+    await expect(thread(page).locator('[data-reco-msg="assistant"]').nth(1)).toBeAttached({
+      timeout: 10_000
+    })
+    await page.reload()
+    // Panel jamais ouvert depuis le reload : la session persistée déclenche
+    // l'init immédiate et le fil restauré est déjà dans le DOM.
+    await expect(widget(page)).not.toHaveAttribute('data-reco-open', '')
+    await expect(thread(page).locator('[data-reco-msg="user"]')).toHaveCount(2, {
+      timeout: 10_000
+    })
+    // À l'ouverture : le contenu est déjà là, pas d'accueil flash.
+    await page.locator('[data-reco-launcher]').click()
+    await expect(widget(page)).toHaveAttribute('data-reco-open', '')
+    await expect(widget(page).locator('[data-reco-greeting]')).toHaveCount(0)
+    await expect(thread(page).locator('[data-reco-msg="user"]').first()).toContainText(
+      'Je cherche un master'
+    )
+    // Le fil restauré défile jusqu'en bas à l'ouverture, pas en haut.
+    await expect
+      .poll(async () =>
+        widget(page)
+          .locator('[data-reco-body]')
+          .evaluate((body) => {
+            const overflows = body.scrollHeight > body.clientHeight + 1
+            const atEnd = body.scrollTop + body.clientHeight >= body.scrollHeight - 1
+            return overflows && atEnd
+          })
+      )
+      .toBe(true)
   })
 })

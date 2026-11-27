@@ -22,6 +22,12 @@ const fail = (status: number, headers = new Headers()): Partial<Response> => ({
   json: async () => null
 })
 
+const json = (body: unknown): Partial<Response> => ({
+  ok: true,
+  json: async () => body,
+  text: async () => JSON.stringify(body)
+})
+
 let el: HTMLElement
 
 const consent = () => el.querySelector<HTMLInputElement>('[data-reco-input="consent"]')!
@@ -455,11 +461,6 @@ describe('mise en relation conseiller', () => {
   const handoffForm = () =>
     el.querySelector<HTMLFormElement>('[data-reco-thread] [data-reco-handoff]')
   const urlOf = (input: unknown) => (typeof input === 'string' ? input : (input as Request).url)
-  const json = (body: unknown): Partial<Response> => ({
-    ok: true,
-    json: async () => body,
-    text: async () => JSON.stringify(body)
-  })
   /** Formulaire ouvert et pré-remplissage terminé (aria-busy retiré). */
   const formReady = (form = handoffForm) =>
     waitFor(() => {
@@ -494,18 +495,91 @@ describe('mise en relation conseiller', () => {
     await grant()
   })
 
+  it('récupération : « Analyse de ta demande… » tant que brouillon et profil chargent', async () => {
+    let releaseDraft!: (r: Partial<Response>) => void
+    mockFetch(async (input: unknown) => {
+      const url = urlOf(input)
+      if (url.includes('/handoff/draft')) {
+        return new Promise<Partial<Response>>((resolve) => {
+          releaseDraft = resolve
+        })
+      }
+      if (url.includes('/users/')) return json({ user_id: 'u' })
+      return ok(SSE('Hors périmètre', { out_of_scope: true, session_id: 'sess-p' }))
+    })
+    await type('météo ?')
+    await waitFor(() =>
+      expect(
+        assistantEntries().at(-1)!.querySelector('[data-reco-action="advisor"]')
+      ).not.toBeNull()
+    )
+    assistantEntries().at(-1)!.querySelector<HTMLElement>('[data-reco-action="advisor"]')!.click()
+    // Pendant la récupération : squelette visible, pas encore de formulaire.
+    await waitFor(() =>
+      expect(el.querySelector<HTMLElement>('[data-reco-pending]')!.hidden).toBe(false)
+    )
+    expect(handoffForm()).toBeNull()
+    // Le libellé de la fixture est « Analyse… » — la clé, pas le texte.
+    expect(el.querySelector('[data-reco-pending]')!.textContent).toContain('Analyse')
+    releaseDraft(json({ subject: 'Sujet IA', description: 'Description IA' }))
+    // Récupération terminée : squelette retiré, formulaire pré-rempli.
+    await formReady()
+    expect(el.querySelector<HTMLElement>('[data-reco-pending]')!.hidden).toBe(true)
+    expect(
+      handoffForm()!.querySelector<HTMLInputElement>('[data-reco-input="handoff-subject"]')!.value
+    ).toBe('Sujet IA')
+  })
+
+  it('envoi sans utiliser le formulaire : il est retiré, le prochain clic en rouvre un neuf', async () => {
+    mockFetch(async (input: unknown) => {
+      const url = urlOf(input)
+      if (url.includes('/users/')) return json({ user_id: 'u' })
+      return ok(SSE('Hors périmètre', { out_of_scope: true, session_id: 'sess-x' }))
+    })
+    await type('météo ?')
+    await openViaAdvisor()
+    expect(handoffForm()).not.toBeNull()
+    // L'utilisateur repart dans la conversation sans remplir le formulaire.
+    await type('autre question')
+    await waitFor(() => expect(handoffForm()).toBeNull())
+    // Nouveau clic conseiller : un nouveau formulaire s'affiche en bas.
+    await openViaAdvisor()
+    expect(handoffForm()).not.toBeNull()
+    expect(el.querySelectorAll('[data-reco-thread] [data-reco-handoff]')).toHaveLength(1)
+  })
+
+  it('envoi : le composer repasse en une ligne', async () => {
+    mockFetch(async () => ok(SSE('Réponse', {})))
+    // jsdom : scrollHeight vaut 0 — la saisie écrase quand même style.height,
+    // ce qui suffit à prouver que l'envoi le réinitialise.
+    textarea().value = 'ligne 1\nligne 2\nligne 3'
+    textarea().dispatchEvent(new Event('input', { bubbles: true }))
+    textarea().closest('form')!.requestSubmit()
+    await waitFor(() => expect(textarea().value).toBe(''))
+    expect(textarea().style.height).toBe('auto')
+  })
+
   it('« Parler à un conseiller » ajoute le formulaire complet au fil', async () => {
     mockFetch(async () => ok(SSE('Hors périmètre', { out_of_scope: true })))
     await type('météo ?')
     await openViaAdvisor()
-    for (const f of ['subject', 'description', 'first', 'last', 'email', 'phone', 'country']) {
+    for (const f of [
+      'subject',
+      'description',
+      'first',
+      'last',
+      'email',
+      'phone',
+      'country',
+      'files'
+    ]) {
       expect(handoffForm()!.querySelector(`[data-reco-input="handoff-${f}"]`)).not.toBeNull()
     }
     const events = (window.dataLayer ?? []).map((p) => p.event)
     expect(events).toContain('reco_advisor')
   })
 
-  it('handoff_proposed : formulaire ouvert seul, pré-rempli par le brouillon et le profil', async () => {
+  it('handoff_proposed : CTA seul, formulaire ouvert au clic et pré-rempli', async () => {
     const spy = mockFetch(async (input: unknown) => {
       const url = urlOf(input)
       if (url.includes('/handoff/draft')) {
@@ -523,7 +597,16 @@ describe('mise en relation conseiller', () => {
     })
     textarea().focus()
     await type('Je veux discuter avec un humain')
-    await formReady()
+    // La réponse affiche le CTA mais n'ouvre pas le formulaire.
+    await waitFor(() =>
+      expect(
+        assistantEntries().at(-1)!.querySelector('[data-reco-action="advisor"]')
+      ).not.toBeNull()
+    )
+    expect(handoffForm()).toBeNull()
+    expect(document.activeElement).toBe(textarea())
+    expect((window.dataLayer ?? []).map((p) => p.event)).not.toContain('reco_advisor')
+    await openViaAdvisor()
     const field = (n: string) =>
       handoffForm()!.querySelector<HTMLInputElement>(`[data-reco-input="handoff-${n}"]`)!.value
     expect(field('subject')).toBe('Sujet IA')
@@ -535,11 +618,7 @@ describe('mise en relation conseiller', () => {
     expect(
       spy.mock.calls.some(([i]) => urlOf(i).endsWith('/conversations/sess-7/handoff/draft'))
     ).toBe(true)
-    // Le CTA reste disponible sous la réponse ; le focus reste au composer.
-    expect(assistantEntries().at(-2)!.querySelector('[data-reco-action="advisor"]')).not.toBeNull()
-    await waitFor(() => expect(document.activeElement).toBe(textarea()))
-    // Ouverture automatique : pas de jalon « advisor » (aucun clic).
-    expect((window.dataLayer ?? []).map((p) => p.event)).not.toContain('reco_advisor')
+    expect((window.dataLayer ?? []).map((p) => p.event)).toContain('reco_advisor')
   })
 
   it('formulaire invalide : erreur affichée, champs marqués, rien n’est posté', async () => {
@@ -599,6 +678,107 @@ describe('mise en relation conseiller', () => {
     )
     const events = (window.dataLayer ?? []).map((p) => p.event)
     expect(events).toContain('reco_handoff')
+  })
+
+  it('pièces jointes : uploadées avant le handoff, jetons dans le corps', async () => {
+    const spy = mockFetch(async (input: unknown) => {
+      const url = urlOf(input)
+      if (url.includes('/upload')) return json({ upload_tokens: ['tok-1', 'tok-2'] })
+      if (url.includes('/users/') || url.includes('/handoff')) return ok('{}')
+      return ok(SSE('Hors périmètre', { out_of_scope: true, session_id: 'sess-up' }))
+    })
+    await type('x')
+    await openViaAdvisor()
+    fillValid(handoffForm()!)
+    const fileInput = handoffForm()!.querySelector<HTMLInputElement>(
+      '[data-reco-input="handoff-files"]'
+    )!
+    Object.defineProperty(fileInput, 'files', {
+      configurable: true,
+      value: [
+        new File(['a'], 'attestation.pdf', { type: 'application/pdf' }),
+        new File(['b'], 'photo.png', { type: 'image/png' })
+      ]
+    })
+    fileInput.dispatchEvent(new Event('change', { bubbles: true }))
+    // Noms des fichiers choisis affichés sous le bouton trombone.
+    expect(
+      handoffForm()!.querySelector('[data-reco-field="handoff-files-names"]')!.textContent
+    ).toBe('attestation.pdf, photo.png')
+    handoffForm()!.requestSubmit()
+    await waitFor(() =>
+      expect(spy.mock.calls.some(([i]) => urlOf(i).endsWith('/conversations/sess-up/upload'))).toBe(
+        true
+      )
+    )
+    const upload = spy.mock.calls.find(([i]) => urlOf(i).endsWith('/conversations/sess-up/upload'))!
+    const data = (upload[1] as { body: FormData }).body
+    expect(data).toBeInstanceOf(FormData)
+    expect(data.getAll('files')).toHaveLength(2)
+    // Pas de Content-Type JSON : la boundary multipart est posée par le navigateur.
+    expect(
+      (upload[1] as { headers: Record<string, string> }).headers['Content-Type']
+    ).toBeUndefined()
+    await waitFor(() =>
+      expect(
+        spy.mock.calls.some(([i]) => urlOf(i).endsWith('/conversations/sess-up/handoff'))
+      ).toBe(true)
+    )
+    const post = spy.mock.calls.find(([i]) => urlOf(i).endsWith('/conversations/sess-up/handoff'))!
+    expect(JSON.parse((post[1] as { body: string }).body).upload_tokens).toEqual(['tok-1', 'tok-2'])
+    await waitFor(() =>
+      expect(assistantEntries().at(-1)!.textContent).toContain('conseiller te contactera')
+    )
+  })
+
+  it('échec de l’upload : erreur réseau, saisie réactivée, handoff jamais posté', async () => {
+    const spy = mockFetch(async (input: unknown) => {
+      const url = urlOf(input)
+      if (url.includes('/upload')) return { ok: false, status: 415, headers: new Headers() }
+      if (url.includes('/users/') || url.includes('/handoff')) return ok('{}')
+      return ok(SSE('Hors périmètre', { out_of_scope: true, session_id: 'sess-up2' }))
+    })
+    await type('x')
+    await openViaAdvisor()
+    fillValid(handoffForm()!)
+    const fileInput = handoffForm()!.querySelector<HTMLInputElement>(
+      '[data-reco-input="handoff-files"]'
+    )!
+    Object.defineProperty(fileInput, 'files', {
+      configurable: true,
+      value: [new File(['a'], 'notes.txt', { type: 'text/plain' })]
+    })
+    handoffForm()!.requestSubmit()
+    await waitFor(() =>
+      expect(el.querySelector<HTMLElement>('[data-reco-field="handoff-error"]')!.hidden).toBe(false)
+    )
+    expect(
+      handoffForm()!.querySelector<HTMLInputElement>('[data-reco-input="handoff-subject"]')!
+        .disabled
+    ).toBe(false)
+    expect(spy.mock.calls.some(([i]) => urlOf(i).endsWith('/conversations/sess-up2/handoff'))).toBe(
+      false
+    )
+  })
+
+  it('sans pièce jointe : aucun upload, pas de upload_tokens', async () => {
+    const spy = mockFetch(async (input: unknown) => {
+      const url = urlOf(input)
+      if (url.includes('/users/') || url.includes('/handoff')) return ok('{}')
+      return ok(SSE('Hors périmètre', { out_of_scope: true, session_id: 'sess-up3' }))
+    })
+    await type('x')
+    await openViaAdvisor()
+    fillValid(handoffForm()!)
+    handoffForm()!.requestSubmit()
+    await waitFor(() =>
+      expect(
+        spy.mock.calls.some(([i]) => urlOf(i).endsWith('/conversations/sess-up3/handoff'))
+      ).toBe(true)
+    )
+    expect(spy.mock.calls.some(([i]) => urlOf(i).includes('/upload'))).toBe(false)
+    const post = spy.mock.calls.find(([i]) => urlOf(i).endsWith('/conversations/sess-up3/handoff'))!
+    expect(JSON.parse((post[1] as { body: string }).body)).not.toHaveProperty('upload_tokens')
   })
 
   it('422 de l’API : le champ fautif est marqué, la saisie reste possible', async () => {
@@ -816,5 +996,193 @@ describe('question de fin de conversation', () => {
     const body = JSON.parse((post[1] as { body: string }).body) as Record<string, unknown>
     expect(body.resolved).toBe(false)
     expect(body.score ?? null).toBeNull()
+  })
+})
+
+describe('restauration de session au rechargement', () => {
+  const urlOf = (input: unknown) => (typeof input === 'string' ? input : (input as Request).url)
+  const TURNS = [
+    {
+      turn_id: 'turn-1',
+      user: 'Je cherche un master',
+      assistant: 'Voici une piste [S1].',
+      citations: [
+        {
+          label: 'S1',
+          title: 'Master Informatique',
+          source_url: 'https://support.studely.com/hc/fr/articles/1-master'
+        }
+      ]
+    },
+    { turn_id: 'turn-2', user: 'Et la bourse ?', assistant: 'La bourse Studely couvre…' }
+  ]
+
+  /** Simule un rechargement : session persistée, fil vidé, ré-init. */
+  function reload(): void {
+    sessionStorage.setItem('studely.reco.session.mexique', 'sess-restored')
+    el.querySelector('[data-reco-thread]')!.replaceChildren()
+    StudelyReco.init(el)
+  }
+
+  function mockApi(state: object | null): ReturnType<typeof mockFetch> {
+    return mockFetch(async (input: unknown) => {
+      const url = urlOf(input)
+      if (url.includes('/turns')) return json(TURNS)
+      if (url.includes('/conversations?')) return json(state ? [state] : [])
+      return ok(SSE('Réponse', { session_id: 'sess-restored' }))
+    })
+  }
+
+  it('fil restauré : bulles user + assistant, citations et pouces du turn_id', async () => {
+    mockApi({ session_id: 'sess-restored', handoff_tickets: [], feedback: null })
+    reload()
+    await waitFor(() => expect(userEntries()).toHaveLength(2))
+    expect(assistantEntries()).toHaveLength(2)
+    expect(userEntries()[0]!.textContent).toContain('Je cherche un master')
+    expect(assistantEntries()[0]!.textContent).toContain('Voici une piste')
+    // Pas d'accueil en plus du fil restauré.
+    expect(el.querySelector('[data-reco-greeting]')).toBeNull()
+    const pill = assistantEntries()[0]!.querySelector('a[href*="support.studely.com"]')
+    expect(pill).not.toBeNull()
+    expect(el.querySelector('[data-reco-turn-id]')?.getAttribute('data-reco-turn-id')).toBe(
+      'turn-1'
+    )
+  })
+
+  it('ticket handoff existant → confirmation réaffichée', async () => {
+    mockApi({
+      session_id: 'sess-restored',
+      handoff_tickets: [{ ticket_id: 'zd-1', status: 'requested' }],
+      feedback: null
+    })
+    reload()
+    await waitFor(() =>
+      expect(assistantEntries().at(-1)!.textContent).toContain('conseiller te contactera')
+    )
+  })
+
+  it('feedback déjà donné → la question « résolu ? » n’est pas reposée', async () => {
+    mockApi({
+      session_id: 'sess-restored',
+      handoff_tickets: [],
+      feedback: { resolved: true, score: 8 }
+    })
+    reload()
+    await waitFor(() => expect(userEntries()).toHaveLength(2))
+    el.setAttribute('data-reco-open', '')
+    el.removeAttribute('data-reco-open')
+    await new Promise((r) => setTimeout(r, 700))
+    expect(document.querySelector('[data-reco-conv-feedback]')).toBeNull()
+  })
+
+  it('sans feedback enregistré → la question est posée normalement', async () => {
+    mockApi({ session_id: 'sess-restored', handoff_tickets: [], feedback: null })
+    reload()
+    await waitFor(() => expect(userEntries()).toHaveLength(2))
+    el.setAttribute('data-reco-open', '')
+    el.removeAttribute('data-reco-open')
+    await vi.waitFor(
+      () => expect(document.querySelector('[data-reco-conv-feedback]')).not.toBeNull(),
+      {
+        timeout: 2000
+      }
+    )
+  })
+
+  it('historique vide ou erreur → accueil classique', async () => {
+    mockFetch(async (input: unknown) => {
+      const url = urlOf(input)
+      if (url.includes('/turns')) return json([])
+      if (url.includes('/conversations?')) return json([])
+      return ok(SSE('x'))
+    })
+    reload()
+    await waitFor(() => expect(el.querySelector('[data-reco-greeting]')).not.toBeNull())
+    mockFetch(async () => {
+      throw new TypeError('fetch failed')
+    })
+    sessionStorage.setItem('studely.reco.session.mexique', 'sess-restored')
+    el.querySelector('[data-reco-thread]')!.replaceChildren()
+    StudelyReco.init(el)
+    await waitFor(() => expect(el.querySelector('[data-reco-greeting]')).not.toBeNull())
+  })
+
+  it('envoi avant la fin du chargement → restauration annulée', async () => {
+    // Les tours arrivent après l'envoi utilisateur : la génération a
+    // changé, le fil de l'utilisateur n'est pas écrasé.
+    let releaseTurns!: (r: Partial<Response>) => void
+    mockFetch(async (input: unknown) => {
+      const url = urlOf(input)
+      if (url.includes('/turns')) {
+        return new Promise<Partial<Response>>((resolve) => {
+          releaseTurns = resolve
+        })
+      }
+      if (url.includes('/conversations?')) return json([])
+      return ok(SSE('Réponse', { session_id: 'sess-restored' }))
+    })
+    reload()
+    await grant()
+    await type('urgent')
+    await waitFor(() => expect(userEntries()).toHaveLength(1))
+    releaseTurns(json(TURNS))
+    await new Promise((r) => setTimeout(r, 50))
+    expect(userEntries()).toHaveLength(1)
+    expect(userEntries()[0]!.textContent).toContain('urgent')
+  })
+})
+
+describe("effacement des données (droit à l'oubli)", () => {
+  const urlOf = (input: unknown) => (typeof input === 'string' ? input : (input as Request).url)
+  const erase = () => el.querySelector<HTMLButtonElement>('[data-reco-action="erase"]')!
+
+  it('un clic : DELETE /users, fil réinitialisé, user_id régénéré', async () => {
+    const spy = mockFetch(async (input: unknown) => {
+      const url = urlOf(input)
+      if (url.includes('/users/')) return { ok: true, status: 204, json: async () => null }
+      return ok(SSE('Réponse', { session_id: 'sess-del' }))
+    })
+    await grant()
+    await type('bonjour')
+    await waitFor(() => expect(userEntries()).toHaveLength(1))
+    const firstUserId = localStorage.getItem('studely.reco.user.mexique')
+    expect(firstUserId).not.toBeNull()
+    expect(sessionStorage.getItem('studely.reco.session.mexique')).toBe('sess-del')
+
+    // Un seul clic, sans confirmation : DELETE puis effacement local.
+    expect(erase().getAttribute('aria-label')).toBe('Nouvelle discussion')
+    erase().click()
+    await waitFor(() =>
+      expect(
+        spy.mock.calls.some(
+          ([i, init]) =>
+            urlOf(i).includes('/users/') && (init as { method?: string }).method === 'DELETE'
+        )
+      ).toBe(true)
+    )
+    await waitFor(() => expect(el.querySelector('[data-reco-greeting]')).not.toBeNull())
+    expect(userEntries()).toHaveLength(0)
+    expect(sessionStorage.getItem('studely.reco.session.mexique')).toBeNull()
+    const newUserId = localStorage.getItem('studely.reco.user.mexique')
+    expect(newUserId).not.toBe(firstUserId)
+    expect(erase().disabled).toBe(false)
+  })
+
+  it('échec du DELETE : annonce réseau, fil conservé, bouton restauré', async () => {
+    mockFetch(async (input: unknown) => {
+      const url = urlOf(input)
+      if (url.includes('/users/')) return { ok: false, status: 500, headers: new Headers() }
+      return ok(SSE('Réponse', { session_id: 'sess-del2' }))
+    })
+    await grant()
+    await type('bonjour')
+    await waitFor(() => expect(userEntries()).toHaveLength(1))
+    erase().click()
+    await waitFor(() =>
+      expect(el.querySelector('[data-reco-live]')!.textContent).toContain('Réseau')
+    )
+    expect(userEntries()).toHaveLength(1)
+    expect(sessionStorage.getItem('studely.reco.session.mexique')).toBe('sess-del2')
+    expect(erase().disabled).toBe(false)
   })
 })
