@@ -49,6 +49,26 @@ async function grant(): Promise<void> {
 }
 
 /** Tape un message et clique Envoyer. */
+// jsdom n'a pas DataTransfer : stub minimal pour le retrait de pièces
+// jointes (navigateur réel : API native). `files` y est mutable alors que
+// l'input est redéfini à chaque étape par le widget lui-même.
+class DataTransferStub {
+  private readonly list: File[] = []
+  readonly items = {
+    add: (file: File) => {
+      this.list.push(file)
+    }
+  }
+  get files(): File[] {
+    return [...this.list]
+  }
+}
+
+/** jsdom : `input.files` est en lecture seule — redéfinition directe. */
+function setFiles(input: HTMLInputElement, files: File[]): void {
+  Object.defineProperty(input, 'files', { configurable: true, writable: true, value: files })
+}
+
 async function type(text: string): Promise<void> {
   textarea().value = text
   el.querySelector<HTMLElement>('[data-reco-action="send"]')!.click()
@@ -701,10 +721,11 @@ describe('mise en relation conseiller', () => {
       ]
     })
     fileInput.dispatchEvent(new Event('change', { bubbles: true }))
-    // Noms des fichiers choisis affichés sous le bouton trombone.
-    expect(
-      handoffForm()!.querySelector('[data-reco-field="handoff-files-names"]')!.textContent
-    ).toBe('attestation.pdf, photo.png')
+    // Une pastille par fichier, chacune avec sa croix de retrait.
+    const chips = handoffForm()!.querySelectorAll('[data-reco-file-chip]')
+    expect(chips).toHaveLength(2)
+    expect(chips[0].querySelector('span')!.textContent).toBe('attestation.pdf')
+    expect(chips[1].querySelector('span')!.textContent).toBe('photo.png')
     handoffForm()!.requestSubmit()
     await waitFor(() =>
       expect(spy.mock.calls.some(([i]) => urlOf(i).endsWith('/conversations/sess-up/upload'))).toBe(
@@ -759,6 +780,30 @@ describe('mise en relation conseiller', () => {
     expect(spy.mock.calls.some(([i]) => urlOf(i).endsWith('/conversations/sess-up2/handoff'))).toBe(
       false
     )
+  })
+
+  it('pièces jointes : la croix retire le fichier de la liste', async () => {
+    vi.stubGlobal('DataTransfer', DataTransferStub)
+    mockFetch(async () => ok(SSE('Hors périmètre', { out_of_scope: true })))
+    await type('météo ?')
+    await openViaAdvisor()
+    const fileInput = handoffForm()!.querySelector<HTMLInputElement>(
+      '[data-reco-input="handoff-files"]'
+    )!
+    setFiles(fileInput, [
+      new File(['a'], 'attestation.pdf', { type: 'application/pdf' }),
+      new File(['b'], 'photo.png', { type: 'image/png' })
+    ])
+    fileInput.dispatchEvent(new Event('change', { bubbles: true }))
+    expect(handoffForm()!.querySelectorAll('[data-reco-file-chip]')).toHaveLength(2)
+    // Retire le premier : il ne reste que photo.png dans l'input.
+    handoffForm()!.querySelector<HTMLButtonElement>('[data-reco-remove-file="0"]')!.click()
+    expect(handoffForm()!.querySelectorAll('[data-reco-file-chip]')).toHaveLength(1)
+    expect([...(fileInput.files ?? [])].map((f) => f.name)).toEqual(['photo.png'])
+    // Retire le dernier : liste vide, conteneur masqué.
+    handoffForm()!.querySelector<HTMLButtonElement>('[data-reco-remove-file="0"]')!.click()
+    expect(fileInput.files).toHaveLength(0)
+    expect(handoffForm()!.querySelectorAll('[data-reco-file-chip]')).toHaveLength(0)
   })
 
   it('sans pièce jointe : aucun upload, pas de upload_tokens', async () => {

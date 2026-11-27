@@ -454,6 +454,15 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
   }
 
   /**
+   * Clé du message de validation : le format téléphone n'est rappelé que
+   * lorsque le téléphone (champ optionnel) est fautif — sinon le message
+   * laisserait croire qu'il est requis.
+   */
+  function invalidKey(invalid: string[]): string {
+    return invalid.includes('phone') ? 'reco.handoff.invalid.phone' : 'reco.handoff.invalid'
+  }
+
+  /**
    * Mise en relation : valide le formulaire (schéma HandoffForm) puis
    * transmet. Succès → la carte devient une confirmation ; 422 → champ
    * fautif marqué ; échec réseau → message, saisie réactivée.
@@ -473,21 +482,27 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
     const invalid = invalidHandoffFields(form, values)
     markInvalid(form, invalid)
     if (invalid.length > 0) {
-      fail('reco.handoff.invalid')
+      fail(invalidKey(invalid))
       return
     }
     if (errorField) errorField.hidden = true
     const controls = form.querySelectorAll<HTMLButtonElement>('input, textarea, button')
     controls.forEach((control) => (control.disabled = true))
+    // Spinner sur le bouton tant que l'envoi tourne (upload + POST).
+    form.dataset.recoSending = ''
+    const endSending = () => {
+      delete form.dataset.recoSending
+      controls.forEach((control) => (control.disabled = false))
+    }
     const uploadTokens = await uploadAttachments(form)
     if (uploadTokens === null) {
-      controls.forEach((control) => (control.disabled = false))
+      endSending()
       fail('reco.error.network')
       return
     }
     const outcome = await deliverHandoff(values, uploadTokens)
     if (outcome !== 'ok') {
-      controls.forEach((control) => (control.disabled = false))
+      endSending()
       if (outcome === 'network') {
         fail('reco.error.network')
       } else {
@@ -497,6 +512,7 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
       }
       return
     }
+    delete form.dataset.recoSending
     const card = form.closest<HTMLElement>('[data-reco-msg]')
     if (card) {
       card.querySelector('[data-reco-bubble]')?.replaceChildren()
@@ -690,12 +706,61 @@ function mount(el: HTMLElement, config: WidgetConfig, signal: AbortSignal): void
       if (!(input instanceof HTMLInputElement)) return
       if (input.matches('[data-reco-input="consent"]')) consentGranted(input.checked)
       if (input.matches('[data-reco-input="handoff-files"]')) {
-        const names = input.parentElement?.querySelector('[data-reco-field="handoff-files-names"]')
-        if (names) names.textContent = [...(input.files ?? [])].map((f) => f.name).join(', ')
+        // 3 pièces jointes max : au-delà la sélection est tronquée.
+        const files = [...(input.files ?? [])]
+        if (files.length > 3) {
+          const trimmed = new DataTransfer()
+          files.slice(0, 3).forEach((f) => trimmed.items.add(f))
+          input.files = trimmed.files
+        }
+        renderFileChips(input)
       }
     },
     { signal }
   )
+
+  /**
+   * Pièces jointes choisies : une pastille par fichier avec sa croix de
+   * retrait. `input.files` est en lecture seule — la liste est reconstruite
+   * via DataTransfer sans le fichier retiré. « Annuler » dans le sélecteur
+   * ne change pas la liste (Chrome ne redéclenche pas `change`).
+   */
+  function renderFileChips(input: HTMLInputElement): void {
+    const names = input
+      .closest('[data-reco-attach]')
+      ?.querySelector('[data-reco-field="handoff-files-names"]')
+    if (!names) return
+    names.replaceChildren()
+    ;[...(input.files ?? [])].forEach((file, index) => {
+      const chip = document.createElement('span')
+      chip.dataset.recoFileChip = ''
+      const label = document.createElement('span')
+      label.textContent = file.name
+      const remove = document.createElement('button')
+      remove.type = 'button'
+      remove.dataset.recoRemoveFile = String(index)
+      remove.setAttribute('aria-label', `Retirer ${file.name}`)
+      remove.textContent = '×'
+      remove.addEventListener(
+        'click',
+        (event) => {
+          // La pastille vit dans le <label> : sans cela le clic remonte au
+          // label et rouvre le sélecteur de fichiers au lieu de retirer.
+          event.preventDefault()
+          event.stopPropagation()
+          const rest = new DataTransfer()
+          ;[...(input.files ?? [])].forEach((f, i) => {
+            if (i !== index) rest.items.add(f)
+          })
+          input.files = rest.files
+          renderFileChips(input)
+        },
+        { signal }
+      )
+      chip.append(label, remove)
+      names.append(chip)
+    })
+  }
 
   // Saisie : hauteur auto (3 lignes max via CSS), Entrée envoie, Maj+Entrée
   // garde le saut de ligne. La soumission native couvre le bouton clavier.
