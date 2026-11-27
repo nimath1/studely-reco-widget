@@ -12,6 +12,7 @@
       data-reco-erase
       aria-label="Nouvelle discussion"
       title="Nouvelle discussion"
+      hidden
     >
       <svg
         viewBox="0 0 24 24"
@@ -22,9 +23,9 @@
         stroke-linejoin="round"
         aria-hidden="true"
       >
-        <path d="M12 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6" />
-        <path d="M18.4 2.6a2 2 0 0 1 2.9 2.9L12 14.8l-3.8 1 1-3.8 9.2-9.4Z" />
+        <path d="M12 5v14M5 12h14" />
       </svg>
+      <span data-reco-erase-label>Nouvelle discussion</span>
     </button>
     <button type="button" data-reco-close aria-label="Fermer l'assistant">
       <svg

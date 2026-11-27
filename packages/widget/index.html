@@ -256,17 +256,70 @@
         outline-offset: 2px;
         border-radius: 8px;
       }
-      /* "New conversation" + close icons, pushed to the trailing edge. */
+      /* "New conversation" + close icons, pushed to the trailing edge.
+         La marge auto va sur le premier des deux visible : quand « + »
+         est masqué (pas de conversation), la croix garde le bord droit. */
       [data-reco-widget] > header button:is([data-reco-close], [data-reco-erase]) {
         min-width: var(--reco-control);
-        margin-inline-start: auto;
         border-radius: 999px;
+      }
+      [data-reco-widget] > header button[data-reco-erase]:not([hidden]),
+      [data-reco-widget] > header button[data-reco-erase][hidden] + button[data-reco-close] {
+        margin-inline-start: auto;
+      }
+      /* Nouvelle discussion : pilule rouge de marque « + » + libellé,
+         centrés ensemble. Sur petit écran le texte tombe, la pastille
+         redevient un cercle. */
+      [data-reco-widget] > header button[data-reco-erase] {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        width: auto;
+        height: 32px;
+        min-width: 32px;
+        min-height: 32px;
+        padding: 0 12px 0 9px;
+        align-self: center;
+        border: none;
+        background: #d13a5c;
+        color: #fff;
+        font-size: 0.8rem;
+        font-weight: 600;
+        line-height: 1;
+        white-space: nowrap;
+        box-shadow: 0 1px 3px rgb(231 78 112 / 40%);
+        transition:
+          transform 0.15s var(--reco-ease-out),
+          background 0.15s var(--reco-ease-out);
+      }
+      [data-reco-widget] > header button[data-reco-erase] svg {
+        width: 15px;
+        height: 15px;
+        flex-shrink: 0;
+      }
+      [data-reco-widget] > header button[data-reco-erase]:active {
+        transform: scale(0.96);
+      }
+      @media (max-width: 480px) {
+        [data-reco-widget] > header button[data-reco-erase] {
+          width: 32px;
+          padding: 0;
+          justify-content: center;
+        }
+        [data-reco-widget] > header button[data-reco-erase] [data-reco-erase-label] {
+          display: none;
+        }
       }
       [data-reco-widget] > header button[data-reco-erase] + button[data-reco-close] {
         margin-inline-start: 4px;
       }
-      [data-reco-widget] > header button:is([data-reco-close], [data-reco-erase]):hover {
+      [data-reco-widget] > header button[data-reco-close]:hover {
         background: var(--reco-surface);
+      }
+      [data-reco-widget] > header button[data-reco-erase]:hover {
+        background: #b92c50;
+        color: #fff;
+        transform: scale(1.05);
       }
       [data-reco-widget] > header button[data-reco-erase]:disabled {
         opacity: 0.6;
@@ -340,6 +393,13 @@
         box-shadow: 0 1px 4px rgb(21 24 43 / 6%);
         flex-shrink: 0;
       }
+      [data-reco-avatar] img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 9px;
+      }
+      /* Étincelle de l'accueil (les réponses portent le logo de marque). */
       [data-reco-avatar] svg {
         width: 16px;
         height: 16px;
@@ -913,11 +973,13 @@
         opacity: 0;
       }
       [data-reco-attach-button] {
-        /* Full width, same height and radius as the other fields. */
+        /* Full width, same height and radius as the other fields — content
+           left-aligned like the field values; only the submit stays
+           centered at the bottom of the form. */
         box-sizing: border-box;
         display: flex;
         align-items: center;
-        justify-content: center;
+        justify-content: flex-start;
         gap: 8px;
         width: 100%;
         min-height: 46px;
@@ -946,8 +1008,15 @@
         outline-offset: 1px;
       }
       [data-reco-field='handoff-files-names'] {
-        font-weight: 400;
-        color: var(--reco-ink-muted);
+        /* Le nom choisi doit sauter aux yeux — texte plein dans une
+           pastille, pas une discrète ligne grise. */
+        margin-top: 8px;
+        padding: 6px 10px;
+        border: 1px solid var(--reco-rule);
+        border-radius: 8px;
+        background: var(--reco-surface);
+        font-weight: 500;
+        color: var(--reco-ink);
         overflow-wrap: anywhere;
       }
       [data-reco-field='handoff-files-names']:empty {
@@ -1146,15 +1215,20 @@
       /* One uniform well: the focus ring lives on the group, the textarea
          itself stays transparent (no white rectangle inside the well). */
       [data-reco-input-row]:focus-within {
-        outline: 3px solid var(--reco-primary);
-        outline-offset: 1px;
+        /* Anneau unique : offset nul pour que l'outline colle à la
+           bordure — un offset positif laisserait un liseré blanc qui
+           donne l'impression de deux bordures. */
+        outline: 1px solid var(--reco-primary);
+        outline-offset: 0;
         border-color: var(--reco-primary);
       }
       [data-reco-input='message'] {
         flex: 1;
         min-width: 0;
         min-height: var(--reco-control);
-        max-height: calc(var(--reco-control) * 3);
+        /* 3 lignes de texte max : 4.5em + le padding vertical
+           (control − 1.5em) = control + 3em. */
+        max-height: calc(var(--reco-control) + 3em);
         padding: calc((var(--reco-control) - 1.5em) / 2) 12px;
         border: none;
         border-radius: 10px;

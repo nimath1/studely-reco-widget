@@ -5,11 +5,7 @@
     </div>
     <div data-reco-template="msg-assistant" data-reco-msg="assistant">
       <span data-reco-avatar aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="currentColor">
-          <path
-            d="M12 2.6 13.8 8l5.4 1.8-5.4 1.8L12 17.2 10.2 11.6 4.8 9.8 10.2 8 12 2.6ZM18.5 15l.9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9.9-2.6Z"
-          />
-        </svg>
+        <img src="/studely-brand.jpg" width="32" height="32" alt="" />
       </span>
       <div data-reco-bubble>
         <div data-reco-field="text"></div>
@@ -62,11 +58,7 @@
          POST /handoff/draft, identité par GET /users/{id}. -->
     <div data-reco-template="handoff-form" data-reco-msg="assistant">
       <span data-reco-avatar aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="currentColor">
-          <path
-            d="M12 2.6 13.8 8l5.4 1.8-5.4 1.8L12 17.2 10.2 11.6 4.8 9.8 10.2 8 12 2.6ZM18.5 15l.9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9.9-2.6Z"
-          />
-        </svg>
+        <img src="/studely-brand.jpg" width="32" height="32" alt="" />
       </span>
       <div data-reco-bubble>
         <p data-reco-field="text"></p>
