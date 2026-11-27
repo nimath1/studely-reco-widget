@@ -2,6 +2,7 @@ import {
   API_BASE_URL,
   clearChatSession,
   ensureUserId,
+  hasStoredChatSession,
   loadChatSession,
   parseSse,
   postChat,
@@ -127,6 +128,23 @@ describe('session /chat', () => {
       throw new DOMException('Accès refusé', 'SecurityError')
     })
     expect(loadChatSession('mexique')).toBeNull()
+    vi.restoreAllMocks()
+  })
+
+  it('hasStoredChatSession : vrai dès qu’une origine a une session, faux sinon', () => {
+    sessionStorage.clear()
+    expect(hasStoredChatSession()).toBe(false)
+    saveChatSession('bresil', 's9')
+    expect(hasStoredChatSession()).toBe(true)
+    clearChatSession('bresil')
+    expect(hasStoredChatSession()).toBe(false)
+  })
+
+  it('hasStoredChatSession : faux si le storage lève (mode privé)', () => {
+    vi.spyOn(Storage.prototype, 'key').mockImplementation(() => {
+      throw new DOMException('Accès refusé', 'SecurityError')
+    })
+    expect(hasStoredChatSession()).toBe(false)
     vi.restoreAllMocks()
   })
 })

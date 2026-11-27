@@ -21,7 +21,8 @@ export const SCENARIOS = [
   'timeout',
   'bad-url',
   'html-reason',
-  'handoff'
+  'handoff',
+  'restore'
 ] as const
 
 export type Scenario = (typeof SCENARIOS)[number]
@@ -158,9 +159,41 @@ export const handlers = [
     })
   ),
 
-  // Restauration au rechargement : fil vide dans le mock (l'accueil
-  // reprend la main), état sans ticket ni feedback.
-  http.get(`${BASE()}/conversations/:sessionId/turns`, () => HttpResponse.json([])),
+  // Restauration au rechargement : fil fixe à deux tours, mais seulement
+  // dans le scénario dédié — partout ailleurs l'historique vide laisse
+  // l'accueil reprendre la main (un test qui enchaîne deux navigations
+  // dans le même onglet garde la session en sessionStorage).
+  http.get(`${BASE()}/conversations/:sessionId/turns`, () =>
+    HttpResponse.json(
+      currentScenario() !== 'restore'
+        ? []
+        : [
+            {
+              turn_id: 'mock-turn-1',
+              user: 'Je cherche un master',
+              assistant: 'Voici une piste adaptée à ton profil.',
+              citations: []
+            },
+            {
+              turn_id: 'mock-turn-2',
+              user: 'Et la bourse ?',
+              // Texte long volontairement : le fil restauré doit dépasser la
+              // hauteur du panneau pour que le scroll de restauration soit
+              // vérifiable en e2e.
+              assistant:
+                'La bourse Studely couvre une partie des frais de dossier et de scolarité. ' +
+                'Elle est attribuée selon le profil académique, le pays de destination et le ' +
+                'niveau d’études visé. Les critères principaux sont la qualité du parcours, ' +
+                'la cohérence du projet professionnel et la capacité de financement restante. ' +
+                'Le montant varie de quelques centaines à plusieurs milliers d’euros, versé ' +
+                'en une ou plusieurs fois selon le calendrier universitaire. Un conseiller ' +
+                'peut estimer ton éligibilité en quelques minutes et t’indiquer les pièces ' +
+                'à préparer pour le dossier.',
+              citations: []
+            }
+          ]
+    )
+  ),
   http.get(`${BASE()}/conversations`, () => HttpResponse.json([])),
 
   // Pièces jointes du formulaire conseiller : un jeton factice par fichier.

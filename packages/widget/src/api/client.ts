@@ -175,6 +175,25 @@ export function loadChatSession(origin: string): string | null {
   }
 }
 
+/**
+ * Vrai si une session /chat est persistée, toute origine confondue. Sert
+ * à l'init immédiate au chargement : fermé, le bloc est hors viewport et
+ * l'init différée ne se déclencherait qu'à l'ouverture — le fil restauré
+ * doit être prêt avant.
+ */
+export function hasStoredChatSession(): boolean {
+  try {
+    const store = storage()
+    if (!store) return false
+    for (let i = 0; i < store.length; i++) {
+      if (store.key(i)?.startsWith(SESSION_KEY_PREFIX)) return true
+    }
+    return false
+  } catch {
+    return false
+  }
+}
+
 export function saveChatSession(origin: string, sessionId: string | undefined): void {
   if (!sessionId) return
   try {
